@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash
 from datetime import datetime, timedelta
 from decimal import Decimal
 from sqlalchemy import func
-from .models import Titulo, Ativo, ContaContabil, TipoConta, TipoTitulo, StatusTitulo, PartidaDiario, LivroDiario, Entidade, TipoEntidade, TipoAtivo, db
+from .models import Titulo, Ativo, ContaContabil, TipoConta, TipoTitulo, StatusTitulo, PartidaDiario, LivroDiario, Entidade, TipoEntidade, TipoAtivo, Configuracao, db
 from .services import FinancialService
 
 financeiro_bp = Blueprint('financeiro', __name__, url_prefix='/financeiro')
@@ -294,9 +294,25 @@ def novo_banco():
             
             # 5. Saldo Inicial
             if saldo_inicial > 0:
-                conta_capital = ContaContabil.query.filter(ContaContabil.nome.like('%Capital%')).first()
+                # Buscar conta de contrapartida via Parâmetros (Configuracao)
+                conta_pl_id = Configuracao.get_valor('conta_ativo_banco')
+                conta_capital = None
+                
+                if conta_pl_id:
+                    conta_capital = db.session.get(ContaContabil, int(conta_pl_id))
+                
+                # Fallback se não estiver configurado (manter busca por texto mas validar analítica)
                 if not conta_capital:
-                     conta_capital = ContaContabil.query.filter(ContaContabil.tipo == TipoConta.PATRIMONIO_LIQUIDO.value).first()
+                    conta_capital = ContaContabil.query.filter(
+                        ContaContabil.nome.like('%Capital%'),
+                        ContaContabil.is_analitica == True
+                    ).first()
+                
+                if not conta_capital:
+                     conta_capital = ContaContabil.query.filter(
+                         ContaContabil.tipo == TipoConta.PATRIMONIO_LIQUIDO.value,
+                         ContaContabil.is_analitica == True
+                     ).first()
                 
                 if conta_capital:
                     FinancialService.realizar_transferencia_generica(
@@ -359,9 +375,28 @@ def editar_banco(banco_id):
             # 2. Ajuste de Saldo (Contabilidade)
             if novo_valor != saldo_atual:
                 diferenca = novo_valor - saldo_atual
-                conta_ajustes = ContaContabil.query.filter(ContaContabil.nome.like('%Ajustes%')).first()
+                
+                # Buscar conta de contrapartida via Parâmetros (Configuracao)
+                conta_pl_id = Configuracao.get_valor('conta_ativo_banco')
+                conta_ajustes = None
+                
+                if conta_pl_id:
+                    conta_ajustes = db.session.get(ContaContabil, int(conta_pl_id))
+
                 if not conta_ajustes:
-                    conta_ajustes = ContaContabil.query.filter(ContaContabil.tipo == TipoConta.PATRIMONIO_LIQUIDO.value).first()
+                    conta_ajustes = ContaContabil.query.filter(
+                        ContaContabil.nome.like('%Ajustes%'),
+                        ContaContabil.is_analitica == True
+                    ).first()
+                
+                if not conta_ajustes:
+                    conta_ajustes = ContaContabil.query.filter(
+                        ContaContabil.tipo == TipoConta.PATRIMONIO_LIQUIDO.value,
+                        ContaContabil.is_analitica == True
+                    ).first()
+                
+                if not conta_ajustes:
+                    raise ValueError("Nenhuma conta de contrapartida (PL) encontrada para o ajuste. Verifique os Parâmetros Contábeis.")
                 
                 if diferenca > 0:
                     # Aumentar saldo: D: Banco / C: Ajustes

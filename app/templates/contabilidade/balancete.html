@@ -45,60 +45,101 @@
     <div class="card"
         style="padding: 0; overflow: hidden; flex-grow: 1; display: flex; flex-direction: column; min-height: 0;">
         <div class="table-container" style="flex-grow: 1; display: flex; flex-direction: column; overflow: hidden;">
-            <div class="table-scroll">
-                <table style="width: 100%; border-collapse: collapse;">
+            <div class="table-scroll"
+                style="overflow: auto; height: calc(100vh - 300px); border: 1px solid var(--border-color); border-radius: 4px; display: flex; flex-direction: column;">
+                <table style="width: 100%; border-collapse: collapse; min-height: 100%;">
                     <thead
                         style="position: sticky; top: 0; z-index: 10; background-color: var(--table-header-bg); border-bottom: 2px solid var(--border-color);">
                         <tr>
-                            <th style="width: 100px; padding: 0.75rem;">Código</th>
-                            <th style="padding: 0.75rem;">Conta</th>
-                            <th style="width: 140px; text-align: right; padding: 0.75rem;">Saldo Anterior</th>
-                            <th style="width: 120px; text-align: right; padding: 0.75rem;">Débitos</th>
-                            <th style="width: 120px; text-align: right; padding: 0.75rem;">Créditos</th>
-                            <th style="width: 140px; text-align: right; padding: 0.75rem;">Saldo Atual</th>
+                            <th rowspan="2"
+                                style="width: 100px; padding: 0.75rem; border: 1px solid var(--border-color);">Código
+                            </th>
+                            <th rowspan="2" style="padding: 0.75rem; border: 1px solid var(--border-color);">Conta</th>
+                            <th colspan="2"
+                                style="text-align: center; padding: 0.5rem; border: 1px solid var(--border-color);">
+                                Saldo Anterior</th>
+                            <th colspan="2"
+                                style="text-align: center; padding: 0.5rem; border: 1px solid var(--border-color);">
+                                Movimentação (Período)</th>
+                            <th colspan="2"
+                                style="text-align: center; padding: 0.5rem; border: 1px solid var(--border-color);">
+                                Saldo Atual</th>
+                        </tr>
+                        <tr>
+                            <th
+                                style="width: 130px; text-align: right; padding: 0.3rem; border: 1px solid var(--border-color);">
+                                Devedor</th>
+                            <th
+                                style="width: 130px; text-align: right; padding: 0.3rem; border: 1px solid var(--border-color);">
+                                Credor</th>
+                            <th
+                                style="width: 130px; text-align: right; padding: 0.3rem; border: 1px solid var(--border-color);">
+                                Débito</th>
+                            <th
+                                style="width: 130px; text-align: right; padding: 0.3rem; border: 1px solid var(--border-color);">
+                                Crédito</th>
+                            <th
+                                style="width: 130px; text-align: right; padding: 0.3rem; border: 1px solid var(--border-color);">
+                                Devedor</th>
+                            <th
+                                style="width: 130px; text-align: right; padding: 0.3rem; border: 1px solid var(--border-color);">
+                                Credor</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for item in balancete %}
                         {% if item.nivel == 1 and not loop.first %}
-                        <tr style="height: 1.5rem; background-color: transparent; border: none;">
-                            <td colspan="6" style="border: none;"></td>
+                        <tr style="height: 0.5rem; background-color: transparent;">
+                            <td colspan="8" style="border: none;"></td>
                         </tr>
                         {% endif %}
-                        <tr
-                            style="border-bottom: 1px solid var(--border-color); {% if item.nivel == 1 %}background-color: var(--table-header-bg); font-weight: bold;{% elif item.nivel == 2 %}font-weight: 600;{% endif %}">
-                            <td style="padding: 0.6rem 0.75rem; font-family: monospace;">{{ item.codigo }}</td>
-                            <td style="padding: 0.6rem 0.75rem; padding-left: {{ (item.nivel - 1) * 1.5 }}rem;">
+                        <tr data-codigo="{{ item.codigo }}"
+                            class="balancete-row {% if not item.analitica %}parent-row{% endif %}"
+                            style="border-bottom: 1px solid var(--border-color); cursor: {% if not item.analitica %}pointer{% else %}default{% endif %}; {% if item.nivel == 1 %}background-color: var(--bg-muted); font-weight: bold;{% elif item.nivel == 2 %}font-weight: 600;{% endif %}"
+                            {% if not item.analitica %}onclick="toggleRow('{{ item.codigo }}')" {% endif %}>
+                            <td style="padding: 0.3rem 0.75rem; font-family: monospace;">
+                                {% if not item.analitica %}
+                                <span class="toggle-icon" id="icon-{{ item.codigo }}"
+                                    style="display: inline-block; width: 1rem; transition: transform 0.2s;">▼</span>
+                                {% else %}
+                                <span style="display: inline-block; width: 1rem;"></span>
+                                {% endif %}
+                                {{ item.codigo }}
+                            </td>
+                            <td style="padding: 0.3rem 0.75rem; padding-left: {{ (item.nivel - 1) * 1.5 }}rem;">
                                 {{ item.nome }}
                             </td>
-                            <td style="padding: 0.6rem 0.75rem; text-align: right;"
-                                class="{{ 'text-success' if item.saldo_anterior > 0 else ('text-danger' if item.saldo_anterior < 0 else '') }}">
-                                R$ {{ "{:,.2f}".format(item.saldo_anterior).replace(",", "X").replace(".",
-                                ",").replace("X", ".") }}
+                            <!-- Saldo Anterior -->
+                            <td style="padding: 0.3rem 0.75rem; text-align: right; color: #2563eb; opacity: 0.85;">
+                                {{ "R$ {:,.2f}".format(item.saldo_ant_deb).replace(",", "X").replace(".",
+                                ",").replace("X", ".") if item.saldo_ant_deb > 0 else "-" }}
                             </td>
-                            <td style="padding: 0.6rem 0.75rem; text-align: right; 
-                                color: {{ '#dc2626' if item.codigo.startswith('3') else '#2563eb' }};">
-                                R$ {{ "{:,.2f}".format(item.debitos).replace(",", "X").replace(".", ",").replace("X",
-                                ".") }}
+                            <td style="padding: 0.3rem 0.75rem; text-align: right; color: #dc2626; opacity: 0.85;">
+                                {{ "R$ {:,.2f}".format(item.saldo_ant_cre).replace(",", "X").replace(".",
+                                ",").replace("X", ".") if item.saldo_ant_cre > 0 else "-" }}
                             </td>
-                            <td style="padding: 0.6rem 0.75rem; text-align: right; 
-                                color: {{ '#2563eb' if item.codigo.startswith('3') else '#dc2626' }};">
-                                R$ {{ "{:,.2f}".format(item.creditos).replace(",", "X").replace(".", ",").replace("X",
-                                ".") }}
+                            <!-- Movimento -->
+                            <td style="padding: 0.3rem 0.75rem; text-align: right; color: #2563eb;">
+                                {{ "R$ {:,.2f}".format(item.debitos).replace(",", "X").replace(".", ",").replace("X",
+                                ".") if item.debitos > 0 else "-" }}
                             </td>
-                            <td style="padding: 0.6rem 0.75rem; text-align: right; font-weight: bold; 
-                                {% if item.tipo in ['Ativo', 'Patrimônio Líquido', 'Receita'] %}
-                                    color: #16a34a; /* Verde */
-                                {% elif item.tipo in ['Passivo', 'Despesa'] %}
-                                    color: #b91c1c; /* Vermelho Diferenciado (Vinho) */
-                                {% endif %}">
-                                R$ {{ "{:,.2f}".format(item.saldo_atual).replace(",", "X").replace(".",
-                                ",").replace("X", ".") }}
+                            <td style="padding: 0.3rem 0.75rem; text-align: right; color: #dc2626;">
+                                {{ "R$ {:,.2f}".format(item.creditos).replace(",", "X").replace(".", ",").replace("X",
+                                ".") if item.creditos > 0 else "-" }}
+                            </td>
+                            <!-- Saldo Atual -->
+                            <td style="padding: 0.3rem 0.75rem; text-align: right; font-weight: bold; color: #2563eb;">
+                                {{ "R$ {:,.2f}".format(item.saldo_atu_deb).replace(",", "X").replace(".",
+                                ",").replace("X", ".") if item.saldo_atu_deb > 0 else "-" }}
+                            </td>
+                            <td style="padding: 0.3rem 0.75rem; text-align: right; font-weight: bold; color: #dc2626;">
+                                {{ "R$ {:,.2f}".format(item.saldo_atu_cre).replace(",", "X").replace(".",
+                                ",").replace("X", ".") if item.saldo_atu_cre > 0 else "-" }}
                             </td>
                         </tr>
                         {% else %}
                         <tr>
-                            <td colspan="6" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                            <td colspan="8" style="text-align: center; padding: 3rem; color: var(--text-muted);">
                                 Nenhuma movimentação encontrada para o período selecionado.
                             </td>
                         </tr>
@@ -107,23 +148,29 @@
                     <tfoot
                         style="position: sticky; bottom: 0; z-index: 10; background-color: var(--table-header-bg); border-top: 2px solid var(--border-color); font-weight: bold;">
                         <tr>
-                            <td colspan="2" style="padding: 0.75rem; text-align: right;">TOTAIS:</td>
-                            <td style="padding: 0.75rem; text-align: right; color: var(--text-main);">
-                                R$ {{ "{:,.2f}".format(totais.saldo_anterior).replace(",", "X").replace(".",
+                            <td colspan="2" style="padding: 0.4rem 0.75rem; text-align: right;">TOTAIS:</td>
+                            <td style="padding: 0.4rem 0.75rem; text-align: right; color: #2563eb; opacity: 0.85;">
+                                R$ {{ "{:,.2f}".format(totais.saldo_ant_deb).replace(",", "X").replace(".",
                                 ",").replace("X", ".") }}
                             </td>
-                            <td
-                                style="padding: 0.75rem; text-align: right; color: #2563eb; border-left: 2px solid var(--border-color);">
+                            <td style="padding: 0.4rem 0.75rem; text-align: right; color: #dc2626; opacity: 0.85;">
+                                R$ {{ "{:,.2f}".format(totais.saldo_ant_cre).replace(",", "X").replace(".",
+                                ",").replace("X", ".") }}
+                            </td>
+                            <td style="padding: 0.4rem 0.75rem; text-align: right; color: #2563eb;">
                                 R$ {{ "{:,.2f}".format(totais.debitos).replace(",", "X").replace(".", ",").replace("X",
                                 ".") }}
                             </td>
-                            <td
-                                style="padding: 0.75rem; text-align: right; color: #dc2626; border-right: 2px solid var(--border-color);">
+                            <td style="padding: 0.4rem 0.75rem; text-align: right; color: #dc2626;">
                                 R$ {{ "{:,.2f}".format(totais.creditos).replace(",", "X").replace(".", ",").replace("X",
                                 ".") }}
                             </td>
-                            <td style="padding: 0.75rem; text-align: right; color: var(--text-main);">
-                                R$ {{ "{:,.2f}".format(totais.saldo_atual).replace(",", "X").replace(".",
+                            <td style="padding: 0.4rem 0.75rem; text-align: right; color: #2563eb;">
+                                R$ {{ "{:,.2f}".format(totais.saldo_atu_deb).replace(",", "X").replace(".",
+                                ",").replace("X", ".") }}
+                            </td>
+                            <td style="padding: 0.4rem 0.75rem; text-align: right; color: #dc2626;">
+                                R$ {{ "{:,.2f}".format(totais.saldo_atu_cre).replace(",", "X").replace(".",
                                 ",").replace("X", ".") }}
                             </td>
                         </tr>
@@ -135,9 +182,10 @@
 
     <div style="margin-top: 1rem; display: flex; justify-content: space-between; align-items: center;">
         <div style="color: var(--text-muted); font-size: 0.85rem; display: flex; gap: 2rem;">
-            <span><strong>Dica:</strong> O saldo atual considera a natureza da conta (Devedora ou Credora).</span>
-            <span><span style="color: #2563eb;">●</span> Débitos</span>
-            <span><span style="color: #dc2626;">●</span> Créditos</span>
+            <span><strong>Dica:</strong> Em contabilidade, contas de **Ativo** (Bancos, Caixa) têm natureza **Devedora
+                (Azul)**, enquanto **Passivos** e **Receitas** são **Credores (Vermelho)**.</span>
+            <span><span style="color: #2563eb;">●</span> Devedor/Débito</span>
+            <span><span style="color: #dc2626;">●</span> Credor/Crédito</span>
         </div>
 
         {% set diff = (totais.debitos - totais.creditos) | abs %}
@@ -151,5 +199,38 @@
                 .format(diff).replace(",", "X" ).replace(".", "," ).replace("X", "." ) }} {% endif %} </div>
         </div>
     </div>
+
+    <script>
+        function toggleRow(codigo) {
+            const icon = document.getElementById('icon-' + codigo);
+            const rows = document.querySelectorAll('.balancete-row');
+            let isHiding = false;
+
+            if (icon.style.transform === 'rotate(-90deg)') {
+                icon.style.transform = 'rotate(0deg)';
+                isHiding = false;
+            } else {
+                icon.style.transform = 'rotate(-90deg)';
+                isHiding = true;
+            }
+
+            rows.forEach(row => {
+                const rowCodigo = row.getAttribute('data-codigo');
+                if (rowCodigo && rowCodigo !== codigo && rowCodigo.startsWith(codigo + '.')) {
+                    if (isHiding) {
+                        row.style.display = 'none';
+                        const subIcon = document.getElementById('icon-' + rowCodigo);
+                        if (subIcon) subIcon.style.transform = 'rotate(-90deg)';
+                    } else {
+                        const parentParts = codigo.split('.').length;
+                        const childParts = rowCodigo.split('.').length;
+                        if (childParts === parentParts + 1) {
+                            row.style.display = '';
+                        }
+                    }
+                }
+            });
+        }
+    </script>
     {% include 'contabilidade/dialog_parametros.html' %}
     {% endblock %}

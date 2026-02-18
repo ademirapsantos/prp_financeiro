@@ -296,19 +296,25 @@ def get_balancete_results(data_inicio, data_fim):
             cre_per_total += per[1]
             
         if conta.natureza == 'Devedora':
-            saldo_anterior = deb_ant_total - cre_ant_total
-            saldo_atual = saldo_anterior + deb_per_total - cre_per_total
+            saldo_anterior_net = deb_ant_total - cre_ant_total
+            saldo_atual_net = saldo_anterior_net + deb_per_total - cre_per_total
+            
+            saldo_ant_deb = saldo_anterior_net if saldo_anterior_net > 0 else 0
+            saldo_ant_cre = abs(saldo_anterior_net) if saldo_anterior_net < 0 else 0
+            saldo_atu_deb = saldo_atual_net if saldo_atual_net > 0 else 0
+            saldo_atu_cre = abs(saldo_atual_net) if saldo_atual_net < 0 else 0
         else:
-            saldo_anterior = cre_ant_total - deb_ant_total
-            saldo_atual = saldo_anterior + cre_per_total - deb_per_total
+            # Natureza Credora: Saldo positivo é crédito
+            saldo_anterior_net = cre_ant_total - deb_ant_total
+            saldo_atual_net = saldo_anterior_net + cre_per_total - deb_per_total
             
-        # --- SINCRONIZAÇÃO COM DASHBOARD (GRUPO 3: PATRIMÔNIO LÍQUIDO) ---
-        # Removido: O balancete agora reflete puramente os lançamentos do livro diário.
-        # Isso garante que a equação Ativo = Passivo + PL se mantenha correta sem redundâncias.
-        # -----------------------------------------------------------------
-            
+            saldo_ant_cre = saldo_anterior_net if saldo_anterior_net > 0 else 0
+            saldo_ant_deb = abs(saldo_anterior_net) if saldo_anterior_net < 0 else 0
+            saldo_atu_cre = saldo_atual_net if saldo_atual_net > 0 else 0
+            saldo_atu_deb = abs(saldo_atual_net) if saldo_atual_net < 0 else 0
+
         nivel = len(conta.codigo.split('.'))
-        tem_valor = abs(saldo_anterior) > 0.001 or abs(deb_per_total) > 0.001 or abs(cre_per_total) > 0.001
+        tem_valor = (abs(deb_ant_total) + abs(cre_ant_total) + abs(deb_per_total) + abs(cre_per_total)) > 0.001
         
         if tem_valor or nivel == 1:
             balancete_data.append({
@@ -316,11 +322,14 @@ def get_balancete_results(data_inicio, data_fim):
                 'nome': conta.nome,
                 'natureza': conta.natureza,
                 'tipo': conta.tipo,
-                'saldo_anterior': saldo_anterior,
+                'saldo_ant_deb': saldo_ant_deb,
+                'saldo_ant_cre': saldo_ant_cre,
                 'debitos': deb_per_total,
                 'creditos': cre_per_total,
-                'saldo_atual': saldo_atual,
-                'nivel': nivel
+                'saldo_atu_deb': saldo_atu_deb,
+                'saldo_atu_cre': saldo_atu_cre,
+                'nivel': nivel,
+                'analitica': conta.is_analitica
             })
     return balancete_data
 
@@ -343,51 +352,28 @@ def balancete():
     balancete_data = get_balancete_results(data_inicio, data_fim)
 
     # Calcular totais das colunas (Soma de Nível 1 para evitar duplicidade)
-    # Em um Balancete de Verificação, o saldo final de cada conta é apresentado 
-    # de acordo com sua natureza (Devedora ou Credora).
     totais = {
-        'saldo_anterior_devedor': 0,
-        'saldo_anterior_credor': 0,
+        'saldo_ant_deb': 0,
+        'saldo_ant_cre': 0,
         'debitos': 0,
         'creditos': 0,
-        'saldo_atual_devedor': 0,
-        'saldo_atual_credor': 0,
-        'saldo_anterior': 0, # Para compatibilidade com template se necessário
-        'saldo_atual': 0     # Para compatibilidade com template se necessário
+        'saldo_atu_deb': 0,
+        'saldo_atu_cre': 0
     }
     
     for item in balancete_data:
         if item['nivel'] == 1:
+            totais['saldo_ant_deb'] += item['saldo_ant_deb']
+            totais['saldo_ant_cre'] += item['saldo_ant_cre']
             totais['debitos'] += item['debitos']
             totais['creditos'] += item['creditos']
-            
-            # Saldo Anterior
-            if item['natureza'] == 'Devedora':
-                if item['saldo_anterior'] >= 0:
-                    totais['saldo_anterior_devedor'] += item['saldo_anterior']
-                else:
-                    totais['saldo_anterior_credor'] += abs(item['saldo_anterior'])
-                
-                # Saldo Atual
-                if item['saldo_atual'] >= 0:
-                    totais['saldo_atual_devedor'] += item['saldo_atual']
-                else:
-                    totais['saldo_atual_credor'] += abs(item['saldo_atual'])
-            else: # Credora
-                if item['saldo_anterior'] >= 0:
-                    totais['saldo_anterior_credor'] += item['saldo_anterior']
-                else:
-                    totais['saldo_anterior_devedor'] += abs(item['saldo_anterior'])
-                
-                # Saldo Atual
-                if item['saldo_atual'] >= 0:
-                    totais['saldo_atual_credor'] += item['saldo_atual']
-                else:
-                    totais['saldo_atual_devedor'] += abs(item['saldo_atual'])
+            totais['saldo_atu_deb'] += item['saldo_atu_deb']
+            totais['saldo_atu_cre'] += item['saldo_atu_cre']
 
-    # Valores simplificados para o rodapé (compatibilidade)
-    totais['saldo_anterior'] = totais['saldo_anterior_devedor'] - totais['saldo_anterior_credor']
-    totais['saldo_atual'] = totais['saldo_atual_devedor'] - totais['saldo_atual_credor']
+    # Para compatibilidade com alertas e indicadores, saldo_anterior e saldo_atual
+    # agora representam o volume total (D ou C)
+    totais['saldo_anterior'] = max(totais['saldo_ant_deb'], totais['saldo_ant_cre'])
+    totais['saldo_atual'] = max(totais['saldo_atu_deb'], totais['saldo_atu_cre'])
 
     return render_template('contabilidade/balancete.html',
                            balancete=balancete_data,
@@ -419,7 +405,7 @@ def exportar_balancete():
     ws.title = "Balancete"
 
     # Cabeçalhos
-    headers = ["Código", "Conta", "Saldo Anterior", "Débitos", "Créditos", "Saldo Atual"]
+    headers = ["Código", "Conta", "S. Anterior Devedor", "S. Anterior Credor", "Débitos (Período)", "Créditos (Período)", "S. Atual Devedor", "S. Atual Credor"]
     ws.append(headers)
     
     # Estilo Cabeçalho
@@ -432,18 +418,15 @@ def exportar_balancete():
 
     # Dados
     for item in balancete_data:
-        # Se for nível 1 e não for o primeiro, adiciona linha de separação
-        # (Nao adicionamos linhas vazias literais no Excel para facilitar filtros, 
-        # mas podemos adicionar espacamento se o usuario preferir. 
-        # Vou seguir o layout da tela com negrito.)
-        
         row = [
             item['codigo'],
             item['nome'],
-            item['saldo_anterior'],
+            item['saldo_ant_deb'],
+            item['saldo_ant_cre'],
             item['debitos'],
             item['creditos'],
-            item['saldo_atual']
+            item['saldo_atu_deb'],
+            item['saldo_atu_cre']
         ]
         ws.append(row)
         
@@ -457,13 +440,13 @@ def exportar_balancete():
             for cell in ws[current_row]:
                 cell.font = Font(bold=True)
 
-        # Alinhamento das colunas de valor
-        for col in range(3, 7):
+        # Alinhamento das colunas de valor (3 a 8)
+        for col in range(3, 9):
             ws.cell(row=current_row, column=col).number_format = '#,##0.00'
             ws.cell(row=current_row, column=col).alignment = Alignment(horizontal="right")
 
     # Ajustar largura das colunas
-    column_widths = [15, 40, 15, 15, 15, 15]
+    column_widths = [15, 45, 18, 18, 18, 18, 18, 18]
     for i, width in enumerate(column_widths, 1):
         ws.column_dimensions[ws.cell(row=1, column=i).column_letter].width = width
 
