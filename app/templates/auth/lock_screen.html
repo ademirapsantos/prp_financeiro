@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema Bloqueado - PRP Financeiro</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, var(--primary-color) 0%, #1e1b4b 100%);
+            margin: 0;
+            height: 100vh;
+            color: white;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .lock-container {
+            text-align: center;
+            width: 100%;
+            max-width: 400px;
+            padding: var(--spacing-lg);
+            background: rgba(255, 255, 255, 0.1);
+            -webkit-backdrop-filter: blur(12px);
+            backdrop-filter: blur(12px);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            animation: fadeIn 0.5s ease-out;
+            box-sizing: border-box;
+        }
+
+        .user-avatar {
+            width: 80px;
+            height: 80px;
+            background: var(--accent-color);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            font-weight: bold;
+            margin: 0 auto var(--spacing-md);
+            border: 4px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .lock-icon {
+            font-size: 3rem;
+            margin-bottom: var(--spacing-sm);
+            display: block;
+        }
+
+        h2 {
+            margin-bottom: 0.5rem;
+            font-weight: 700;
+        }
+
+        p {
+            opacity: 0.8;
+            margin-bottom: var(--spacing-lg);
+        }
+
+        form {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 1rem;
+            background: rgba(255, 255, 255, 0.9);
+            border: none;
+            border-radius: 10px;
+            font-size: 1.1rem;
+            text-align: center;
+            margin-bottom: var(--spacing-md);
+            color: var(--primary-color);
+            box-sizing: border-box;
+        }
+
+        .form-control:focus {
+            outline: 3px solid var(--accent-color);
+        }
+
+        .btn-unlock {
+            width: 100%;
+            padding: 0.75rem;
+            font-size: 1rem;
+            background: var(--accent-color);
+            color: white;
+            border-radius: 10px;
+            transition: transform 0.2s;
+            border: none;
+            cursor: pointer;
+            box-sizing: border-box;
+            margin-top: 0.5rem;
+        }
+
+        .btn-unlock:hover {
+            transform: scale(1.02);
+            background: #15803d;
+        }
+
+        .logout-link {
+            display: inline-block;
+            margin-top: var(--spacing-lg);
+            color: white;
+            opacity: 0.6;
+            text-decoration: none;
+            font-size: 0.9rem;
+            transition: opacity 0.2s;
+        }
+
+        .logout-link:hover {
+            opacity: 1;
+        }
+
+        #toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div id="toast-container"></div>
+
+    <div class="lock-container">
+        <span class="lock-icon">🔒</span>
+        <div class="user-avatar">
+            {{ user.nome[:1].upper() }}
+        </div>
+        <h2>{{ user.nome }}</h2>
+        <p>{{ user.email }}</p>
+
+        <form method="POST">
+            <input type="password" name="password" class="form-control" placeholder="Digite sua senha para desbloquear"
+                required autofocus>
+            <button type="submit" class="btn btn-unlock">Desbloquear</button>
+        </form>
+
+        <a href="{{ url_for('auth.logout') }}" class="logout-link">Entrar com outra conta</a>
+    </div>
+
+    <script>
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.innerHTML = `<span>${message}</span>`;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.classList.add('fade-out');
+                setTimeout(() => toast.remove(), 500);
+            }, 5000);
+        }
+
+        {% with messages = get_flashed_messages(with_categories = true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        showToast("{{ message }}", "{{ 'error' if category == 'error' else 'success' }}");
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="full-height-page">
+    <div class="header"
+        style="margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center;">
+        <h1>Manual do Usuário</h1>
+        <a href="{{ url_for('main.dashboard') }}" class="btn"
+            style="background-color: var(--bg-muted); color: var(--text-muted); border: 1px solid var(--border-color);">
+            Voltar ao Dashboard
+        </a>
+    </div>
+
+    <div class="card help-content-card" style="padding: 2.5rem; flex-grow: 1; overflow-y: auto; line-height: 1.6;">
+        <div class="markdown-body">
+            {{ manual_html|safe }}
+        </div>
+    </div>
+</div>
+
+<style>
+    .help-content-card {
+        background-color: var(--card-bg);
+        color: var(--text-main);
+    }
+
+    .markdown-body h1 {
+        border-bottom: 2px solid var(--border-color);
+        padding-bottom: 0.5rem;
+        margin-top: 2rem;
+        color: var(--primary-color);
+    }
+
+    .markdown-body h2 {
+        border-bottom: 1px solid var(--border-color);
+        padding-bottom: 0.3rem;
+        margin-top: 1.8rem;
+        color: var(--text-main);
+    }
+
+    .markdown-body h3 {
+        margin-top: 1.5rem;
+        color: var(--text-main);
+    }
+
+    .markdown-body p {
+        margin: 1rem 0;
+    }
+
+    .markdown-body ul,
+    .markdown-body ol {
+        margin: 1rem 0;
+        padding-left: 2rem;
+    }
+
+    .markdown-body li {
+        margin: 0.5rem 0;
+    }
+
+    .markdown-body hr {
+        border: 0;
+        border-top: 1px solid var(--border-color);
+        margin: 2rem 0;
+    }
+
+    .markdown-body table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 1.5rem 0;
+    }
+
+    .markdown-body th,
+    .markdown-body td {
+        border: 1px solid var(--border-color);
+        padding: 0.75rem;
+        text-align: left;
+    }
+
+    .markdown-body th {
+        background-color: var(--table-header-bg);
+        font-weight: bold;
+    }
+
+    .markdown-body blockquote {
+        border-left: 4px solid var(--primary-color);
+        padding-left: 1rem;
+        color: var(--text-muted);
+        font-style: italic;
+        margin: 1.5rem 0;
+    }
+
+    .markdown-body code {
+        background-color: var(--bg-muted);
+        padding: 0.2rem 0.4rem;
+        border-radius: 4px;
+        font-family: monospace;
+    }
+</style>
+{% endblock %}

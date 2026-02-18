@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+    <div>
+        <h1 style="margin: 0;">Extrato Bancário</h1>
+        <p style="color: #64748b; margin: 0.25rem 0 0 0;">{{ banco.descricao }} | Conta: {{ banco.numero_conta or 'N/A'
+            }}</p>
+    </div>
+    <a href="{{ url_for('financeiro.bancos') }}" class="btn"
+        style="background-color: var(--bg-muted); color: var(--text-muted); border: 1px solid var(--border-color);">Voltar</a>
+</div>
+
+<div class="card"
+    style="padding: 0; overflow: hidden; display: flex; flex-direction: column; max-height: calc(100vh - 250px);">
+    <div class="table-container" style="flex-grow: 1; overflow: hidden; display: flex; flex-direction: column;">
+        <div class="table-scroll" style="overflow-y: auto;">
+            <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                <thead
+                    style="position: sticky; top: 0; z-index: 10; background-color: var(--table-header-bg); border-bottom: 2px solid var(--border-color);">
+                    <tr>
+                        <th style="padding: 1rem; font-weight: 600; color: var(--text-main);">Data</th>
+                        <th style="padding: 1rem; font-weight: 600; color: var(--text-main);">Histórico</th>
+                        <th style="padding: 1rem; font-weight: 600; color: var(--text-main); text-align: right;">Entrada
+                            (D)</th>
+                        <th style="padding: 1rem; font-weight: 600; color: var(--text-main); text-align: right;">Saída
+                            (C)</th>
+                        <th style="padding: 1rem; font-weight: 600; color: var(--text-main); text-align: right;">Saldo
+                        </th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for mov in movimentacoes %}
+                    <tr style="border-bottom: 1px solid var(--border-color); transition: background-color 0.2s;">
+                        <td style="padding: 1rem; color: var(--text-main);">{{ mov.data.strftime('%d/%m/%Y') }}</td>
+                        <td style="padding: 1rem; color: var(--text-main);">{{ mov.historico }}</td>
+                        <td style="padding: 1rem; color: #16a34a; text-align: right; font-weight: 500;">
+                            {{ "R$ {:,.2f}".format(mov.entrada).replace(",", "X").replace(".", ",").replace("X", ".") if
+                            mov.entrada > 0 else '-' }}
+                        </td>
+                        <td style="padding: 1rem; color: #dc2626; text-align: right; font-weight: 500;">
+                            {{ "R$ {:,.2f}".format(mov.saida).replace(",", "X").replace(".", ",").replace("X", ".") if
+                            mov.saida
+                            > 0 else '-' }}
+                        </td>
+                        <td style="padding: 1rem; color: var(--text-main); text-align: right; font-weight: 600;">
+                            {{ "R$ {:,.2f}".format(mov.saldo).replace(",", "X").replace(".", ",").replace("X", ".") }}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" style="padding: 3rem; text-align: center; color: var(--text-muted);">Nenhuma
+                            movimentação
+                            encontrada para esta conta.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Paginação -->
+    {% if pagination.total > 0 %}
+    <div class="pagination-container"
+        style="padding: 1rem 1.5rem; display: flex; justify-content: space-between; align-items: center; background: var(--table-header-bg); border-top: 1px solid var(--border-color); flex-shrink: 0;">
+        <div style="font-size: 0.85rem; color: var(--text-muted);">
+            Mostrando página <b>{{ pagination.page }}</b> de <b>{{ pagination.pages or 1 }}</b> (Total: {{
+            pagination.total }} registros)
+        </div>
+        {% if pagination.pages > 1 %}
+        <div style="display: flex; gap: 0.25rem;">
+            {% if pagination.has_prev %}
+            <a href="{{ url_for('financeiro.extrato_banco', banco_id=banco.id, page=pagination.prev_num) }}" class="btn"
+                style="padding: 0.4rem 0.8rem; font-size: 0.85rem; background: var(--card-bg); border: 1px solid var(--border-color); color: var(--text-main);">«
+                Anterior</a>
+            {% endif %}
+
+            {% for p in pagination.iter_pages(left_edge=1, left_current=2, right_current=2, right_edge=1) %}
+            {% if p %}
+            <a href="{{ url_for('financeiro.extrato_banco', banco_id=banco.id, page=p) }}"
+                class="btn {{ 'btn-primary' if p == pagination.page else '' }}"
+                style="padding: 0.4rem 0.8rem; font-size: 0.85rem; {% if p != pagination.page %}background: var(--card-bg); border: 1px solid var(--border-color); color: var(--text-main);{% endif %}">{{
+                p }}</a>
+            {% else %}
+            <span style="padding: 0.4rem 0.8rem; color: var(--text-muted);">...</span>
+            {% endif %}
+            {% endfor %}
+
+            {% if pagination.has_next %}
+            <a href="{{ url_for('financeiro.extrato_banco', banco_id=banco.id, page=pagination.next_num) }}" class="btn"
+                style="padding: 0.4rem 0.8rem; font-size: 0.85rem; background: var(--card-bg); border: 1px solid var(--border-color); color: var(--text-main);">Próxima
+                »</a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+    <div
+        style="background-color: var(--table-header-bg); border-top: 2px solid var(--border-color); padding: 1rem; z-index: 11;">
+        <table style="width: 100%; border-collapse: collapse;">
+            <tfoot style="font-weight: 700;">
+                <tr>
+                    <td style="text-align: right; color: var(--text-main); width: 80%;">Saldo Final:</td>
+                    <td style="text-align: right; color: {{ '#16a34a' if saldo_final >= 0 else '#dc2626' }};">
+                        {{ "R$ {:,.2f}".format(saldo_final).replace(",", "X").replace(".", ",").replace("X", ".") }}
+                    </td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,12 @@
+ID_Partida,ID_Diario,Data,Tipo,Valor,Historico,Transacao_ID
+1,1,2026-02-11 17:06:26.127641,D,100.00,Ajuste de Saldo (Aumento) - Itaú (Ademir),
+4,2,2026-02-11 00:00:00,C,25.00,Transf: Ir ao mercado,1
+6,3,2026-02-11 18:40:21.744642,C,8900.00,Prov. Venda: Desenvolvimento & Consultoria Dynamics 365 F.O,
+7,4,2026-02-11 18:41:55.113735,D,8900.00,Prov. Venda: Desenvolvimento & Consultoria Dynamics 365 F.O,
+9,5,2026-02-11 18:42:11.938541,D,8900.00,Prov. Venda: Desenvolvimento & Consultoria Dynamics 365 F.O,
+12,6,2026-02-11 18:48:01.522704,C,8900.00,ESTORNO PROV: Desenvolvimento & Consultoria Dynamics 365 F.O (ID: 3) - Motivo: Cancelamento,
+14,7,2026-02-11 18:48:06.136629,C,8900.00,ESTORNO PROV: Desenvolvimento & Consultoria Dynamics 365 F.O (ID: 2) - Motivo: Cancelamento,
+16,8,2026-02-11 18:48:16.323038,C,8900.00,ESTORNO PROV: Desenvolvimento & Consultoria Dynamics 365 F.O (ID: 1) - Motivo: Cancelamento,
+21,11,2026-02-11 00:00:00,D,8900.00,Liq. Titulo 4 - Desenvolvimento & Consultoria Dynamics 365 F.O,2
+34,17,2026-02-11 00:00:00,C,800.00,Liq. Titulo 7 - Compra mês 02/2026,5
+46,23,2026-02-11 00:00:00,C,60.00,Transf: Compras no Mercado KM100,8

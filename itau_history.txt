@@ -1,0 +1,9 @@
+Historico da Conta: Itaú (Ademir) (1.1.01)
+ID: 2 | 2026-02-11 00:00:00 | C | 25.00 | Saldo: -25.00 | Hist: Transf: Ir ao mercado
+ID: 1 | 2026-02-11 17:06:26.127641 | D | 100.00 | Saldo: 75.00 | Hist: Ajuste de Saldo (Aumento) - Itaú (Ademir)
+ID: 3 | 2026-02-11 18:40:21.744642 | C | 8900.00 | Saldo: -8825.00 | Hist: Prov. Venda: Desenvolvimento & Consultoria Dynamics 365 F.O
+ID: 4 | 2026-02-11 18:41:55.113735 | D | 8900.00 | Saldo: 75.00 | Hist: Prov. Venda: Desenvolvimento & Consultoria Dynamics 365 F.O
+ID: 5 | 2026-02-11 18:42:11.938541 | D | 8900.00 | Saldo: 8975.00 | Hist: Prov. Venda: Desenvolvimento & Consultoria Dynamics 365 F.O
+ID: 6 | 2026-02-11 18:48:01.522704 | C | 8900.00 | Saldo: 75.00 | Hist: ESTORNO PROV: Desenvolvimento & Consultoria Dynamics 365 F.O (ID: 3) - Motivo: Cancelamento
+ID: 7 | 2026-02-11 18:48:06.136629 | C | 8900.00 | Saldo: -8825.00 | Hist: ESTORNO PROV: Desenvolvimento & Consultoria Dynamics 365 F.O (ID: 2) - Motivo: Cancelamento
+ID: 8 | 2026-02-11 18:48:16.323038 | C | 8900.00 | Saldo: -17725.00 | Hist: ESTORNO PROV: Desenvolvimento & Consultoria Dynamics 365 F.O (ID: 1) - Motivo: Cancelamento

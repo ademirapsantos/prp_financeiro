@@ -1,0 +1,308 @@
+{% extends "base.html" %}
+
+{% block content %}
+<!-- Container Principal Flex que ocupa o espaço disponível -->
+<div style="display: flex; flex-direction: column; height: 100%; min-height: 0; gap: 1.5rem;">
+
+    <!-- Cabeçalho Fixo -->
+    <div class="header" style="display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
+        <div style="display: flex; align-items: center; gap: 1rem;">
+            <h1 style="margin: 0;">Plano de Contas</h1>
+        </div>
+        <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <a href="{{ url_for('main.balancete') }}" class="btn" style="background-color: #f1f5f9; color: #475569;">🧾
+                Balancete</a>
+            <a href="{{ url_for('main.diario') }}" class="btn" style="background-color: #f1f5f9; color: #475569;">📖
+                Diário</a>
+            <button onclick="expandAll()" class="btn"
+                style="background-color: #f1f5f9; color: #475569; padding: 0.5rem 1rem; font-size: 0.8rem; border: 1px solid #e2e8f0;">↕
+                Expandir</button>
+            <button onclick="collapseAll()" class="btn"
+                style="background-color: #f1f5f9; color: #475569; padding: 0.5rem 1rem; font-size: 0.8rem; border: 1px solid #e2e8f0;">📂
+                Recolher</button>
+            <button onclick="openContaModal()" class="btn btn-primary"
+                style="white-space: nowrap; margin-left: 0.5rem;">+ Nova Conta</button>
+        </div>
+    </div>
+
+    <!-- ... (Barra de Filtros e Tabela permanecem iguais até as ações) ... -->
+    <div class="card"
+        style="padding: 1rem; flex-shrink: 0; background: white; border: 1px solid var(--border-color); border-radius: 8px;">
+        <form method="GET" action="{{ url_for('contas.lista') }}"
+            style="display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 1rem; align-items: end;">
+            <div>
+                <label
+                    style="display: block; font-size: 0.8rem; font-weight: 600; color: #64748b; margin-bottom: 0.25rem;">Código</label>
+                <input type="text" name="codigo" value="{{ filtros.codigo }}" placeholder="Ex: 1.1"
+                    style="width: 100%; padding: 0.5rem; border: 1px solid #e2e8f0; border-radius: 4px;">
+            </div>
+            <div>
+                <label
+                    style="display: block; font-size: 0.8rem; font-weight: 600; color: #64748b; margin-bottom: 0.25rem;">Tipo</label>
+                <select name="tipo"
+                    style="width: 100%; padding: 0.5rem; border: 1px solid #e2e8f0; border-radius: 4px;">
+                    <option value="">Todos</option>
+                    {% for t in tipos %}
+                    <option value="{{ t.value }}" {{ 'selected' if filtros.tipo==t.value }}>{{ t.value }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label
+                    style="display: block; font-size: 0.8rem; font-weight: 600; color: #64748b; margin-bottom: 0.25rem;">Natureza</label>
+                <select name="natureza"
+                    style="width: 100%; padding: 0.5rem; border: 1px solid #e2e8f0; border-radius: 4px;">
+                    <option value="">Todas</option>
+                    {% for n in naturezas %}
+                    <option value="{{ n.value }}" {{ 'selected' if filtros.natureza==n.value }}>{{ n.value }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div style="display: flex; gap: 0.5rem;">
+                <button type="submit" class="btn btn-primary">Filtrar</button>
+                <a href="{{ url_for('contas.lista') }}" class="btn"
+                    style="background-color: #f1f5f9; color: #475569;">Limpar</a>
+            </div>
+        </form>
+    </div>
+
+    <div class="card"
+        style="display: flex; flex-direction: column; flex-grow: 1; min-height: 0; padding: 0; overflow: hidden; border: 1px solid var(--border-color); border-radius: 8px; background: white; box-shadow: var(--shadow-sm);">
+        <div class="table-container" style="flex-grow: 1; overflow-y: auto; min-height: 0; width: 100%;">
+            <table id="tabelaContas" style="width: 100%; border-collapse: collapse; table-layout: fixed;">
+                <thead
+                    style="position: sticky; top: 0; z-index: 20; background-color: #f8fafc; border-bottom: 2px solid #e2e8f0;">
+                    <tr style="text-align: left;">
+                        <th style="padding: 1rem; width: 140px;">Código</th>
+                        <th style="padding: 1rem;">Nome</th>
+                        <th style="padding: 1rem; width: 150px;">Tipo</th>
+                        <th style="padding: 1rem; width: 120px;">Natureza</th>
+                        <th style="padding: 1rem; width: 100px; text-align: center;">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for c in contas %}
+                    {% set level = c.codigo.split('.')|length %}
+                    {% if level == 1 and not loop.first %}
+                    <tr style="height: 1.5rem; background-color: transparent; border: none;">
+                        <td colspan="5" style="border: none;"></td>
+                    </tr>
+                    {% endif %}
+                    <tr data-path="{{ c.codigo }}" data-level="{{ level }}" class="account-row level-{{ level }}"
+                        style="border-bottom: 1px solid #f1f5f9; transition: all 0.2s ease;">
+                        <td
+                            style="padding: 0.75rem 1rem; font-family: 'Roboto Mono', monospace; font-size: 0.85rem; color: #475569; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                            {{ c.codigo }}
+                        </td>
+                        <td
+                            style="padding: 0.75rem 1rem; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                            <div style="display: flex; align-items: center; margin-left: {{ (level - 1) * 24 }}px;">
+                                <span class="toggle-icon" onclick="toggleAccount(this, '{{ c.codigo }}')"
+                                    style="cursor: pointer; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; margin-right: 4px; border-radius: 4px; hover: background-color: #f1f5f9;">
+                                    ▼
+                                </span>
+                                {{ c.nome }}
+                            </div>
+                        </td>
+                        <td style="padding: 0.75rem 1rem;">
+                            <span
+                                style="font-size: 0.75rem; padding: 2px 8px; border-radius: 4px; background-color: #f1f5f9; color: #475569; display: inline-block;">
+                                {{ c.tipo }}
+                            </span>
+                        </td>
+                        <td style="padding: 0.75rem 1rem; font-size: 0.8rem; color: #64748b;">{{ c.natureza }}</td>
+                        <td style="padding: 0.75rem 1rem; text-align: center;">
+                            <button onclick="openContaModal({{ c.id }})" class="btn"
+                                style="padding: 0.25rem 0.5rem; font-size: 0.75rem; background-color: #e2e8f0; color: #475569; border-radius: 4px;">Editar</button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Conta -->
+<div id="conta-modal" class="modal">
+    <div class="modal-content" style="max-width: 600px;">
+        <div class="modal-header">
+            <h2 id="conta-modal-title">Nova Conta Contábil</h2>
+            <span class="close-modal" onclick="closeContaModal()">&times;</span>
+        </div>
+        <div class="modal-body">
+            <form id="conta-form" method="POST">
+                <div style="display: grid; grid-template-columns: 120px 1fr; gap: 1rem; margin-bottom: 1rem;">
+                    <div>
+                        <label class="info-label">Código</label>
+                        <input type="text" name="codigo" id="modal-codigo" placeholder="1.1.01" required
+                            class="form-control" style="width: 100%;">
+                    </div>
+                    <div>
+                        <label class="info-label">Nome da Conta</label>
+                        <input type="text" name="nome" id="modal-nome" placeholder="Ex: Banco Itaú" required
+                            class="form-control" style="width: 100%;">
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                    <div>
+                        <label class="info-label">Tipo</label>
+                        <select name="tipo" id="modal-tipo" class="form-control" style="width: 100%;" required>
+                            {% for t in tipos %}
+                            <option value="{{ t.value }}">{{ t.value }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="info-label">Natureza</label>
+                        <select name="natureza" id="modal-natureza" class="form-control" style="width: 100%;" required>
+                            {% for n in naturezas %}
+                            <option value="{{ n.value }}">{{ n.value }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 1rem;">
+                    <label class="info-label">Conta Pai (Hierarquia)</label>
+                    <select name="parent_id" id="modal-parent" class="form-control" style="width: 100%;">
+                        <option value="">Nenhuma (Conta Raiz)</option>
+                        {% for cp in contas %}
+                        <option value="{{ cp.id }}">{{ cp.codigo }} - {{ cp.nome }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div style="margin-top: 2rem; display: flex; gap: 1rem; justify-content: flex-end;">
+                    <button type="button" class="btn btn-secondary" onclick="closeContaModal()">Cancelar</button>
+                    <button type="submit" class="btn btn-primary" id="btn-save-conta">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+    .account-row.hidden {
+        display: none;
+    }
+
+    .toggle-icon {
+        user-select: none;
+        transition: transform 0.2s ease;
+        color: #94a3b8;
+    }
+
+    .toggle-icon:hover {
+        background-color: #f1f5f9;
+        color: #64748b;
+    }
+
+    .toggle-icon.collapsed {
+        transform: rotate(-90deg);
+    }
+</style>
+
+<script>
+    function openContaModal(id = null) {
+        const modal = document.getElementById('conta-modal');
+        const form = document.getElementById('conta-form');
+        const title = document.getElementById('conta-modal-title');
+
+        // Resetar form
+        form.reset();
+
+        if (id) {
+            title.innerText = 'Editar Conta';
+            form.action = `/contas/editar/${id}`;
+
+            // Buscar dados via API
+            fetch(`/contas/api/${id}`)
+                .then(res => res.json())
+                .then(data => {
+                    document.getElementById('modal-codigo').value = data.codigo;
+                    document.getElementById('modal-nome').value = data.nome;
+                    document.getElementById('modal-tipo').value = data.tipo;
+                    document.getElementById('modal-natureza').value = data.natureza;
+                    document.getElementById('modal-parent').value = data.parent_id || '';
+                });
+        } else {
+            title.innerText = 'Nova Conta Contábil';
+            form.action = "{{ url_for('contas.nova') }}";
+        }
+
+        modal.classList.add('show');
+    }
+
+    function closeContaModal() {
+        document.getElementById('conta-modal').classList.remove('show');
+    }
+
+    function toggleAccount(element, path) {
+        const row = element.closest('tr');
+        const isCollapsed = element.classList.toggle('collapsed');
+        const rows = document.querySelectorAll('#tabelaContas tbody tr.account-row');
+
+        rows.forEach(r => {
+            const rPath = r.getAttribute('data-path');
+            if (rPath && rPath !== path && rPath.startsWith(path + '.')) {
+                if (isCollapsed) {
+                    r.classList.add('hidden');
+                    const subToggle = r.querySelector('.toggle-icon');
+                    if (subToggle) subToggle.classList.add('collapsed');
+                } else {
+                    const pLevel = parseInt(row.getAttribute('data-level'));
+                    const rLevel = parseInt(r.getAttribute('data-level'));
+                    if (rLevel === pLevel + 1) {
+                        r.classList.remove('hidden');
+                        const subToggle = r.querySelector('.toggle-icon');
+                        if (subToggle) subToggle.classList.add('collapsed');
+                    }
+                }
+            }
+        });
+    }
+
+    function collapseAll() {
+        const rows = document.querySelectorAll('.account-row');
+        rows.forEach(row => {
+            const level = parseInt(row.getAttribute('data-level'));
+            if (level > 1) {
+                row.classList.add('hidden');
+            }
+            const toggle = row.querySelector('.toggle-icon');
+            if (toggle) toggle.classList.add('collapsed');
+        });
+    }
+
+    function expandAll() {
+        const rows = document.querySelectorAll('.account-row');
+        rows.forEach(row => {
+            row.classList.remove('hidden');
+            const toggle = row.querySelector('.toggle-icon');
+            if (toggle) toggle.classList.remove('collapsed');
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const rows = document.querySelectorAll('.account-row');
+        rows.forEach(row => {
+            const path = row.getAttribute('data-path');
+            const hasChildren = Array.from(rows).some(r => r.getAttribute('data-path').startsWith(path + '.'));
+            if (!hasChildren) {
+                const icon = row.querySelector('.toggle-icon');
+                if (icon) icon.style.visibility = 'hidden';
+            }
+        });
+
+        // Fechar modal ao clicar fora
+        window.onclick = function (event) {
+            const modal = document.getElementById('conta-modal');
+            if (event.target == modal) {
+                closeContaModal();
+            }
+        }
+    });
+</script>
+{% endblock %}

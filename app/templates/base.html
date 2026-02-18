@@ -1,0 +1,925 @@
+﻿<html lang="pt-BR" data-theme="{{ current_user.tema if current_user.is_authenticated else 'light' }}">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PRP Financeiro</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto+Mono:wght@500&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=1.3">
+    <!-- Chart.js v4.4.1 via Cloudflare CDN para maior estabilidade -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+</head>
+
+<body>
+    <nav class="sidebar">
+        <div class="sidebar-header">
+            <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Logo" class="sidebar-logo">
+            <span>PRP Financeiro</span>
+        </div>
+        <ul class="nav-links">
+            <li><a href="{{ url_for('main.dashboard') }}"
+                    class="{{ 'active' if request.endpoint == 'main.dashboard' else '' }}">Dashboard</a></li>
+            <li><a href="{{ url_for('financeiro.titulos') }}"
+                    class="{{ 'active' if 'titulos' in request.endpoint else '' }}">Financeiro</a></li>
+            <li><a href="{{ url_for('financeiro.bancos') }}"
+                    class="{{ 'active' if 'bancos' in request.endpoint else '' }}">Bancos</a></li>
+            <li><a href="{{ url_for('main.balancete') }}"
+                    class="{{ 'active' if 'main.balancete' in request.endpoint or 'main.diario' in request.endpoint or 'main.plano_contas' in request.endpoint else '' }}">Contabilidade</a>
+            </li>
+            <li><a href="{{ url_for('entidades.lista') }}"
+                    class="{{ 'active' if 'entidades' in request.endpoint else '' }}">Entidades</a></li>
+            <li><a href="{{ url_for('ativos.lista') }}"
+                    class="{{ 'active' if 'ativos' in request.endpoint else '' }}">Ativos</a></li>
+        </ul>
+    </nav>
+
+    <main class="main-content">
+        <header class="top-header">
+            <div class="header-search">
+                <!-- Espaço para busca futura ou título da página -->
+            </div>
+            <div class="header-actions">
+                <div class="notification-wrapper">
+                    <button class="icon-btn" id="notif-btn">
+                        <span class="icon">🔔</span>
+                        {% if notificacoes_alert %}
+                        <span class="notification-badge">{{ notificacoes_alert|length }}</span>
+                        {% endif %}
+                    </button>
+                    <div class="notification-dropdown" id="notif-dropdown">
+                        <div class="dropdown-header">Notificações</div>
+                        <ul class="notification-list">
+                            {% for n in notificacoes_alert %}
+                            <li onclick="openTituloActionModal('{{ n.id }}')" style="cursor: pointer;">
+                                <div class="notif-item">
+                                    <strong>{{ n.descricao }}</strong><br>
+                                    <small>Vencimento: {{ n.data_vencimento.strftime('%d/%m/%Y') }}</small>
+                                    <span class="notif-valor"
+                                        style="color: {{ '#16a34a' if n.tipo == 'Receber' or n.tipo == 1 else '#dc2626' }};">
+                                        R$ {{ n.valor }}
+                                    </span>
+                                </div>
+                            </li>
+                            {% else %}
+                            <li class="empty-notif">Nenhuma notificação urgente.</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="user-menu-wrapper">
+                    <button class="user-btn" id="user-menu-btn">
+                        <div class="user-avatar-mini">{{ current_user.nome[0] | upper if current_user.nome else 'U' }}
+                        </div>
+                        <span class="user-name">{{ current_user.nome if current_user.nome else 'Usuário' }}</span>
+                        <span class="chevron">▼</span>
+                    </button>
+                    <div class="user-dropdown" id="user-dropdown">
+                        <div class="theme-switcher-wrapper"
+                            style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-muted);">Tema</span>
+                            <button id="theme-toggle" class="icon-btn"
+                                style="background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 20px; padding: 2px 8px; font-size: 1.1rem; cursor: pointer; display: flex; align-items: center; gap: 5px;"
+                                onclick="toggleTheme()">
+                                {% if current_user.tema == 'dark' %}
+                                <span>🌙</span>
+                                {% else %}
+                                <span>☀️</span>
+                                {% endif %}
+                            </button>
+                        </div>
+                        <a href="#" id="open-profile-btn">Perfil</a>
+                        {% if current_user.is_admin %}
+                        <a href="#" id="open-settings-btn">Configurações</a>
+                        {% endif %}
+                        <a href="{{ url_for('main.ajuda') }}">Ajuda</a>
+                        <a href="{{ url_for('auth.lock') }}">Bloquear</a>
+                        <div class="dropdown-divider"></div>
+                        <a href="{{ url_for('auth.logout') }}" class="logout-link">Sair</a>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Perfil Modal -->
+        <div id="profile-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Perfil do Usuário</h2>
+                    <span class="close-modal" id="close-profile-btn">&times;</span>
+                </div>
+                <div class="profile-info">
+                    <div class="info-group">
+                        <span class="info-label">Nome Completo</span>
+                        <span class="info-value">{{ current_user.nome }}</span>
+                    </div>
+                    <div class="info-group">
+                        <span class="info-label">E-mail</span>
+                        <span class="info-value">{{ current_user.email }}</span>
+                    </div>
+                    <div class="profile-actions">
+                        <button class="btn btn-primary btn-block"
+                            onclick="alert('Funcionalidade de reset de senha em breve!')">
+                            Resetar Senha
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Título Action Modal -->
+        <div id="titulo-action-modal" class="modal">
+            <div class="modal-content" style="max-width: 500px;">
+                <div class="modal-header">
+                    <h2 id="modal-titulo-nome">Detalhes do Título</h2>
+                    <span class="close-modal" onclick="closeTituloActionModal()">&times;</span>
+                </div>
+                <div class="modal-body" id="modal-titulo-body">
+                    <div class="info-grid"
+                        style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
+                        <div class="info-group">
+                            <span class="info-label">Valor</span>
+                            <span class="info-value" id="modal-titulo-valor">R$ 0,00</span>
+                        </div>
+                        <div class="info-group">
+                            <span class="info-label">Vencimento</span>
+                            <span class="info-value" id="modal-titulo-vencimento">--/--/----</span>
+                        </div>
+                        <div class="info-group" style="grid-column: span 2;">
+                            <span class="info-label">Entidade</span>
+                            <span class="info-value" id="modal-titulo-entidade">---</span>
+                        </div>
+                    </div>
+
+                    <div id="liquidation-form"
+                        style="display: none; border-top: 1px solid #eee; padding-top: 1rem; margin-top: 1rem;">
+                        <h3 style="margin-bottom: 1rem; font-size: 1rem;">Liquidar Título</h3>
+                        <div class="info-group" style="margin-bottom: 1rem;">
+                            <label class="info-label" for="modal-banco-id">Banco/Caixa de Destino</label>
+                            <select id="modal-banco-id" class="form-control"
+                                style="width: 100%; margin-top: 0.5rem;"></select>
+                        </div>
+                        <div class="info-group" style="margin-bottom: 1rem;">
+                            <label class="info-label" for="modal-data-pagamento">Data da Operação</label>
+                            <input type="date" id="modal-data-pagamento" class="form-control"
+                                style="width: 100%; margin-top: 0.5rem;">
+                        </div>
+                        <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
+                            <button class="btn btn-success" style="flex: 1;" onclick="confirmLiquidar()">Confirmar
+                                Liquidação</button>
+                            <button class="btn btn-secondary" style="flex: 1;"
+                                onclick="toggleLiquidationForm(false)">Cancelar</button>
+                        </div>
+                    </div>
+
+                    <div id="modal-actions-standard" style="display: flex; gap: 1rem;">
+                        <button class="btn btn-primary" style="flex: 1;" id="btn-show-liquidation"
+                            onclick="toggleLiquidationForm(true)">Liquidar</button>
+                        <button class="btn btn-danger" style="flex: 1;" id="btn-quick-estornar"
+                            onclick="confirmEstornar()">Estornar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Configurações Modal -->
+        <style>
+            .settings-tabs {
+                display: flex;
+                gap: 1rem;
+                border-bottom: 2px solid var(--border-color);
+                margin-bottom: 1.5rem;
+            }
+
+            .tab-btn {
+                padding: 0.75rem 1.5rem;
+                cursor: pointer;
+                background: none;
+                border: none;
+                border-bottom: 2px solid transparent;
+                font-size: 1rem;
+                font-weight: 600;
+                color: var(--text-muted);
+                transition: all 0.3s;
+                margin-bottom: -2px;
+            }
+
+            .tab-btn.active {
+                color: var(--accent-color);
+                border-bottom-color: var(--accent-color);
+            }
+
+            .tab-content {
+                display: none;
+            }
+
+            .tab-content.active {
+                display: block;
+            }
+
+            .user-table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-top: 1rem;
+            }
+
+            .user-table th,
+            .user-table td {
+                text-align: left;
+                padding: 0.75rem;
+                border-bottom: 1px solid var(--border-color);
+            }
+
+            .user-table th {
+                background-color: var(--table-header-bg);
+                color: var(--text-main);
+                font-weight: 600;
+                position: sticky;
+                top: 0;
+                z-index: 10;
+            }
+
+            /* Custom Scrollbar for Settings Table */
+            .table-container::-webkit-scrollbar {
+                width: 8px;
+            }
+
+            .table-container::-webkit-scrollbar-track {
+                background: var(--bg-color);
+                border-radius: 4px;
+            }
+
+            .table-container::-webkit-scrollbar-thumb {
+                background: var(--border-color);
+                border-radius: 4px;
+            }
+
+            .table-container::-webkit-scrollbar-thumb:hover {
+                background: var(--text-muted);
+            }
+
+            .badge-admin {
+                background-color: var(--danger-color);
+                color: white;
+                padding: 0.2rem 0.5rem;
+                border-radius: 4px;
+                font-size: 0.75rem;
+            }
+
+            .badge-user {
+                background-color: #3b82f6;
+                color: white;
+                padding: 0.2rem 0.5rem;
+                border-radius: 4px;
+                font-size: 0.75rem;
+            }
+
+            .btn-delete {
+                background-color: transparent;
+                color: var(--danger-color);
+                border: 1px solid var(--danger-color);
+                padding: 0.25rem 0.5rem;
+                border-radius: 4px;
+                font-size: 0.75rem;
+                cursor: pointer;
+                transition: all 0.3s;
+            }
+
+            .btn-delete:hover {
+                background-color: var(--danger-color);
+                color: white;
+            }
+
+            .btn-resend {
+                background-color: transparent;
+                color: var(--warning-color);
+                border: 1px solid var(--warning-color);
+                padding: 0.25rem 0.5rem;
+                border-radius: 4px;
+                font-size: 0.75rem;
+                cursor: pointer;
+                transition: all 0.3s;
+                margin-right: 0.5rem;
+            }
+
+            .btn-resend:hover {
+                background-color: var(--warning-color);
+                color: white;
+            }
+        </style>
+
+        <div id="settings-modal" class="modal">
+            <div class="modal-content" style="max-width: 800px;">
+                <div class="modal-header">
+                    <h2>Configurações do Sistema</h2>
+                    <span class="close-modal" id="close-settings-btn">&times;</span>
+                </div>
+                <div class="modal-body">
+                    <div class="settings-tabs">
+                        <button class="tab-btn active" data-tab="tab-smtp"
+                            onclick="switchSettingsTab('tab-smtp')">Servidor SMTP</button>
+                        <button class="tab-btn" data-tab="tab-users"
+                            onclick="switchSettingsTab('tab-users')">Usuários</button>
+                        <button class="tab-btn" data-tab="tab-backup" onclick="switchSettingsTab('tab-backup')">Backup
+                            de Dados</button>
+                    </div>
+
+                    <!-- Aba SMTP -->
+                    <div id="tab-smtp" class="tab-content active">
+                        <h3
+                            style="margin-bottom: 1rem; font-size: 1.1rem; border-bottom: 2px solid var(--accent-color); padding-bottom: 0.5rem; color: var(--text-main);">
+                            Configurações de E-mail</h3>
+                        <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label class="info-label">Servidor SMTP</label>
+                                <input type="text" id="cfg-smtp-host" class="form-control"
+                                    placeholder="ex: smtp.gmail.com" style="width: 100%;">
+                            </div>
+                            <div class="form-group">
+                                <label class="info-label">Porta</label>
+                                <input type="number" id="cfg-smtp-port" class="form-control" placeholder="ex: 587"
+                                    style="width: 100%;">
+                            </div>
+                            <div class="form-group">
+                                <label class="info-label">E-mail (Usuário)</label>
+                                <input type="email" id="cfg-smtp-user" class="form-control" style="width: 100%;">
+                            </div>
+                            <div class="form-group">
+                                <label class="info-label">Senha / Chave de App</label>
+                                <input type="password" id="cfg-smtp-pass" class="form-control" style="width: 100%;">
+                            </div>
+                        </div>
+                        <div class="form-group" style="margin: 1rem 0; display: flex; gap: 1rem;">
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox" id="cfg-smtp-tls"> Usar TLS
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox" id="cfg-smtp-ssl"> Usar SSL
+                            </label>
+                        </div>
+                        <div style="margin-top: 2rem;">
+                            <button class="btn btn-primary" style="width: 200px;" onclick="saveSettings()">Salvar
+                                Configurações</button>
+                        </div>
+                    </div>
+
+                    <!-- Aba Usuários -->
+                    <div id="tab-users" class="tab-content">
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                            <h3
+                                style="font-size: 1.1rem; border-bottom: 2px solid var(--warning-color); padding-bottom: 0.5rem; color: var(--text-main);">
+                                Lista de Usuários</h3>
+                            <button class="btn btn-warning btn-sm" onclick="toggleUserForm(true)">+ Novo
+                                Usuário</button>
+                        </div>
+
+                        <!-- Formulário de Cadastro (Escondido por padrão) -->
+                        <div id="user-registration-form"
+                            style="display: none; background: var(--bg-muted); border: 1px solid var(--border-color); padding: 1.5rem; margin-bottom: 1.5rem; border-radius: 8px;">
+                            <h4 style="margin-top: 0; margin-bottom: 1rem; color: var(--text-main);">Cadastrar Novo
+                                Usuário</h4>
+                            <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                                <div class="form-group">
+                                    <label class="info-label">Nome Completo</label>
+                                    <input type="text" id="new-user-nome" class="form-control"
+                                        placeholder="ex: João Silva" style="width: 100%;">
+                                </div>
+                                <div class="form-group">
+                                    <label class="info-label">E-mail</label>
+                                    <input type="email" id="new-user-email" class="form-control"
+                                        placeholder="joao@exemplo.com" style="width: 100%;">
+                                </div>
+                            </div>
+                            <div style="margin: 1rem 0;">
+                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                    <input type="checkbox" id="new-user-admin"> Definir como Administrador
+                                </label>
+                            </div>
+                            <div style="display: flex; gap: 1rem;">
+                                <button class="btn btn-primary" onclick="submitNewUser()">Salvar Usuário</button>
+                                <button class="btn btn-secondary" onclick="toggleUserForm(false)">Cancelar</button>
+                            </div>
+                        </div>
+                        <div class="table-container" style="max-height: 400px; overflow-y: auto;">
+                            <table class="user-table">
+                                <thead>
+                                    <tr>
+                                        <th>Nome</th>
+                                        <th>E-mail</th>
+                                        <th>Perfil</th>
+                                        <th>Criado em</th>
+                                        <th>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="user-list-body">
+                                    <!-- Carregado via JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Aba Backup -->
+                    <div id="tab-backup" class="tab-content">
+                        <h3
+                            style="margin-bottom: 1rem; font-size: 1.1rem; border-bottom: 2px solid #27ae60; padding-bottom: 0.5rem;">
+                            Cópia de Segurança</h3>
+
+                        <div
+                            style="background: #f8fafc; padding: 1.5rem; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 2rem;">
+                            <h4 style="margin-top: 0; color: var(--text-main); margin-bottom: 0.5rem;">Exportar Dados
+                            </h4>
+                            <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.5rem;">Gera um
+                                arquivo CSV
+                                contendo todos os registros de todas as tabelas do sistema (Usuários, Títulos,
+                                Lançamentos, etc.).</p>
+                            <button class="btn btn-success" onclick="downloadBackup()">Baixar Backup (CSV)</button>
+                        </div>
+
+                        <div
+                            style="background: var(--bg-muted); padding: 1.5rem; border-radius: 8px; border: 1px solid var(--danger-color); opacity: 0.9;">
+                            <h4 style="margin-top: 0; color: var(--danger-color); margin-bottom: 0.5rem;">Restaurar
+                                Dados</h4>
+                            <p style="color: #742a2a; font-size: 0.9rem; margin-bottom: 1.5rem;">
+                                <strong>ATENÇÃO:</strong> O
+                                processo de restauração irá <strong>APAGAR TODOS OS DADOS ATUAIS</strong> e
+                                substituí-los
+                                pelo conteúdo do arquivo de backup.
+                            </p>
+
+                            <div style="display: flex; gap: 1rem; align-items: center;">
+                                <input type="file" id="restore-file" accept=".csv" class="form-control"
+                                    style="flex-grow: 1;">
+                                <button class="btn btn-danger" onclick="performRestore()">Executar Restore</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="toast-container"></div>
+        <div class="page-container">
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+
+    <script>
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.innerHTML = `
+                <span style="flex-grow: 1;">${message}</span>
+                <span style="margin-left: 1rem; opacity: 0.7; font-size: 1.25rem;">&times;</span>
+            `;
+
+            toast.onclick = () => {
+                toast.classList.add('fade-out');
+                setTimeout(() => toast.remove(), 500);
+            };
+
+            container.appendChild(toast);
+
+            // Auto-remove after 6 seconds
+            setTimeout(() => {
+                if (toast.parentElement) {
+                    toast.classList.add('fade-out');
+                    setTimeout(() => toast.remove(), 500);
+                }
+            }, 6000);
+        }
+
+        // Inicialização Principal
+        document.addEventListener('DOMContentLoaded', () => {
+            // Ler mensagens flash do Flask
+            {% with messages = get_flashed_messages(with_categories = true) %}
+            {% if messages %}
+            {% for category, message in messages %}
+            showToast({{ message | tojson | safe }}, {{ ('error' if category == 'error' else 'success') | tojson | safe }});
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        // Toggle Dropdowns
+        const userBtn = document.getElementById('user-menu-btn');
+        const userDropdown = document.getElementById('user-dropdown');
+        const notifBtn = document.getElementById('notif-btn');
+        const notifDropdown = document.getElementById('notif-dropdown');
+
+        userBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            userDropdown.classList.toggle('show');
+            notifDropdown.classList.remove('show');
+        });
+
+        notifBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            notifDropdown.classList.toggle('show');
+            userDropdown.classList.remove('show');
+        });
+
+        document.addEventListener('click', () => {
+            userDropdown.classList.remove('show');
+            notifDropdown.classList.remove('show');
+        });
+
+        [userDropdown, notifDropdown].forEach(d => {
+            d.addEventListener('click', (e) => e.stopPropagation());
+        });
+
+        // Profile Modal Logic
+        const profileModal = document.getElementById('profile-modal');
+        const openProfileBtn = document.getElementById('open-profile-btn');
+        const closeProfileBtn = document.getElementById('close-profile-btn');
+
+        openProfileBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            profileModal.classList.add('show');
+            userDropdown.classList.remove('show');
+        });
+
+        closeProfileBtn.addEventListener('click', () => {
+            profileModal.classList.remove('show');
+        });
+
+        // Settings Modal Logic
+        const settingsModal = document.getElementById('settings-modal');
+        const openSettingsBtn = document.getElementById('open-settings-btn');
+        const closeSettingsBtn = document.getElementById('close-settings-btn');
+
+        openSettingsBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            loadSettings();
+            settingsModal.classList.add('show');
+            userDropdown.classList.remove('show');
+        });
+
+        closeSettingsBtn.addEventListener('click', () => {
+            settingsModal.classList.remove('show');
+        });
+
+        window.addEventListener('click', (e) => {
+            if (e.target === profileModal) {
+                profileModal.classList.remove('show');
+            }
+            if (e.target === settingsModal) {
+                settingsModal.classList.remove('show');
+            }
+            if (e.target === document.getElementById('titulo-action-modal')) {
+                closeTituloActionModal();
+            }
+        });
+        });
+
+        // --- Lógica de Configurações ---
+        function switchSettingsTab(tabId) {
+            // Atualizar botões
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.tab === tabId);
+            });
+            // Atualizar conteúdos
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.toggle('active', content.id === tabId);
+            });
+
+            if (tabId === 'tab-users') {
+                loadUsers();
+            }
+        }
+
+        function loadSettings() {
+            fetch('{{ url_for("auth.manage_config") }}')
+                .then(res => res.json())
+                .then(data => {
+                    document.getElementById('cfg-smtp-host').value = data.SMTP_HOST || '';
+                    document.getElementById('cfg-smtp-port').value = data.SMTP_PORT || '';
+                    document.getElementById('cfg-smtp-user').value = data.SMTP_USER || '';
+                    document.getElementById('cfg-smtp-pass').value = data.SMTP_PASS || '';
+                    document.getElementById('cfg-smtp-tls').checked = !!data.SMTP_USE_TLS;
+                    document.getElementById('cfg-smtp-ssl').checked = !!data.SMTP_USE_SSL;
+                });
+        }
+
+        function loadUsers() {
+            const tbody = document.getElementById('user-list-body');
+            if (!tbody) return;
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">Carregando usuários...</td></tr>';
+
+            fetch('{{ url_for("auth.list_users") }}')
+                .then(res => res.json())
+                .then(data => {
+                    tbody.innerHTML = '';
+                    const currentUserId = {% print current_user.id or 'null' %};
+            const isAdmin = {% print 'true' if current_user.is_admin else 'false' %};
+
+        data.users.forEach(user => {
+            const tr = document.createElement('tr');
+            const roleBadge = user.is_admin ? '<span class="badge-admin">Admin</span>' : '<span class="badge-user">Usuário</span>';
+
+            let actionsHtml = '';
+            if (isAdmin && user.id !== currentUserId) {
+                actionsHtml = `<button class="btn-resend" onclick="resendPassword(${user.id}, '${user.nome}')" title="Reenviar Senha">Reenviar Senha</button> <button class="btn-delete" onclick="deleteUser(${user.id}, '${user.nome}')" title="Excluir Usuário">Excluir</button>`;
+            } else if (user.id === currentUserId) {
+                actionsHtml = '<small class="text-muted">Você</small>';
+            }
+
+            tr.innerHTML = `
+                            <td>${user.nome}</td>
+                            <td>${user.email}</td>
+                            <td>${roleBadge}</td>
+                            <td>${user.data_criacao}</td>
+                            <td>${actionsHtml}</td>
+                        `;
+            tbody.appendChild(tr);
+        });
+                })
+                .catch (err => {
+            console.error('Erro ao buscar usuários:', err);
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #e74c3c;">Erro ao carregar usuários.</td></tr>';
+        });
+        }
+
+        function resendPassword(userId, userName) {
+            if (!confirm(`Deseja gerar uma nova senha temporária para ${userName} e enviar por e-mail?`)) return;
+
+            showToast("Processando...", "info");
+
+            fetch(`/api/users/${userId}/resend-password`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" }
+            })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        showToast(data.message, "success");
+                    } else {
+                        showToast(data.message, "warning");
+                    }
+                })
+                .catch(err => {
+                    showToast("Erro ao processar solicitação.", "error");
+                });
+        }
+
+        function deleteUser(userId, userName) {
+            if (!confirm(`Tem certeza que deseja excluir o usuário "${userName}"? Esta ação não pode ser desfeita.`)) {
+                return;
+            }
+
+            fetch(`/api/users/${userId}/delete`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' }
+            })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        showToast(data.message, 'success');
+                        loadUsers();
+                    } else {
+                        showToast(data.message, 'error');
+                    }
+                })
+                .catch(err => showToast('Erro ao excluir usuário.', 'error'));
+        }
+
+        function toggleUserForm(show) {
+            const form = document.getElementById('user-registration-form');
+            form.style.display = show ? 'block' : 'none';
+            if (!show) {
+                document.getElementById('new-user-nome').value = '';
+                document.getElementById('new-user-email').value = '';
+                document.getElementById('new-user-admin').checked = false;
+            }
+        }
+
+        function submitNewUser() {
+            const nome = document.getElementById('new-user-nome').value;
+            const email = document.getElementById('new-user-email').value;
+            const is_admin = document.getElementById('new-user-admin').checked;
+
+            if (!nome || !email) {
+                showToast('Preencha Nome e E-mail.', 'error');
+                return;
+            }
+
+            const data = { nome, email, is_admin };
+
+            fetch('{{ url_for("auth.add_user") }}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            })
+                .then(res => res.json())
+                .then(resData => {
+                    if (resData.success) {
+                        showToast(resData.message, 'success');
+                        toggleUserForm(false);
+                        loadUsers(); // Recarregar a lista
+                    } else {
+                        showToast(resData.message, 'error');
+                    }
+                })
+                .catch(err => showToast('Erro ao cadastrar usuário.', 'error'));
+        }
+
+        function saveSettings() {
+            const data = {
+                SMTP_HOST: document.getElementById('cfg-smtp-host').value,
+                SMTP_PORT: document.getElementById('cfg-smtp-port').value,
+                SMTP_USER: document.getElementById('cfg-smtp-user').value,
+                SMTP_PASS: document.getElementById('cfg-smtp-pass').value,
+                SMTP_USE_TLS: document.getElementById('cfg-smtp-tls').checked,
+                SMTP_USE_SSL: document.getElementById('cfg-smtp-ssl').checked
+            };
+
+            fetch('{{ url_for("auth.manage_config") }}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            })
+                .then(res => res.json())
+                .then(resData => {
+                    if (resData.success) {
+                        showToast(resData.message, 'success');
+                        document.getElementById('settings-modal').classList.remove('show');
+                    } else {
+                        showToast(resData.message, 'error');
+                    }
+                })
+                .catch(err => showToast('Erro ao salvar configurações.', 'error'));
+        }
+
+        // --- Lógica de Backup ---
+        function downloadBackup() {
+            window.location.href = '{{ url_for("auth.export_backup") }}';
+        }
+
+        function performRestore() {
+            const fileInput = document.getElementById('restore-file');
+            if (fileInput.files.length === 0) {
+                showToast("Selecione um arquivo CSV para restaurar.", "warning");
+                return;
+            }
+
+            if (!confirm("CONFIRMAÇÃO CRÍTICA: Deseja realmente APAGAR TUDO e restaurar os dados deste arquivo? Esta ação não pode ser desfeita.")) {
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+
+            showToast("Restaurando dados... Por favor, aguarde.", "info");
+
+            fetch('{{ url_for("auth.restore_backup") }}', {
+                method: 'POST',
+                body: formData
+            })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        showToast(data.message, "success");
+                        setTimeout(() => window.location.reload(), 2000);
+                    } else {
+                        showToast(data.message, "error");
+                    }
+                })
+                .catch(err => {
+                    console.error(err);
+                    showToast("Erro técnico ao restaurar dados.", "error");
+                });
+        }
+
+        // --- Lógica do Modal de Ações de Título ---
+        let currentTituloId = null;
+
+        function openTituloActionModal(tituloId) {
+            currentTituloId = tituloId;
+            const modal = document.getElementById('titulo-action-modal');
+            const dropdown = document.getElementById('notif-dropdown');
+
+            // Fechar dropdown de notificação
+            dropdown.classList.remove('show');
+
+            // Resetar formulários
+            toggleLiquidationForm(false);
+
+            // Buscar dados via API
+            fetch(`/financeiro/api/titulo/${tituloId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        showToast(data.error, 'error');
+                        return;
+                    }
+
+                    document.getElementById('modal-titulo-nome').innerText = data.descricao;
+                    document.getElementById('modal-titulo-valor').innerText = `R$ ${data.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+                    document.getElementById('modal-titulo-vencimento').innerText = data.data_vencimento;
+                    document.getElementById('modal-titulo-entidade').innerText = data.entidade;
+
+                    // Preencher bancos
+                    const bancoSelect = document.getElementById('modal-banco-id');
+                    bancoSelect.innerHTML = data.bancos.map(b => `<option value="${b.id}">${b.nome}</option>`).join('');
+
+                    // Preencher data hoje
+                    document.getElementById('modal-data-pagamento').value = new Date().toISOString().split('T')[0];
+
+                    modal.classList.add('show');
+                })
+                .catch(err => {
+                    console.error(err);
+                    showToast('Erro ao carregar detalhes do título.', 'error');
+                });
+        }
+
+        function closeTituloActionModal() {
+            document.getElementById('titulo-action-modal').classList.remove('show');
+            currentTituloId = null;
+        }
+
+        function toggleLiquidationForm(show) {
+            document.getElementById('liquidation-form').style.display = show ? 'block' : 'none';
+            document.getElementById('modal-actions-standard').style.display = show ? 'none' : 'flex';
+        }
+
+        function confirmLiquidar() {
+            const bancoId = document.getElementById('modal-banco-id').value;
+            const dataPagamento = document.getElementById('modal-data-pagamento').value;
+
+            if (!bancoId || !dataPagamento) {
+                showToast('Preencha todos os campos para liquidar.', 'error');
+                return;
+            }
+
+            fetch(`/financeiro/api/liquidar/${currentTituloId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ banco_id: bancoId, data_pagamento: dataPagamento })
+            })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        showToast(data.message, 'success');
+                        closeTituloActionModal();
+                        // Opcional: recarregar a página para atualizar os dados gerais
+                        setTimeout(() => window.location.reload(), 1500);
+                    } else {
+                        showToast(data.message, 'error');
+                    }
+                })
+                .catch(err => showToast('Erro na requisição de liquidação.', 'error'));
+        }
+
+        function confirmEstornar() {
+            if (!confirm('Tem certeza que deseja estornar este título? Esta ação reverterá os lançamentos contábeis.')) {
+                return;
+            }
+
+            fetch(`/financeiro/api/estornar/${currentTituloId}`, {
+                method: 'POST'
+            })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        showToast(data.message, 'success');
+                        closeTituloActionModal();
+                        setTimeout(() => window.location.reload(), 1500);
+                    } else {
+                        showToast(data.message, 'error');
+                    }
+                })
+                .catch(err => showToast('Erro na requisição de estorno.', 'error'));
+        }
+
+        // --- Lógica de Tema (Modo Escuro / Claro) ---
+        function toggleTheme() {
+            const html = document.documentElement;
+            const currentTheme = html.getAttribute('data-theme') || 'light';
+            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+
+            // Aplicar Visualmente
+            html.setAttribute('data-theme', newTheme);
+            const btn = document.getElementById('theme-toggle');
+            if (btn) btn.innerHTML = newTheme === 'dark' ? '<span>🌙</span>' : '<span>☀️</span>';
+
+            // Persistir via API
+            fetch('{{ url_for("auth.update_theme") }}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tema: newTheme })
+            })
+                .then(res => res.json())
+                .then(data => {
+                    if (!data.success) {
+                        showToast('Erro ao salvar preferência de tema.', 'warning');
+                    }
+                })
+                .catch(err => console.error('Erro ao chamar API de tema:', err));
+        }
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="header" style="display: flex; align-items: center; gap: 1rem; margin-bottom: 2rem;">
+    <a href="{{ url_for('financeiro.titulos') }}" class="btn"
+        style="background-color: var(--bg-muted); color: var(--text-muted); padding: 0.5rem; display: flex; align-items: center; justify-content: center; border-radius: 50%; width: 32px; height: 32px; text-decoration: none; border: 1px solid var(--border-color);">←</a>
+    <h1>Liquidar Título</h1>
+</div>
+
+<div class="card" style="max-width: 600px; margin: 0 auto; padding: 2rem;">
+    <div
+        style="background: var(--bg-muted); padding: 1rem; border-radius: 8px; margin-bottom: 2rem; border-left: 4px solid #3b82f6;">
+        <h4 style="margin: 0 0 0.5rem 0; color: var(--text-main);">Resumo do Título</h4>
+        <p style="margin: 0; font-size: 0.9rem;"><strong>Descrição:</strong> {{ titulo.descricao }}</p>
+        <p style="margin: 0; font-size: 0.9rem;"><strong>Entidade:</strong> {{ titulo.entidade.nome }}</p>
+        <p style="margin: 0; font-size: 0.9rem;"><strong>Valor:</strong> R$ {{
+            "{:,.2f}".format(titulo.valor).replace(",", "X").replace(".", ",").replace("X", ".") }}</p>
+        <p style="margin: 0; font-size: 0.9rem;"><strong>Tipo:</strong> {{ titulo.tipo }}</p>
+    </div>
+
+    <form method="POST">
+        <div style="margin-bottom: 1.5rem;">
+            <label style="display: block; font-weight: 600; margin-bottom: 0.5rem;">Conta para Movimentação
+                (Banco/Caixa)</label>
+            <select name="banco_id" required
+                style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; background-color: var(--input-bg); color: var(--text-main);">
+                <option value="">Selecione a conta...</option>
+                {% for b in bancos %}
+                <option value="{{ b.id }}">{{ b.descricao }} (Saldo: R$ {{ "{:,.2f}".format(b.valor_atual).replace(",",
+                    "X").replace(".", ",").replace("X", ".") }})</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div style="margin-bottom: 1.5rem;">
+            <label style="display: block; font-weight: 600; margin-bottom: 0.5rem;">Data do Pagamento /
+                Recebimento</label>
+            <input type="date" name="data_pagamento" value="{{ hoje }}" required
+                style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; background-color: var(--input-bg); color: var(--text-main);">
+        </div>
+
+        <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1.5rem;">
+            Ao liquidar, o sistema criará uma transação financeira na conta selecionada e o respectivo lançamento
+            contábil no Livro Diário.
+        </p>
+
+        <div style="display: flex; gap: 1rem;">
+            <button type="submit" class="btn btn-success" style="flex-grow: 1; padding: 1rem;">Confirmar
+                Liquidação</button>
+            <a href="{{ url_for('financeiro.titulos') }}" class="btn"
+                style="background-color: var(--bg-muted); color: var(--text-muted); padding: 1rem;">Cancelar</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

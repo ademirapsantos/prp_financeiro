@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="header" style="display: flex; align-items: center; gap: 1rem; margin-bottom: 2rem;">
+    <a href="{{ next_url }}" class="btn"
+        style="background-color: var(--bg-muted); color: var(--text-muted); padding: 0.5rem; display: flex; align-items: center; justify-content: center; border-radius: 50%; width: 32px; height: 32px; text-decoration: none; border: 1px solid var(--border-color);">←</a>
+    <h1>Nova Venda (Lançamento de Receita)</h1>
+</div>
+
+<div class="card" style="max-width: 600px; margin: 0 auto; padding: 2rem;">
+    <form method="POST" action="{{ url_for('financeiro.nova_venda', next=next_url) }}">
+        <div style="margin-bottom: 1.5rem;">
+            <label style="display: block; font-weight: 600; margin-bottom: 0.5rem;">Cliente</label>
+            <select name="entidade_id" required
+                style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; background-color: var(--input-bg); color: var(--text-main);">
+                <option value="">Selecione o Cliente...</option>
+                {% for c in clientes %}
+                <option value="{{ c.id }}">{{ c.nome }}</option>
+                {% endfor %}
+            </select>
+            <small class="text-muted">A venda usará as contas configuradas no cadastro deste cliente.</small>
+        </div>
+
+        <div style="margin-bottom: 1.5rem;">
+            <label style="display: block; font-weight: 600; margin-bottom: 0.5rem;">Descrição / Histórico</label>
+            <input type="text" name="descricao" required placeholder="Ex: Venda de Produtos / Serviços de Consultoria"
+                style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; background-color: var(--input-bg); color: var(--text-main);">
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
+            <div>
+                <label style="display: block; font-weight: 600; margin-bottom: 0.5rem;">Valor (R$)</label>
+                <input type="number" step="0.01" name="valor" required placeholder="0,00"
+                    style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; background-color: var(--input-bg); color: var(--text-main);">
+            </div>
+            <div>
+                <label style="display: block; font-weight: 600; margin-bottom: 0.5rem;">Data de Vencimento</label>
+                <input type="date" name="data_vencimento" value="{{ hoje }}" required
+                    style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; background-color: var(--input-bg); color: var(--text-main);">
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 1rem; margin-top: 2rem;">
+            <button type="submit" class="btn btn-primary" style="flex-grow: 1; padding: 1rem;">Registrar Venda</button>
+            <a href="{{ next_url }}" class="btn"
+                style="background-color: var(--bg-muted); color: var(--text-muted); padding: 1rem; border: 1px solid var(--border-color);">Cancelar</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

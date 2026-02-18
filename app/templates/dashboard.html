@@ -1,0 +1,342 @@
+﻿{% extends "base.html" %}
+
+{% block content %}
+
+<!-- Filtros e Ações Rápidas -->
+<div class="card"
+    style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; padding: 1rem; flex-shrink: 0; margin-bottom: var(--spacing-lg);">
+    <form method="GET" style="display: flex; gap: 1rem; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <label style="font-weight: 600; font-size: 0.9rem;">Ano:</label>
+            <select name="ano" onchange="this.form.submit()"
+                style="padding: 0.4rem; border: 1px solid var(--border-color); border-radius: 4px; background: var(--input-bg); color: var(--text-main);">
+                {% for a in anos_disponiveis %}
+                <option value="{{ a }}" {% if a==ano_selecionado %}selected{% endif %}>{{ a }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <label style="font-weight: 600; font-size: 0.9rem;">Mês:</label>
+            <select name="mes" onchange="this.form.submit()"
+                style="padding: 0.4rem; border: 1px solid var(--border-color); border-radius: 4px; background: var(--input-bg); color: var(--text-main);">
+                <option value="">Todo o Ano</option>
+                {% for m in range(1, 13) %}
+                <option value="{{ m }}" {% if m==mes_selecionado %}selected{% endif %}>
+                    {{ ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"][m-1] }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+    </form>
+
+    <div style="display: flex; gap: 0.5rem;">
+        <a href="{{ url_for('financeiro.nova_venda', next=url_for('main.dashboard')) }}" class="btn btn-success"
+            style="font-size: 0.85rem; padding: 0.6rem 1rem;">+ Nova Venda</a>
+        <a href="{{ url_for('financeiro.novo_pagamento', next=url_for('main.dashboard')) }}" class="btn btn-danger"
+            style="font-size: 0.85rem; padding: 0.6rem 1rem;">+ Nova Compra</a>
+        <a href="{{ url_for('financeiro.movimentacao_outros', next=url_for('main.dashboard')) }}" class="btn"
+            style="font-size: 0.85rem; padding: 0.6rem 1rem; background-color: #8b5cf6; color: white;">+
+            Pagam./Receb.</a>
+        <a href="{{ url_for('financeiro.transferencia') }}" class="btn btn-primary"
+            style="font-size: 0.85rem; padding: 0.6rem 1rem; background-color: var(--primary-light);">Transferência</a>
+    </div>
+</div>
+
+<!-- Modal Drilldown (Movido para fora de cards com transform) -->
+<div id="modalDrilldown"
+    style="display: none; position: fixed; z-index: 10001; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); align-items: center; justify-content: center;">
+    <div class="card"
+        style="width: 600px; max-height: 80vh; padding: 0; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);">
+        <div
+            style="padding: 1.5rem; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; background-color: var(--table-header-bg);">
+            <h2 id="drilldownTitle" style="margin: 0; font-size: 1.25rem; color: var(--text-main);">Detalhes</h2>
+            <button onclick="fecharDrilldown()"
+                style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-muted);">&times;</button>
+        </div>
+
+        <div id="drilldownContent"
+            style="flex-grow: 1; overflow: auto; padding: 0 1.5rem; max-height: 400px; scrollbar-width: thin;">
+            <div style="text-align: center; padding: 2rem;">
+                <p>Carregando...</p>
+            </div>
+        </div>
+
+        <div id="drilldownPagination"
+            style="padding: 0.75rem 1.5rem; border-top: 1px solid var(--border-color); background-color: var(--table-header-bg); display: none;">
+        </div>
+
+        <div
+            style="padding: 1.25rem; border-top: 1px solid var(--border-color); background-color: var(--table-header-bg); text-align: right;">
+            <div style="font-size: 1.1rem; font-weight: 700; color: var(--text-main);">
+                Total: <span id="drilldownTotal">R$ 0,00</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Cards de Indicadores -->
+
+<div
+    style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--spacing-md); flex-shrink: 0; margin-bottom: var(--spacing-lg);">
+    <div class="card card-hoverable" style="border-left: 4px solid #6366f1; cursor: pointer;"
+        onclick="abrirDrilldown('patrimonio')">
+        <h3 class="text-muted" style="font-size: 0.75rem; text-transform: uppercase;">Patrimônio Líquido</h3>
+        <p class="money" style="font-size: 1.4rem; margin: 0.4rem 0;">R$ {{
+            "{:,.2f}".format(patrimonio_liquido).replace(",", "X").replace(".", ",").replace("X", ".") }}</p>
+        <small style="color: #64748b; font-size: 0.75rem;">Total Acumulado</small>
+    </div>
+
+    <div class="card card-hoverable" style="border-left: 4px solid #10b981; cursor: pointer;"
+        onclick="abrirDrilldown('disponivel')">
+        <h3 class="text-muted" style="font-size: 0.75rem; text-transform: uppercase;">Disponível (Bancos)</h3>
+        <p class="money text-success" style="font-size: 1.4rem; margin: 0.4rem 0;">R$ {{
+            "{:,.2f}".format(disponivel).replace(",", "X").replace(".", ",").replace("X", ".") }}</p>
+        <small style="color: #64748b; font-size: 0.75rem;">Saldo em Conta</small>
+    </div>
+
+    <div class="card card-hoverable" style="border-left: 4px solid #3b82f6; cursor: pointer;"
+        onclick="abrirDrilldown('a_receber')">
+        <h3 class="text-muted" style="font-size: 0.75rem; text-transform: uppercase;">A Receber {% if
+            mes_selecionado %}(Mês){% endif %}</h3>
+        <p class="money" style="font-size: 1.4rem; margin: 0.4rem 0; color: #3b82f6;">R$ {{
+            "{:,.2f}".format(total_a_receber).replace(",", "X").replace(".", ",").replace("X", ".") }}</p>
+        <small style="color: #64748b; font-size: 0.75rem;">Previsão de Entrada</small>
+    </div>
+
+    <div class="card card-hoverable" style="border-left: 4px solid #ef4444; cursor: pointer;"
+        onclick="abrirDrilldown('a_pagar')">
+        <h3 class="text-muted" style="font-size: 0.75rem; text-transform: uppercase;">A Pagar {% if mes_selecionado
+            %}(Mês){% endif %}</h3>
+        <p class="money text-danger" style="font-size: 1.4rem; margin: 0.4rem 0;">R$ {{
+            "{:,.2f}".format(total_a_pagar).replace(",", "X").replace(".", ",").replace("X", ".") }}</p>
+        <small style="color: var(--text-muted); font-size: 0.75rem;">Dívidas Pendentes</small>
+    </div>
+</div>
+
+<style>
+    /* Estilos específicos do drilldown já estão no card-hoverable global */
+</style>
+
+<!-- Gráfico de Fluxo Mensal -->
+<div class="card" style="flex-grow: 1; min-height: 450px; display: flex; flex-direction: column;">
+    <h3 style="margin-bottom: 1.5rem;">Fluxo Financeiro Anual - {{ ano_selecionado }}</h3>
+
+    <div id="chart-container" style="flex-grow: 1; height: 350px; position: relative;">
+        <canvas id="financeChart" style="cursor: pointer;"></canvas>
+    </div>
+</div>
+
+<script>
+    // Safety semicolon
+    ; (function () {
+        window.onerror = function (msg, url, line) {
+            console.error('ERROR-GLOBAL: ' + msg + ' at line ' + line);
+            return false;
+        };
+    })();
+
+    // Variáveis do servidor (com ponto e vírgula explícito)
+    const chartData = {{ chart_data | tojson | safe }};
+    const chartLabels = {{ chart_labels | tojson | safe }};
+    const anoSelecionado = {{ ano_selecionado | tojson | safe }};
+    const mesSelecionado = {{ mes_selecionado | tojson | safe }};
+
+    console.log("Variáveis iniciadas:", { labels: chartLabels.length, data: !!chartData });
+
+    if (typeof Chart === 'undefined') {
+        console.error("ERRO: Chart.js não detectado no carregamento!");
+    } else {
+        console.log("Chart.js detectado, versão:", Chart.version);
+    }
+
+    function formatarMoeda(valor) {
+        return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor);
+    }
+
+    async function abrirDrilldown(tipo, page = 1) {
+        const modal = document.getElementById('modalDrilldown');
+        const title = document.getElementById('drilldownTitle');
+        const content = document.getElementById('drilldownContent');
+        const total = document.getElementById('drilldownTotal');
+        const paginationDiv = document.getElementById('drilldownPagination');
+
+        if (!modal) return;
+        modal.style.display = 'flex';
+
+        // Se for a primeira página, mostra o carregando. Se for navegação, mantém o conteúdo anterior enquanto carrega
+        if (page === 1) {
+            content.innerHTML = '<div style="text-align: center; padding: 2rem;"><p>Carregando...</p></div>';
+            total.innerText = 'R$ 0,00';
+            document.getElementById('drilldownPagination').style.display = 'none';
+        }
+
+        try {
+            let url = "/api/dashboard/drilldown?tipo=" + tipo + "&ano=" + anoSelecionado + "&page=" + page;
+            if (mesSelecionado && (tipo === 'a_receber' || tipo === 'a_pagar')) {
+                url += "&mes=" + mesSelecionado;
+            }
+
+            const response = await fetch(url);
+            const data = await response.json();
+
+            title.innerText = data.title;
+            total.innerText = formatarMoeda(data.total);
+
+            // Armazenar tipo para navegação na paginação
+            const currentTipo = tipo;
+
+            if (data.items.length === 0) {
+                content.innerHTML = '<div style="text-align: center; padding: 2rem; color: #64748b;"><p>Nenhum registro encontrado.</p></div>';
+            } else {
+                let html = '<table style="width: 100%; border-collapse: separate; border-spacing: 0;">';
+                html += '<thead style="background-color: var(--table-header-bg);">';
+                html += '<tr style="text-align: left;">';
+                html += '<th style="padding: 0.75rem; border-bottom: 2px solid var(--border-color); font-weight: 700; position: sticky; top: 0; background-color: var(--table-header-bg); z-index: 10;">Descrição</th>';
+                html += '<th style="padding: 0.75rem; border-bottom: 2px solid var(--border-color); text-align: right; font-weight: 700; position: sticky; top: 0; background-color: var(--table-header-bg); z-index: 10;">Valor</th>';
+                html += '</tr></thead><tbody>';
+
+                data.items.forEach(item => {
+                    const isNegative = item.valor < 0;
+                    html += '<tr style="border-bottom: 1px solid var(--border-color);">' +
+                        '<td style="padding: 0.75rem; font-size: 0.9rem; border-bottom: 1px solid var(--border-color);">' +
+                        item.label +
+                        (item.tipo ? '<br><small style="color: var(--text-muted);">' + item.tipo + '</small>' : '') +
+                        '</td>' +
+                        '<td style="padding: 0.75rem; text-align: right; font-weight: 600; color: ' + (isNegative ? 'var(--danger-color)' : 'var(--text-main)') + '; border-bottom: 1px solid var(--border-color);">' +
+                        formatarMoeda(item.valor) +
+                        '</td>' +
+                        '</tr>';
+                });
+
+                html += '</tbody></table>';
+
+                content.innerHTML = html;
+
+                // Adicionar Controles de Paginação no Rodapé Fixo
+                if (data.pagination && data.pagination.total_pages > 1) {
+                    const p = data.pagination;
+                    let pagHtml = '<div style="display: flex; justify-content: space-between; align-items: center;">';
+                    pagHtml += '<div style="font-size: 0.8rem; color: var(--text-muted);">Página ' + p.page + ' de ' + p.total_pages + ' (' + p.total_items + ' registros)</div>';
+                    pagHtml += '<div style="display: flex; gap: 0.25rem;">';
+
+                    if (p.has_prev) {
+                        pagHtml += '<button onclick="abrirDrilldown(\'' + currentTipo + '\', ' + (p.page - 1) + ')" class="btn" style="padding: 0.3rem 0.6rem; font-size: 0.8rem; background: var(--bg-muted); color: var(--text-main); border: 1px solid var(--border-color);">« Ant.</button>';
+                    }
+
+                    if (p.has_next) {
+                        pagHtml += '<button onclick="abrirDrilldown(\'' + currentTipo + '\', ' + (p.page + 1) + ')" class="btn" style="padding: 0.3rem 0.6rem; font-size: 0.8rem; background: var(--bg-muted); color: var(--text-main); border: 1px solid var(--border-color);">Próx. »</button>';
+                    }
+
+                    pagHtml += '</div></div>';
+                    paginationDiv.innerHTML = pagHtml;
+                    paginationDiv.style.display = 'block';
+                } else {
+                    paginationDiv.style.display = 'none';
+                }
+            }
+
+        } catch (err) {
+            console.error("Erro no drilldown:", err);
+            content.innerHTML = '<div style="text-align: center; padding: 2rem; color: #ef4444;"><p>Erro ao carregar dados.</p></div>';
+            paginationDiv.style.display = 'none'; // Hide pagination on error
+        }
+    }
+
+    function fecharDrilldown() {
+        const modal = document.getElementById('modalDrilldown');
+        if (modal) modal.style.display = 'none';
+    }
+
+    window.onclick = function (event) {
+        const modal = document.getElementById('modalDrilldown');
+        if (event.target == modal) {
+            fecharDrilldown();
+        }
+    };
+
+    // Inicializar gráfico
+    (function () {
+        console.log("Preparando renderização do gráfico...");
+
+        function renderizarGrafico() {
+            try {
+                const canvas = document.getElementById('financeChart');
+                if (!canvas) {
+                    console.error("ERRO: Elemento 'financeChart' não encontrado!");
+                    return;
+                }
+
+                if (typeof Chart === 'undefined') {
+                    console.error("ERRO: Chart.js não está disponível para o gráfico!");
+                    return;
+                }
+
+                console.log("Renderizando gráfico com " + chartLabels.length + " pontos.");
+
+                const ctx = canvas.getContext('2d');
+                new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: chartLabels,
+                        datasets: [
+                            { label: 'Recebido', data: chartData.recebido, backgroundColor: '#10b981', borderRadius: 4 },
+                            { label: 'A Receber', data: chartData.a_receber, backgroundColor: '#93c5fd', borderRadius: 4 },
+                            { label: 'Pago', data: chartData.pago, backgroundColor: '#ef4444', borderRadius: 4 },
+                            { label: 'A Pagar', data: chartData.a_pagar, backgroundColor: '#fca5a5', borderRadius: 4 }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        onClick: function (event, elements) {
+                            if (elements.length > 0) {
+                                const element = elements[0];
+                                const datasetIndex = element.datasetIndex;
+                                const index = element.index;
+                                const tipos = ['recebido', 'a_receber', 'pago', 'a_pagar'];
+                                const tipo = tipos[datasetIndex];
+                                const mesClicado = chartLabels.length === 1 ? (mesSelecionado || 1) : index + 1;
+                                window.location.href = "/detalhamento/" + anoSelecionado + "/" + mesClicado + "/" + tipo;
+                            }
+                        },
+                        plugins: {
+                            legend: { position: 'top' },
+                            tooltip: {
+                                callbacks: {
+                                    label: function (context) {
+                                        let label = context.dataset.label || '';
+                                        if (label) label += ': ';
+                                        if (context.parsed.y !== null) {
+                                            label += formatarMoeda(context.parsed.y);
+                                        }
+                                        return label;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    callback: function (value) {
+                                        return new Intl.NumberFormat('pt-BR', { notation: 'compact', compactDisplay: 'short' }).format(value);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+                console.log("Gráfico renderizado!");
+            } catch (err) {
+                console.error("Erro na instância do Chart:", err);
+            }
+        }
+
+        if (document.readyState === 'complete') {
+            setTimeout(renderizarGrafico, 100);
+        } else {
+            window.addEventListener('load', function () { setTimeout(renderizarGrafico, 100); });
+        }
+    })();
+</script>
+{% endblock %}

@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="header" style="display: flex; align-items: center; margin-bottom: 2rem;">
+    <a href="{{ url_for('main.dashboard') }}" class="btn"
+        style="background-color: var(--bg-muted); color: var(--text-muted); padding: 0.5rem 1rem; margin-right: 1rem; border: 1px solid var(--border-color);"
+        title="Voltar para Dashboard">←</a>
+    <div>
+        <h1 style="margin: 0;">Nova Transferência</h1>
+        <p class="text-muted" style="margin: 0.25rem 0 0 0;">Movimentação de fundos entre contas do Ativo ou para
+            pagamentos.</p>
+    </div>
+</div>
+
+<div class="card" style="max-width: 650px; margin: 0 auto; padding: 2.5rem;">
+    <form action="{{ url_for('financeiro.transferencia') }}" method="POST">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
+            <div>
+                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--text-main);">Conta
+                    Origem
+                    (Saída)</label>
+                <select name="conta_origem" required
+                    style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; background-color: var(--input-bg); color: var(--text-main); font-size: 0.95rem;">
+                    <option value="">Selecione a conta...</option>
+                    {% for c in contas %}
+                    <option value="{{ c.id }}">{{ c.nome }} ({{ c.codigo }})</option>
+                    {% endfor %}
+                </select>
+                <small style="color: var(--text-muted); margin-top: 0.25rem; display: block;">A conta de onde o dinheiro
+                    será
+                    retirado.</small>
+            </div>
+            <div>
+                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--text-main);">Conta
+                    Destino
+                    (Entrada)</label>
+                <select name="conta_destino" required
+                    style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; background-color: var(--input-bg); color: var(--text-main); font-size: 0.95rem;">
+                    <option value="">Selecione a conta...</option>
+                    {% for c in contas %}
+                    <option value="{{ c.id }}">{{ c.nome }} ({{ c.codigo }})</option>
+                    {% endfor %}
+                </select>
+                <small style="color: var(--text-muted); margin-top: 0.25rem; display: block;">A conta que receberá o
+                    valor.</small>
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
+            <div>
+                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--text-main);">Valor
+                    da
+                    Transferência</label>
+                <div style="position: relative;">
+                    <span
+                        style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: #64748b; font-weight: 600;">R$</span>
+                    <input type="number" step="0.01" name="valor" required placeholder="0,00"
+                        style="width: 100%; padding: 0.75rem 0.75rem 0.75rem 3rem; border: 1px solid var(--border-color); border-radius: 6px; background-color: var(--input-bg); color: var(--text-main); font-size: 1rem; font-weight: 600;">
+                </div>
+            </div>
+            <div>
+                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--text-main);">Data da
+                    Operação</label>
+                <input type="date" name="data" required value="{{ hoje_str }}"
+                    style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; background-color: var(--input-bg); color: var(--text-main); font-size: 0.95rem;">
+            </div>
+        </div>
+
+        <div style="margin-bottom: 2rem;">
+            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--text-main);">Histórico /
+                Descrição</label>
+            <input type="text" name="descricao" required placeholder="Ex: Transferência entre contas próprias"
+                style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.95rem;">
+        </div>
+
+        <div
+            style="display: flex; gap: 1rem; align-items: center; border-top: 1px solid var(--border-color); padding-top: 2rem;">
+            <button type="submit" class="btn btn-primary" style="padding: 0.75rem 2rem; font-size: 1rem;">Confirmar
+                Transferência</button>
+            <a href="{{ url_for('main.dashboard') }}" class="btn"
+                style="background-color: var(--bg-muted); color: var(--text-muted); padding: 0.75rem 1.5rem;">Cancelar</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

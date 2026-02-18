@@ -1,0 +1,152 @@
+<div id="modalParametros" class="modal" style="z-index: 2000;">
+    <div class="modal-content"
+        style="max-width: 600px; padding: 0; border-radius: 12px; overflow: hidden; border: 1px solid var(--border-color); background-color: var(--card-bg);">
+        <div class="modal-header"
+            style="background-color: var(--bg-muted); padding: 1.2rem 1.5rem; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+            <h2 style="margin: 0; font-size: 1.25rem; display: flex; align-items: center; gap: 0.75rem;">
+                <span style="font-size: 1.5rem;">⚙️</span> Parâmetros de Contabilidade
+            </h2>
+            <span class="close" onclick="fecharParametros()"
+                style="cursor: pointer; font-size: 1.5rem; color: var(--text-muted);">&times;</span>
+        </div>
+
+        <div class="modal-body" style="padding: 1.5rem; max-height: 70vh; overflow-y: auto;">
+            <form id="formParametros">
+                <!-- Seção 1: Ganhos e Perdas -->
+                <div style="margin-bottom: 2rem;">
+                    <h3
+                        style="font-size: 0.9rem; text-transform: uppercase; color: var(--text-muted); margin-bottom: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; letter-spacing: 0.05em;">
+                        Venda de Ativos (Ganhos/Perdas)</h3>
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Conta de
+                            Lucro/Ganho:</label>
+                        <select name="conta_lucro_venda" class="form-control select-contas"
+                            style="width: 100%; padding: 0.6rem;"></select>
+                    </div>
+                    <div class="form-group">
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Conta de
+                            Prejuízo/Perda:</label>
+                        <select name="conta_prejuizo_venda" class="form-control select-contas"
+                            style="width: 100%; padding: 0.6rem;"></select>
+                    </div>
+                </div>
+
+                <!-- Seção 2: Contas Patrimoniais Padrão -->
+                <div>
+                    <h3
+                        style="font-size: 0.9rem; text-transform: uppercase; color: var(--text-muted); margin-bottom: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; letter-spacing: 0.05em;">
+                        Contas Patrimoniais Padrão</h3>
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Bancos e Caixa:</label>
+                        <select name="conta_ativo_banco" class="form-control select-contas"
+                            style="width: 100%; padding: 0.6rem;"></select>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Veículos:</label>
+                        <select name="conta_ativo_veiculo" class="form-control select-contas"
+                            style="width: 100%; padding: 0.6rem;"></select>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Imóveis:</label>
+                        <select name="conta_ativo_imovel" class="form-control select-contas"
+                            style="width: 100%; padding: 0.6rem;"></select>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Investimentos:</label>
+                        <select name="conta_ativo_investimento" class="form-control select-contas"
+                            style="width: 100%; padding: 0.6rem;"></select>
+                    </div>
+                    <div class="form-group">
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Outros Ativos:</label>
+                        <select name="conta_ativo_outros" class="form-control select-contas"
+                            style="width: 100%; padding: 0.6rem;"></select>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <div class="modal-footer"
+            style="padding: 1.2rem 1.5rem; background-color: var(--bg-muted); border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; gap: 0.75rem;">
+            <button type="button" class="btn" onclick="fecharParametros()"
+                style="background-color: transparent; border: 1px solid var(--border-color);">Cancelar</button>
+            <button type="button" class="btn btn-primary" onclick="salvarParametros()">Salvar Configurações</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let contasAnaliticas = [];
+
+    async function abrirParametros() {
+        const modal = document.getElementById('modalParametros');
+        modal.classList.add('show');
+
+        // Carregar dados da API
+        try {
+            const response = await fetch('/api/contabilidade/parametros');
+            const data = await response.json();
+            contasAnaliticas = data.contas;
+
+            // Popular os selects com filtros específicos
+            const selects = document.querySelectorAll('.select-contas');
+            selects.forEach(select => {
+                select.innerHTML = '<option value="">-- Selecione uma conta --</option>';
+
+                // Definir filtro baseado no nome do campo
+                let contasFiltradas = contasAnaliticas;
+                if (select.name === 'conta_lucro_venda') {
+                    contasFiltradas = contasAnaliticas.filter(c => c.tipo === 'Ativo');
+                } else if (select.name === 'conta_prejuizo_venda') {
+                    contasFiltradas = contasAnaliticas.filter(c => ['Receita', 'Despesa'].includes(c.tipo));
+                } else if (select.name.startsWith('conta_ativo_')) {
+                    contasFiltradas = contasAnaliticas.filter(c => c.tipo === 'Patrimônio Líquido');
+                }
+
+                contasFiltradas.forEach(conta => {
+                    const opt = document.createElement('option');
+                    opt.value = conta.id;
+                    opt.textContent = `${conta.codigo} - ${conta.nome}`;
+                    if (data.valores[select.name] == conta.id) opt.selected = true;
+                    select.appendChild(opt);
+                });
+            });
+        } catch (e) {
+            console.error("Erro ao carregar parâmetros", e);
+            showToast("Erro ao carregar configurações contábeis.", "error");
+        }
+    }
+
+    function fecharParametros() {
+        document.getElementById('modalParametros').classList.remove('show');
+    }
+
+    async function salvarParametros() {
+        const form = document.getElementById('formParametros');
+        const formData = new FormData(form);
+        const data = {};
+        formData.forEach((value, key) => { data[key] = value; });
+
+        try {
+            const response = await fetch('/api/contabilidade/parametros', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+
+            if (response.ok) {
+                fecharParametros();
+                showToast('Configurações salvas com sucesso!', 'success');
+            } else {
+                throw new Error("Erro ao salvar");
+            }
+        } catch (e) {
+            showToast("Erro ao salvar configurações.", "error");
+        }
+    }
+
+    // Fechar ao clicar fora
+    window.addEventListener('click', (e) => {
+        const modal = document.getElementById('modalParametros');
+        if (e.target === modal) fecharParametros();
+    });
+</script>

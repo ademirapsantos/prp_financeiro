@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="full-height-page">
+    <div class="header"
+        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <h1>Livro Diário</h1>
+        <div style="display: flex; gap: 0.5rem;">
+            <a href="{{ url_for('main.balancete') }}" class="btn" style="background-color: #f1f5f9; color: #475569;">🧾
+                Balancete</a>
+            <a href="{{ url_for('contas.lista') }}" class="btn" style="background-color: #f1f5f9; color: #475569;">📊
+                Plano de Contas</a>
+            <a href="{{ url_for('main.exportar_diario', data_inicio=data_inicio, data_fim=data_fim) }}"
+                class="btn btn-success" style="display: flex; align-items: center; gap: 0.5rem;">
+                <img src="https://img.icons8.com/color/24/000000/microsoft-excel-2019--v1.png" alt="Excel"
+                    style="width: 20px; height: 20px;">
+                Exportar
+            </a>
+            <button type="button" class="btn" onclick="abrirParametros()"
+                style="background-color: var(--bg-muted); color: var(--text-muted); border: 1px solid var(--border-color);">⚙️
+                Parâmetros</button>
+        </div>
+    </div>
+
+    <!-- Filtros por Período -->
+    <div class="card" style="margin-bottom: 1rem; padding: 1rem; flex-shrink: 0;">
+        <form method="GET" action="{{ url_for('main.diario') }}"
+            style="display: flex; gap: 1rem; align-items: flex-end;">
+            <div class="form-group" style="margin-bottom: 0;">
+                <label for="data_inicio">De:</label>
+                <input type="date" id="data_inicio" name="data_inicio" value="{{ data_inicio or '' }}"
+                    class="form-control" style="padding: 0.4rem;">
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+                <label for="data_fim">Até:</label>
+                <input type="date" id="data_fim" name="data_fim" value="{{ data_fim or '' }}" class="form-control"
+                    style="padding: 0.4rem;">
+            </div>
+            <button type="submit" class="btn btn-primary" style="padding: 0.4rem 1rem;">Filtrar</button>
+            {% if data_inicio or data_fim %}
+            <a href="{{ url_for('main.diario') }}" class="btn"
+                style="background-color: #f1f5f9; color: #64748b; padding: 0.4rem 1rem;">Limpar</a>
+            {% endif %}
+        </form>
+    </div>
+
+    <div class="card"
+        style="padding: 0; overflow: hidden; flex-grow: 1; display: flex; flex-direction: column; min-height: 0;">
+        <div class="table-container" style="flex-grow: 1; display: flex; flex-direction: column; overflow: hidden;">
+            <div class="table-scroll">
+                <table>
+                    <thead
+                        style="position: sticky; top: 0; z-index: 10; background-color: var(--card-bg); border-bottom: 2px solid var(--border-color);">
+                        <tr>
+                            <th style="width: 120px;">Data</th>
+                            <th>Histórico / Lançamento</th>
+                            <th style="width: 150px; text-align: right;">Débito</th>
+                            <th style="width: 150px; text-align: right;">Crédito</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for diario in diarios %}
+                        <tr style="background-color: var(--hover-color);">
+                            <td style="font-weight: bold; border-bottom: none;">{{ diario.data.strftime('%d/%m/%Y') }}
+                            </td>
+                            <td colspan="3" style="font-weight: bold; border-bottom: none;">{{ diario.historico }} <span
+                                    class="text-muted" style="font-weight: normal; font-size: 0.8rem;">(ID: {{ diario.id
+                                    }})</span></td>
+                        </tr>
+                        {% for p in diario.partidas %}
+                        <tr>
+                            <td style="border-top: none;"></td>
+                            <td style="padding-left: 2rem; border-top: none;">
+                                {{ p.conta.codigo }} - {{ p.conta.nome }}
+                            </td>
+                            <td style="border-top: none; text-align: right;" class="money text-success">
+                                {% if p.tipo == 'D' %}
+                                R$ {{ "{:,.2f}".format(p.valor).replace(",", "X").replace(".", ",").replace("X", ".") }}
+                                {% endif %}
+                            </td>
+                            <td style="border-top: none; text-align: right;" class="money text-danger">
+                                {% if p.tipo == 'C' %}
+                                R$ {{ "{:,.2f}".format(p.valor).replace(",", "X").replace(".", ",").replace("X", ".") }}
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        {% else %}
+                        <tr>
+                            <td colspan="4" style="text-align: center; padding: 2rem; color: var(--text-muted);">
+                                Nenhum lançamento encontrado para o período selecionado.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Paginação -->
+        {% if pagination.total > 0 %}
+        <div class="pagination-container"
+            style="padding: 1rem 1.5rem; display: flex; justify-content: space-between; align-items: center; background: var(--table-header-bg); border-top: 1px solid var(--border-color); flex-shrink: 0;">
+            <div style="font-size: 0.85rem; color: var(--text-muted);">
+                Mostrando página <b>{{ pagination.page }}</b> de <b>{{ pagination.pages or 1 }}</b> (Total: {{
+                pagination.total }} lançamentos)
+            </div>
+            {% if pagination.pages > 1 %}
+            <div style="display: flex; gap: 0.25rem;">
+                {% if pagination.has_prev %}
+                <a href="{{ url_for('main.diario', page=pagination.prev_num, data_inicio=data_inicio, data_fim=data_fim) }}"
+                    class="btn"
+                    style="padding: 0.4rem 0.8rem; font-size: 0.85rem; background: var(--card-bg); border: 1px solid var(--border-color); color: var(--text-main);">«
+                    Anterior</a>
+                {% endif %}
+
+                {% for p in pagination.iter_pages(left_edge=1, left_current=2, right_current=2, right_edge=1) %}
+                {% if p %}
+                <a href="{{ url_for('main.diario', page=p, data_inicio=data_inicio, data_fim=data_fim) }}"
+                    class="btn {{ 'btn-primary' if p == pagination.page else '' }}"
+                    style="padding: 0.4rem 0.8rem; font-size: 0.85rem; {% if p != pagination.page %}background: var(--card-bg); border: 1px solid var(--border-color); color: var(--text-main);{% endif %}">{{
+                    p }}</a>
+                {% else %}
+                <span style="padding: 0.4rem 0.8rem; color: var(--text-muted);">...</span>
+                {% endif %}
+                {% endfor %}
+
+                {% if pagination.has_next %}
+                <a href="{{ url_for('main.diario', page=pagination.next_num, data_inicio=data_inicio, data_fim=data_fim) }}"
+                    class="btn"
+                    style="padding: 0.4rem 0.8rem; font-size: 0.85rem; background: var(--card-bg); border: 1px solid var(--border-color); color: var(--text-main);">Próxima
+                    »</a>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% include 'contabilidade/dialog_parametros.html' %}
+{% endblock %}

@@ -1,0 +1,315 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="header"
+    style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; border-bottom: 3px solid var(--danger-color); padding-bottom: 1rem;">
+    <h1 style="color: var(--text-main); margin-bottom: 0;">Contas a Pagar / Receber</h1>
+    <div style="display: flex; gap: 0.5rem;">
+        <a href="{{ url_for('financeiro.nova_venda', next=url_for('financeiro.titulos')) }}" class="btn btn-success"
+            style="font-size: 0.85rem; padding: 0.6rem 1rem;">+ Nova Venda</a>
+        <a href="{{ url_for('financeiro.novo_pagamento', next=url_for('financeiro.titulos')) }}" class="btn btn-danger"
+            style="font-size: 0.85rem; padding: 0.6rem 1rem;">+ Novo Pagamento</a>
+        <a href="{{ url_for('financeiro.movimentacao_outros', next=url_for('financeiro.titulos')) }}" class="btn"
+            style="font-size: 0.85rem; padding: 0.6rem 1rem; background-color: #8b5cf6; color: white;">+
+            Pagam./Receb.</a>
+        <a href="{{ url_for('financeiro.transferencia') }}" class="btn btn-primary"
+            style="font-size: 0.85rem; padding: 0.6rem 1rem; background-color: var(--primary-light);">Transferência</a>
+    </div>
+</div>
+
+<style>
+    .tabs-container {
+        display: flex;
+        gap: 0.5rem;
+        margin-bottom: 1.5rem;
+        border-bottom: 1px solid var(--border-color);
+        padding-bottom: 0px;
+    }
+
+    .tab-link {
+        padding: 0.75rem 1.5rem;
+        text-decoration: none;
+        color: var(--text-muted);
+        font-weight: 600;
+        border-bottom: 3px solid transparent;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .tab-link:hover {
+        color: var(--primary-color);
+        background: var(--bg-color);
+    }
+
+    .tab-link.active {
+        color: var(--primary-color);
+        border-bottom-color: var(--primary-color);
+        background: var(--table-header-bg);
+        border-radius: 6px 6px 0 0;
+    }
+
+    [data-theme='dark'] .tab-link.active {
+        color: var(--accent-color);
+        border-bottom-color: var(--accent-color);
+    }
+
+    [data-theme='dark'] .tab-link:hover {
+        color: var(--accent-color);
+    }
+
+    .tab-badge {
+        font-size: 0.75rem;
+        padding: 2px 8px;
+        border-radius: 12px;
+        background: #fee2e2;
+        color: #991b1b;
+    }
+
+    .active .tab-badge {
+        background: var(--primary-color);
+        color: white;
+    }
+</style>
+
+<div class="tabs-container">
+    <a href="{{ url_for('financeiro.titulos', tab='pendentes', **filtros) }}"
+        class="tab-link {{ 'active' if active_tab == 'pendentes' else '' }}">
+        ⏳ Contas Pendentes
+    </a>
+    <a href="{{ url_for('financeiro.titulos', tab='pagas', **filtros) }}"
+        class="tab-link {{ 'active' if active_tab == 'pagas' else '' }}">
+        ✅ Contas Pagas
+    </a>
+</div>
+
+<!-- Filtros -->
+<div class="card" style="margin-bottom: 2rem; padding: 1.5rem;">
+    <form method="GET"
+        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; align-items: end;">
+        <div>
+            <label
+                style="display: block; font-size: 0.8rem; font-weight: 600; color: #64748b; margin-bottom: 0.25rem;">Data
+                Início</label>
+            <input type="date" name="data_inicio" value="{{ filtros.data_inicio }}"
+                style="width: 100%; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; background: var(--input-bg); color: var(--text-main);">
+        </div>
+        <div>
+            <label
+                style="display: block; font-size: 0.8rem; font-weight: 600; color: #64748b; margin-bottom: 0.25rem;">Data
+                Fim</label>
+            <input type="date" name="data_fim" value="{{ filtros.data_fim }}"
+                style="width: 100%; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; background: var(--input-bg); color: var(--text-main);">
+        </div>
+        <div>
+            <label
+                style="display: block; font-size: 0.8rem; font-weight: 600; color: #64748b; margin-bottom: 0.25rem;">Tipo</label>
+            <select name="tipo"
+                style="width: 100%; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; background: var(--input-bg); color: var(--text-main);">
+                <option value="">Todos</option>
+                <option value="Pagar" {% if filtros.tipo=='Pagar' %}selected{% endif %}>A Pagar</option>
+                <option value="Receber" {% if filtros.tipo=='Receber' %}selected{% endif %}>A Receber</option>
+            </select>
+        </div>
+        <div>
+            <label
+                style="display: block; font-size: 0.8rem; font-weight: 600; color: #64748b; margin-bottom: 0.25rem;">Entidade</label>
+            <select name="entidade_id"
+                style="width: 100%; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; background: var(--input-bg); color: var(--text-main);">
+                <option value="">Todas</option>
+                {% for e in entidades %}
+                <option value="{{ e.id }}" {% if filtros.entidade_id==e.id|string %}selected{% endif %}>{{ e.nome }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+        <input type="hidden" name="tab" value="{{ active_tab }}">
+        <div style="display: flex; gap: 0.5rem;">
+            <button type="submit" class="btn btn-primary" style="padding: 0.6rem; flex-grow: 1;">Filtrar</button>
+            <a href="{{ url_for('financeiro.titulos', tab=active_tab) }}" class="btn"
+                style="padding: 0.6rem; background-color: var(--bg-muted); color: var(--text-muted); text-align: center;">Limpar</a>
+        </div>
+    </form>
+</div>
+
+<div class="full-height-page">
+    <div class="card"
+        style="flex-grow: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden; padding: 0;">
+        <div
+            style="display: flex; gap: 2rem; padding: 1rem 1.5rem; background: var(--table-header-bg); border-bottom: 1px solid var(--border-color); flex-shrink: 0;">
+            <p style="margin: 0;"><strong>Total a Receber:</strong> <span class="text-success">R$ {{
+                    "{:,.2f}".format(total_receber).replace(",", "X").replace(".", ",").replace("X", ".") }}</span></p>
+            <p style="margin: 0;"><strong>Total a Pagar:</strong> <span class="text-danger">R$ {{
+                    "{:,.2f}".format(total_pagar).replace(",", "X").replace(".", ",").replace("X", ".") }}</span></p>
+        </div>
+        <div class="table-container" style="flex-grow: 1; overflow: hidden; display: flex; flex-direction: column;">
+            <div class="table-scroll">
+                <table>
+                    <thead
+                        style="position: sticky; top: 0; z-index: 10; background-color: var(--table-header-bg); border-bottom: 2px solid var(--border-color);">
+                        <tr style="text-align: left;">
+                            <th style="padding: 1rem;">ID</th>
+                            <th style="padding: 1rem;">Vencimento</th>
+                            <th style="padding: 1rem;">Descrição</th>
+                            <th style="padding: 1rem;">Entidade</th>
+                            <th style="padding: 1rem;">Tipo</th>
+                            <th style="padding: 1rem;">Valor</th>
+                            <th style="padding: 1rem;">Status</th>
+                            <th style="padding: 1rem;">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for t in titulos %}
+                        <tr>
+                            <td>{{ t.id }}</td>
+                            <td>{{ t.data_vencimento.strftime('%d/%m/%Y') }}</td>
+                            <td>
+                                <div style="font-weight: 600; color: var(--text-main);">{{ t.descricao }}</div>
+                                {% if t.total_parcelas %}
+                                <span
+                                    style="font-size: 0.75rem; color: var(--text-muted); background: var(--bg-color); padding: 2px 6px; border-radius: 4px; border: 1px solid var(--border-color);">
+                                    Parcela {{ t.parcela_atual }}/{{ t.total_parcelas }}
+                                </span>
+                                {% endif %}
+                            </td>
+                            <td>{{ t.entidade.nome }}</td>
+                            <td>
+                                <span
+                                    class="{{ 'text-success' if 'RECEBER' in t.tipo|upper or 'Receber' in t.tipo else 'text-danger' }}">
+                                    {{ t.tipo }}
+                                </span>
+                            </td>
+                            <td>R$ {{ "{:,.2f}".format(t.valor).replace(",", "X").replace(".", ",").replace("X", ".") }}
+                            </td>
+                            <td>
+                                <span
+                                    style="padding: 2px 6px; border-radius: 4px; background-color: {{ '#065f46' if t.status == 'Pago' or t.status == 'PAGO' else '#991b1b' }}; color: #ffffff; font-size: 0.8rem; font-weight: 600;">
+                                    {{ t.status }}
+                                </span>
+                            </td>
+                            <td style="display: flex; gap: 0.5rem; align-items: center;">
+                                {% if t.status == 'Aberto' or t.status == 'ABERTO' %}
+                                <a href="{{ url_for('financeiro.liquidar_titulo_route', titulo_id=t.id) }}"
+                                    class="btn btn-success"
+                                    style="padding: 0.25rem 0.5rem; font-size: 0.8rem;">Liquidar</a>
+                                {% endif %}
+                                {% if t.status != 'Cancelado' and t.status != 'CANCELADO' %}
+                                {% if t.data_emissao >= data_limite_estorno %}
+                                <button class="btn"
+                                    style="padding: 0.25rem 0.5rem; font-size: 0.8rem; background-color: #fee2e2; color: #dc2626; border: 1px solid #fecaca;"
+                                    onclick="confirmarEstorno('{{ t.id }}', '{{ t.descricao }}', '{{ '{:,.2f}'.format(t.valor).replace(',', 'X').replace('.', ',').replace('X', '.') }}', '{{ url_for('financeiro.estornar_titulo_route', titulo_id=t.id) }}')">
+                                    Estornar
+                                </button>
+                                {% else %}
+                                <span class="btn"
+                                    style="padding: 0.25rem 0.5rem; font-size: 0.8rem; background-color: var(--bg-color); color: var(--text-muted); border: 1px solid var(--border-color); cursor: not-allowed;"
+                                    title="Bloqueado: Títulos com mais de 2 meses não podem ser estornados (Segurança Contábil)">
+                                    🔒 Estorno Bloqueado
+                                </span>
+                                {% endif %}
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Paginação -->
+        {% if pagination.total > 0 %}
+        <div class="pagination-container"
+            style="padding: 1rem 1.5rem; display: flex; justify-content: space-between; align-items: center; background: var(--table-header-bg); border-top: 1px solid var(--border-color); flex-shrink: 0;">
+            <div style="font-size: 0.85rem; color: var(--text-muted);">
+                Mostrando página <b>{{ pagination.page }}</b> de <b>{{ pagination.pages or 1 }}</b> (Total: {{
+                pagination.total }} registros)
+            </div>
+            {% if pagination.pages > 1 %}
+            <div style="display: flex; gap: 0.25rem;">
+                {% if pagination.has_prev %}
+                <a href="{{ url_for('financeiro.titulos', page=pagination.prev_num, tab=active_tab, **filtros) }}"
+                    class="btn"
+                    style="padding: 0.4rem 0.8rem; font-size: 0.85rem; background: var(--card-bg); border: 1px solid var(--border-color); color: var(--text-main);">«
+                    Anterior</a>
+                {% endif %}
+
+                {% for p in pagination.iter_pages(left_edge=1, left_current=2, right_current=2, right_edge=1) %}
+                {% if p %}
+                <a href="{{ url_for('financeiro.titulos', page=p, tab=active_tab, **filtros) }}"
+                    class="btn {{ 'btn-primary' if p == pagination.page else '' }}"
+                    style="padding: 0.4rem 0.8rem; font-size: 0.85rem; {% if p != pagination.page %}background: var(--card-bg); border: 1px solid var(--border-color); color: var(--text-main);{% endif %}">{{
+                    p }}</a>
+                {% else %}
+                <span style="padding: 0.4rem 0.8rem; color: var(--text-muted);">...</span>
+                {% endif %}
+                {% endfor %}
+
+                {% if pagination.has_next %}
+                <a href="{{ url_for('financeiro.titulos', page=pagination.next_num, tab=active_tab, **filtros) }}"
+                    class="btn"
+                    style="padding: 0.4rem 0.8rem; font-size: 0.85rem; background: var(--card-bg); border: 1px solid var(--border-color); color: var(--text-main);">Próxima
+                    »</a>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Modal de Confirmação Customizado -->
+<div id="modalEstorno"
+    style="display: none; position: fixed; z-index: 10000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); align-items: center; justify-content: center;">
+    <div class="card"
+        style="width: 400px; padding: 2rem; border-top: 5px solid var(--danger-color); box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
+        <h2 style="color: var(--danger-color); margin-bottom: 1rem;">⚠️ Atenção!</h2>
+        <p style="margin-bottom: 1.5rem; line-height: 1.5;">Você tem certeza que deseja
+            <strong>estornar</strong> este
+            título?
+        </p>
+
+        <div
+            style="background-color: var(--bg-color); padding: 1rem; border-radius: 6px; margin-bottom: 2rem; border-left: 4px solid var(--border-color);">
+            <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 0.25rem;">Descrição:</p>
+            <p id="estornoDesc" style="font-weight: 600; margin-bottom: 0.75rem; color: var(--text-main);"></p>
+            <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 0.25rem;">Valor:</p>
+            <p id="estornoValor" style="font-weight: 700; color: var(--danger-color); font-size: 1.2rem;">R$
+                0,00</p>
+        </div>
+
+        <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1.5rem;">* Esta ação criará
+            lançamentos
+            contábeis de
+            reversão e cancelará o título.</p>
+
+        <div style="display: flex; gap: 1rem;">
+            <a id="btnConfirmarEstorno" href="#" class="btn btn-danger"
+                style="flex-grow: 1; text-align: center; padding: 0.75rem;">Sim, Estornar</a>
+            <button onclick="fecharModal()" class="btn"
+                style="flex-grow: 1; background-color: var(--border-color); color: var(--text-muted);">Cancelar</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    function confirmarEstorno(id, desc, valor, url) {
+        document.getElementById('estornoDesc').innerText = desc;
+        document.getElementById('estornoValor').innerText = 'R$ ' + valor;
+        document.getElementById('btnConfirmarEstorno').href = url;
+        document.getElementById('modalEstorno').style.display = 'flex';
+    }
+
+    function fecharModal() {
+        document.getElementById('modalEstorno').style.display = 'none';
+    }
+
+    // Fechar se clicar fora do card
+    window.onclick = function (event) {
+        let modal = document.getElementById('modalEstorno');
+        if (event.target == modal) {
+            fecharModal();
+        }
+    }
+</script>
+{% endblock %}

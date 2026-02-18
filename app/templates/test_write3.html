@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Fixed Base Test 3</title>
+</head>
+
+<body>
+    <script>
+        function loadUsers() {
+            const currentUserId = {% print current_user.id or 'null' %};
+        const isAdmin = {% print 'true' if current_user.is_admin else 'false' %};
+        }
+    </script>
+</body>
+
+</html>

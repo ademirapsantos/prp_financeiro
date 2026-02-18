@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+
+{% block content %}
+<script>
+    const mesSelecionado = {% if mes_selecionado %}{ { mes_selecionado } } {% else %} null{% endif %};
+</script>
+{% endblock %}

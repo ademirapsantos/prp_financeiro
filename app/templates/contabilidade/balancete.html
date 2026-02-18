@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="full-height-page">
+    <div class="header"
+        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <h1>Balancete de Verificação</h1>
+        <div style="display: flex; gap: 0.5rem;">
+            <a href="{{ url_for('main.diario') }}" class="btn"
+                style="background-color: var(--bg-muted); color: var(--text-muted); border: 1px solid var(--border-color);">📖
+                Diário</a>
+            <a href="{{ url_for('contas.lista') }}" class="btn"
+                style="background-color: var(--bg-muted); color: var(--text-muted); border: 1px solid var(--border-color);">📊
+                Plano de Contas</a>
+            <a href="{{ url_for('main.exportar_balancete', data_inicio=data_inicio, data_fim=data_fim) }}"
+                class="btn btn-success" style="display: flex; align-items: center; gap: 0.5rem;">
+                <img src="https://img.icons8.com/color/24/000000/microsoft-excel-2019--v1.png" alt="Excel"
+                    style="width: 20px; height: 20px;">
+                Exportar
+            </a>
+            <button type="button" class="btn" onclick="abrirParametros()"
+                style="background-color: var(--bg-muted); color: var(--text-muted); border: 1px solid var(--border-color);">⚙️
+                Parâmetros</button>
+        </div>
+    </div>
+
+    <!-- Filtros por Período -->
+    <div class="card" style="margin-bottom: 1rem; padding: 1rem; flex-shrink: 0;">
+        <form method="GET" action="{{ url_for('main.balancete') }}"
+            style="display: flex; gap: 1rem; align-items: flex-end;">
+            <div class="form-group" style="margin-bottom: 0;">
+                <label for="data_inicio">De:</label>
+                <input type="date" id="data_inicio" name="data_inicio" value="{{ data_inicio }}" class="form-control"
+                    style="padding: 0.4rem;">
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+                <label for="data_fim">Até:</label>
+                <input type="date" id="data_fim" name="data_fim" value="{{ data_fim }}" class="form-control"
+                    style="padding: 0.4rem;">
+            </div>
+            <button type="submit" class="btn btn-primary" style="padding: 0.4rem 1rem;">Gerar Balancete</button>
+        </form>
+    </div>
+
+    <div class="card"
+        style="padding: 0; overflow: hidden; flex-grow: 1; display: flex; flex-direction: column; min-height: 0;">
+        <div class="table-container" style="flex-grow: 1; display: flex; flex-direction: column; overflow: hidden;">
+            <div class="table-scroll">
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead
+                        style="position: sticky; top: 0; z-index: 10; background-color: var(--table-header-bg); border-bottom: 2px solid var(--border-color);">
+                        <tr>
+                            <th style="width: 100px; padding: 0.75rem;">Código</th>
+                            <th style="padding: 0.75rem;">Conta</th>
+                            <th style="width: 140px; text-align: right; padding: 0.75rem;">Saldo Anterior</th>
+                            <th style="width: 120px; text-align: right; padding: 0.75rem;">Débitos</th>
+                            <th style="width: 120px; text-align: right; padding: 0.75rem;">Créditos</th>
+                            <th style="width: 140px; text-align: right; padding: 0.75rem;">Saldo Atual</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in balancete %}
+                        {% if item.nivel == 1 and not loop.first %}
+                        <tr style="height: 1.5rem; background-color: transparent; border: none;">
+                            <td colspan="6" style="border: none;"></td>
+                        </tr>
+                        {% endif %}
+                        <tr
+                            style="border-bottom: 1px solid var(--border-color); {% if item.nivel == 1 %}background-color: var(--table-header-bg); font-weight: bold;{% elif item.nivel == 2 %}font-weight: 600;{% endif %}">
+                            <td style="padding: 0.6rem 0.75rem; font-family: monospace;">{{ item.codigo }}</td>
+                            <td style="padding: 0.6rem 0.75rem; padding-left: {{ (item.nivel - 1) * 1.5 }}rem;">
+                                {{ item.nome }}
+                            </td>
+                            <td style="padding: 0.6rem 0.75rem; text-align: right;"
+                                class="{{ 'text-success' if item.saldo_anterior > 0 else ('text-danger' if item.saldo_anterior < 0 else '') }}">
+                                R$ {{ "{:,.2f}".format(item.saldo_anterior).replace(",", "X").replace(".",
+                                ",").replace("X", ".") }}
+                            </td>
+                            <td style="padding: 0.6rem 0.75rem; text-align: right; 
+                                color: {{ '#dc2626' if item.codigo.startswith('3') else '#2563eb' }};">
+                                R$ {{ "{:,.2f}".format(item.debitos).replace(",", "X").replace(".", ",").replace("X",
+                                ".") }}
+                            </td>
+                            <td style="padding: 0.6rem 0.75rem; text-align: right; 
+                                color: {{ '#2563eb' if item.codigo.startswith('3') else '#dc2626' }};">
+                                R$ {{ "{:,.2f}".format(item.creditos).replace(",", "X").replace(".", ",").replace("X",
+                                ".") }}
+                            </td>
+                            <td style="padding: 0.6rem 0.75rem; text-align: right; font-weight: bold; 
+                                {% if item.tipo in ['Ativo', 'Patrimônio Líquido', 'Receita'] %}
+                                    color: #16a34a; /* Verde */
+                                {% elif item.tipo in ['Passivo', 'Despesa'] %}
+                                    color: #b91c1c; /* Vermelho Diferenciado (Vinho) */
+                                {% endif %}">
+                                R$ {{ "{:,.2f}".format(item.saldo_atual).replace(",", "X").replace(".",
+                                ",").replace("X", ".") }}
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="6" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                                Nenhuma movimentação encontrada para o período selecionado.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot
+                        style="position: sticky; bottom: 0; z-index: 10; background-color: var(--table-header-bg); border-top: 2px solid var(--border-color); font-weight: bold;">
+                        <tr>
+                            <td colspan="2" style="padding: 0.75rem; text-align: right;">TOTAIS:</td>
+                            <td style="padding: 0.75rem; text-align: right;"
+                                class="{{ 'text-success' if totais.saldo_anterior > 0 else ('text-danger' if totais.saldo_anterior < 0 else '') }}">
+                                R$ {{ "{:,.2f}".format(totais.saldo_anterior).replace(",", "X").replace(".",
+                                ",").replace("X", ".") }}
+                            </td>
+                            <td style="padding: 0.75rem; text-align: right; color: #2563eb;">
+                                R$ {{ "{:,.2f}".format(totais.debitos).replace(",", "X").replace(".", ",").replace("X",
+                                ".") }}
+                            </td>
+                            <td style="padding: 0.75rem; text-align: right; color: #dc2626;">
+                                R$ {{ "{:,.2f}".format(totais.creditos).replace(",", "X").replace(".", ",").replace("X",
+                                ".") }}
+                            </td>
+                            <td style="padding: 0.75rem; text-align: right; color: var(--text-main);">
+                                R$ {{ "{:,.2f}".format(totais.saldo_atual).replace(",", "X").replace(".",
+                                ",").replace("X", ".") }}
+                            </td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div style="margin-top: 1rem; color: var(--text-muted); font-size: 0.85rem; display: flex; gap: 2rem;">
+        <span><strong>Dica:</strong> O saldo atual considera a natureza da conta (Devedora ou Credora).</span>
+        <span><span style="color: #2563eb;">●</span> Débitos</span>
+        <span><span style="color: #dc2626;">●</span> Créditos</span>
+    </div>
+</div>
+{% include 'contabilidade/dialog_parametros.html' %}
+{% endblock %}

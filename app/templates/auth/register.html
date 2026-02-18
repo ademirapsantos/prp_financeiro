@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cadastro Inicial - PRP Financeiro</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: var(--bg-color);
+            margin: 0;
+            height: 100vh;
+        }
+
+        .register-card {
+            width: 100%;
+            max-width: 450px;
+            padding: var(--spacing-lg);
+            background: white;
+            border-radius: 12px;
+            box-shadow: var(--shadow-md);
+            border: 1px solid var(--border-color);
+        }
+
+        .register-header {
+            text-align: center;
+            margin-bottom: var(--spacing-lg);
+        }
+
+        .form-group {
+            margin-bottom: var(--spacing-md);
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 1rem;
+        }
+
+        .btn-register {
+            width: 100%;
+            padding: 0.75rem;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="register-card">
+        <div class="register-header">
+            <h1>Cadastro Inicial</h1>
+            <p class="text-muted">Crie sua conta administrativa</p>
+        </div>
+
+        <form method="POST">
+            <div class="form-group">
+                <label for="nome">Nome Completo</label>
+                <input type="text" id="nome" name="nome" class="form-control" placeholder="Seu nome" required>
+            </div>
+            <div class="form-group">
+                <label for="email">E-mail Corporativo</label>
+                <input type="email" id="email" name="email" class="form-control" placeholder="exemplo@empresa.com"
+                    required>
+            </div>
+            <div class="alert alert-info"
+                style="background:#eff6ff; padding: 1rem; border-radius: 6px; margin-bottom: 1.5rem; font-size: 0.9rem; color: #1e40af;">
+                <strong>Nota:</strong> Uma senha temporária será gerada para o seu primeiro acesso.
+            </div>
+            <button type="submit" class="btn btn-success btn-register">Criar Conta</button>
+        </form>
+    </div>
+</body>
+
+</html>

@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  prp-financeiro-test:
+    build: .
+    container_name: prp_financeiro_test
+    ports:
+      - "5001:5000" # Mapeia porta 5001 (Host) para 5000 (Container)
+    volumes:
+      - ./prp_financeiro.db:/app/prp_financeiro.db # Persistência do banco SQLite
+      - ./instance:/app/instance
+    restart: always
+    environment:
+      - FLASK_ENV=development
+      - SECRET_KEY=prod_key_change_me

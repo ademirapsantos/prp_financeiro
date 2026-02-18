@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="header" style="display: flex; align-items: center; gap: 1rem; margin-bottom: 2rem;">
+    <a href="{{ next_url }}" class="btn"
+        style="background-color: var(--bg-muted); color: var(--text-muted); padding: 0.5rem; display: flex; align-items: center; justify-content: center; border-radius: 50%; width: 32px; height: 32px; text-decoration: none; border: 1px solid var(--border-color);">←</a>
+    <h1>Novo Pagamento (Lançamento de Despesa)</h1>
+</div>
+
+<div class="card" style="max-width: 600px; margin: 0 auto; padding: 2rem;">
+    <form method="POST" action="{{ url_for('financeiro.novo_pagamento', next=next_url) }}">
+        <div style="margin-bottom: 1.5rem;">
+            <label style="display: block; font-weight: 600; margin-bottom: 0.5rem;">Fornecedor</label>
+            <select name="entidade_id" required
+                style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; background-color: var(--input-bg); color: var(--text-main);">
+                <option value="">Selecione...</option>
+                {% for f in fornecedores %}
+                <option value="{{ f.id }}">{{ f.nome }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div style="margin-bottom: 1.5rem;">
+            <label style="display: block; font-weight: 600; margin-bottom: 0.5rem;">Descrição / Histórico</label>
+            <input type="text" name="descricao" required placeholder="Ex: Aluguel mensal / Compra de material"
+                style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; background-color: var(--input-bg); color: var(--text-main);">
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
+            <div>
+                <label style="display: block; font-weight: 600; margin-bottom: 0.5rem;">Valor (R$)</label>
+                <input type="number" step="0.01" name="valor" required placeholder="0,00"
+                    style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; background-color: var(--input-bg); color: var(--text-main);">
+            </div>
+            <div>
+                <label style="display: block; font-weight: 600; margin-bottom: 0.5rem;">Data de Vencimento</label>
+                <input type="date" name="data_vencimento" value="{{ hoje }}" required
+                    style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; background-color: var(--input-bg); color: var(--text-main);">
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 1rem; margin-top: 2rem;">
+            <button type="submit" class="btn btn-primary" style="flex-grow: 1; padding: 1rem;">Registrar
+                Pagamento</button>
+            <a href="{{ next_url }}" class="btn"
+                style="background-color: var(--bg-muted); color: var(--text-muted); padding: 1rem; border: 1px solid var(--border-color);">Cancelar</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

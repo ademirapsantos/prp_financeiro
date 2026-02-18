@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="full-height-page">
+    <div class="header"
+        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+        <h1>Contas Bancárias</h1>
+        <a href="#" class="btn btn-primary" id="open-novo-banco-btn">+ Novo Banco</a>
+    </div>
+
+    <div class="table-scroll" style="flex-grow: 1;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.5rem;">
+            {% for banco in bancos %}
+            <div class="card">
+                <div
+                    style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem;">
+                    <div>
+                        <h3 style="margin: 0; color: var(--text-main);">{{ banco.nome }}</h3>
+                        <span style="font-size: 0.8rem; color: var(--text-muted);">Conta: {{
+                            banco.banco_obj.numero_conta or 'N/A'
+                            }}
+                            |
+                            C.C: {{ banco.codigo }}</span>
+                    </div>
+                    <div
+                        style="background-color: #e0f2fe; color: #0369a1; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">
+                        Ativo
+                    </div>
+                </div>
+
+                <div>
+                    <span
+                        style="display: block; font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.25rem;">Saldo
+                        Atual</span>
+                    <span
+                        style="font-size: 1.5rem; font-weight: 700; color: {{ '#16a34a' if banco.saldo >= 0 else '#dc2626' }};">
+                        R$ {{ "{:,.2f}".format(banco.saldo).replace(",", "X").replace(".", ",").replace("X", ".") }}
+                    </span>
+                </div>
+
+                <div
+                    style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color); display: flex; gap: 0.5rem;">
+                    <a href="{{ url_for('financeiro.extrato_banco', banco_id=banco.id) }}" class="btn"
+                        style="background-color: var(--bg-muted); color: var(--text-muted); font-size: 0.8rem; padding: 0.25rem 0.5rem; border: 1px solid var(--border-color);">Extrato</a>
+                    <a href="{{ url_for('financeiro.editar_banco', banco_id=banco.id) }}" class="btn"
+                        style="background-color: var(--bg-muted); color: var(--text-muted); font-size: 0.8rem; padding: 0.25rem 0.5rem; border: 1px solid var(--border-color);">Editar</a>
+                </div>
+            </div>
+            {% else %}
+            <div
+                style="grid-column: 1 / -1; text-align: center; padding: 3rem; background-color: var(--card-bg); border-radius: 8px; border: 1px dashed var(--border-color);">
+                <p style="color: var(--text-muted); margin-bottom: 1rem;">Nenhuma conta bancária cadastrada.</p>
+                <a href="#" class="btn btn-primary"
+                    onclick="document.getElementById('novo-banco-modal').classList.add('show')">Cadastrar Primeira
+                    Conta</a>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- Modal Novo Banco -->
+<div id="novo-banco-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header"
+            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem;">
+            <h2 style="margin: 0; color: var(--text-main);">Nova Conta Bancária</h2>
+            <span class="close-modal" id="close-novo-banco-btn"
+                style="cursor: pointer; font-size: 1.5rem; color: var(--text-muted);">&times;</span>
+        </div>
+        <div class="modal-body">
+            <form action="{{ url_for('financeiro.novo_banco') }}" method="POST">
+                <div style="margin-bottom: 1.5rem;">
+                    <label
+                        style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--text-main);">Nome
+                        do Banco / Instituição</label>
+                    <input type="text" name="nome" required placeholder="Ex: Banco Itaú - Ag 1234" class="form-control"
+                        style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; background-color: var(--input-bg); color: var(--text-main);">
+                </div>
+
+                <div style="margin-bottom: 1.5rem;">
+                    <label
+                        style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--text-main);">Conta
+                        Contábil Vinculada</label>
+                    <select name="conta_contabil_id" class="form-control"
+                        style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; background-color: var(--input-bg); color: var(--text-main);">
+                        <option value="">-- Criar conta automaticamente --</option>
+                        {% for conta in contas_contabeis %}
+                        <option value="{{ conta.id }}">{{ conta.codigo }} - {{ conta.nome }}</option>
+                        {% endfor %}
+                    </select>
+                    <small style="display: block; margin-top: 0.5rem; color: var(--text-muted);">
+                        Selecione uma conta existente ou deixe em branco para criar uma nova.
+                    </small>
+                </div>
+
+                <div style="margin-bottom: 1.5rem;">
+                    <label
+                        style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--text-main);">Número
+                        da Conta</label>
+                    <input type="text" name="numero_conta" placeholder="Ex: 12345-6" class="form-control"
+                        style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; background-color: var(--input-bg); color: var(--text-main);">
+                </div>
+
+                <div style="margin-bottom: 1.5rem;">
+                    <label
+                        style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--text-main);">Saldo
+                        Inicial (R$)</label>
+                    <input type="number" step="0.01" name="saldo_inicial" value="0.00" class="form-control"
+                        style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; background-color: var(--input-bg); color: var(--text-main);">
+                    <small style="display: block; margin-top: 0.5rem; color: var(--text-muted);">
+                        Será gerado um lançamento de abertura contra Capital Social.
+                    </small>
+                </div>
+
+                <div style="margin-top: 2rem; display: flex; gap: 1rem;">
+                    <button type="submit" class="btn btn-primary" style="flex: 1; padding: 0.8rem;">Cadastrar
+                        Conta</button>
+                    <button type="button" class="btn" id="cancel-novo-banco-btn"
+                        style="background-color: var(--bg-muted); color: var(--text-muted); flex: 1; border: 1px solid var(--border-color);">Cancelar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const modal = document.getElementById('novo-banco-modal');
+        const openBtn = document.getElementById('open-novo-banco-btn');
+        const closeBtn = document.getElementById('close-novo-banco-btn');
+        const cancelBtn = document.getElementById('cancel-novo-banco-btn');
+
+        if (openBtn) {
+            openBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                modal.classList.add('show');
+            });
+        }
+
+        const closeModal = () => modal.classList.remove('show');
+
+        if (closeBtn) closeBtn.addEventListener('click', closeModal);
+        if (cancelBtn) cancelBtn.addEventListener('click', closeModal);
+
+        window.addEventListener('click', (e) => {
+            if (e.target === modal) closeModal();
+        });
+    });
+</script>
+{% endblock %}

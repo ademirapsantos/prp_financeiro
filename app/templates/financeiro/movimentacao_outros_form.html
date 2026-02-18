@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="header" style="display: flex; align-items: center; margin-bottom: 2rem;">
+    <a href="{{ next_url }}" class="btn"
+        style="background-color: var(--bg-muted); color: var(--text-muted); padding: 0.5rem 1rem; margin-right: 1rem; border: 1px solid var(--border-color);"
+        title="Voltar">←</a>
+    <div>
+        <h1 style="margin: 0;">Pagam./Receb. (Outros)</h1>
+        <p class="text-muted" style="margin: 0.25rem 0 0 0;">Lançamentos de empréstimos, acordos ou movimentações com
+            parceiros.</p>
+    </div>
+</div>
+
+<div class="card" style="max-width: 800px; margin: 0 auto; padding: 2rem;">
+    <form action="{{ url_for('financeiro.movimentacao_outros', next=next_url) }}" method="POST">
+
+        <!-- Linha 1: Tipo de Movimentação e Descrição -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
+            <div>
+                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--text-main);">Tipo de
+                    Movimentação</label>
+                <div style="display: flex; gap: 0.5rem;">
+                    <label
+                        style="flex: 1; display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem; border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; transition: all 0.2s;"
+                        class="radio-option">
+                        <input type="radio" name="tipo_movimentacao" value="Receber" required checked>
+                        <span>Vem p/ o Banco ($)</span>
+                    </label>
+                    <label
+                        style="flex: 1; display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem; border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; transition: all 0.2s;"
+                        class="radio-option">
+                        <input type="radio" name="tipo_movimentacao" value="Pagar">
+                        <span>Sai do Banco ($)</span>
+                    </label>
+                </div>
+            </div>
+            <div>
+                <label
+                    style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--text-main);">Descrição
+                    / Histórico</label>
+                <input type="text" name="descricao" required placeholder="Ex: Aporte de Capital ou Empréstimo"
+                    style="width: 100%; padding: 0.65rem; border: 1px solid var(--border-color); border-radius: 6px; background-color: var(--input-bg); color: var(--text-main); font-size: 0.95rem;">
+            </div>
+        </div>
+
+        <!-- Linha 2: Entidade e Contrapartida -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
+            <div>
+                <label
+                    style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--text-main);">Entidade
+                    (Pessoa)</label>
+                <select name="entidade_id" required
+                    style="width: 100%; padding: 0.65rem; border: 1px solid var(--border-color); border-radius: 6px; background-color: var(--input-bg); color: var(--text-main); font-size: 0.95rem;">
+                    <option value="">Selecione quem está envolvido...</option>
+                    {% for e in entidades %}
+                    <option value="{{ e.id }}">{{ e.nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label
+                    style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--text-main);">Classificação
+                    da Contrapartida</label>
+                <div style="display: flex; gap: 0.5rem;">
+                    <label
+                        style="flex: 1; display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem; border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; font-size: 0.85rem;"
+                        class="radio-option">
+                        <input type="radio" name="categoria_contrapartida" value="PASSIVO" checked
+                            onchange="togglePL(false)">
+                        <span>Dívida (Passivo)</span>
+                    </label>
+                    <label
+                        style="flex: 1; display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem; border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; font-size: 0.85rem;"
+                        class="radio-option">
+                        <input type="radio" name="categoria_contrapartida" value="PL" onchange="togglePL(true)">
+                        <span>Capital (PL)</span>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Seção Opcional: Conta de PL -->
+        <div id="wrapper-pl"
+            style="display: none; padding: 1rem; background: var(--bg-muted-light); border: 1px solid var(--border-color); border-radius: 10px; margin-bottom: 1.5rem;">
+            <label
+                style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--text-main); font-size: 0.85rem;">Selecione
+                a Conta de Patrimônio Líquido</label>
+            <select name="conta_pl_id" id="conta_pl_id"
+                style="width: 100%; padding: 0.65rem; border: 1px solid var(--border-color); border-radius: 6px; background-color: var(--input-bg); color: var(--text-main); font-size: 0.95rem;">
+                <option value="">Selecione a conta...</option>
+                {% for c in contas_pl %}
+                <option value="{{ c.id }}">{{ c.nome }} ({{ c.codigo }})</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Linha 3: Valor e Banco -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
+            <div>
+                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--text-main);">Valor
+                    Total</label>
+                <div style="position: relative;">
+                    <span
+                        style="position: absolute; left: 0.75rem; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-weight: 600;">R$</span>
+                    <input type="number" step="0.01" name="valor" required placeholder="0,00"
+                        style="width: 100%; padding: 0.65rem 0.65rem 0.65rem 2.5rem; border: 1px solid var(--border-color); border-radius: 6px; background-color: var(--input-bg); color: var(--text-main); font-size: 1.1rem; font-weight: 600;">
+                </div>
+            </div>
+            <div>
+                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--text-main);">Banco /
+                    Caixa de Destino/Origem</label>
+                <select name="banco_id" required
+                    style="width: 100%; padding: 0.7rem; border: 1px solid var(--border-color); border-radius: 6px; background-color: var(--input-bg); color: var(--text-main); font-size: 0.95rem;">
+                    <option value="">Selecione o banco...</option>
+                    {% for b in bancos %}
+                    <option value="{{ b.id }}">{{ b.descricao }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <!-- Linha 4: Datas e Acordo -->
+        <div
+            style="display: grid; grid-template-columns: 1fr 1fr 1.5fr; gap: 1.5rem; margin-bottom: 2rem; align-items: end;">
+            <div>
+                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--text-main);">Data
+                    Fluxo</label>
+                <input type="date" name="data_contabil" required value="{{ hoje }}"
+                    style="width: 100%; padding: 0.65rem; border: 1px solid var(--border-color); border-radius: 6px; background-color: var(--input-bg); color: var(--text-main); font-size: 0.95rem;">
+            </div>
+            <div>
+                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--text-main);">1º
+                    Vencimento</label>
+                <input type="date" name="data_vencimento" required value="{{ hoje }}"
+                    style="width: 100%; padding: 0.65rem; border: 1px solid var(--border-color); border-radius: 6px; background-color: var(--input-bg); color: var(--text-main); font-size: 0.95rem;">
+            </div>
+            <div>
+                <div style="display: flex; gap: 0.75rem; align-items: end;">
+                    <div style="flex: 2;">
+                        <label
+                            style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--text-main);">Acordo</label>
+                        <div style="display: flex; gap: 0.4rem;">
+                            <label
+                                style="flex: 1; display: flex; align-items: center; gap: 0.3rem; padding: 0.6rem 0.4rem; border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; font-size: 0.85rem;"
+                                class="radio-option">
+                                <input type="radio" name="forma_pagamento" value="avista" checked
+                                    onchange="toggleParcelas(false)">
+                                <span>À Vista</span>
+                            </label>
+                            <label
+                                style="flex: 1; display: flex; align-items: center; gap: 0.3rem; padding: 0.6rem 0.4rem; border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; font-size: 0.85rem;"
+                                class="radio-option">
+                                <input type="radio" name="forma_pagamento" value="parcelado"
+                                    onchange="toggleParcelas(true)">
+                                <span>Parcelas</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div id="container-parcelas" style="display: none; flex: 0.8;">
+                        <label
+                            style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--text-main);">Qtd</label>
+                        <input type="number" name="num_parcelas" value="1" min="1" max="120"
+                            style="width: 100%; padding: 0.65rem; border: 1px solid var(--border-color); border-radius: 6px; background-color: var(--input-bg); color: var(--text-main); font-size: 0.95rem;">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div
+            style="display: flex; gap: 1rem; align-items: center; border-top: 1px solid var(--border-color); padding-top: 2rem;">
+            <button type="submit" class="btn btn-primary"
+                style="padding: 0.8rem 2rem; font-size: 1.05rem; flex-grow: 1; font-weight: 600;">Confirmar
+                Lançamento</button>
+            <a href="{{ next_url }}" class="btn"
+                style="background-color: var(--bg-muted); color: var(--text-muted); padding: 0.8rem 1.5rem; text-decoration: none; border-radius: 6px;">Voltar</a>
+        </div>
+    </form>
+</div>
+
+<script>
+    function toggleParcelas(show) {
+        const container = document.getElementById('container-parcelas');
+        container.style.display = show ? 'block' : 'none';
+        const input = container.querySelector('input');
+        if (!show) {
+            input.value = 1;
+        }
+    }
+
+    function togglePL(show) {
+        const wrapperPL = document.getElementById('wrapper-pl');
+        const selectPL = document.getElementById('conta_pl_id');
+
+        wrapperPL.style.display = show ? 'block' : 'none';
+        selectPL.required = show;
+    }
+</script>
+
+<style>
+    .radio-option:has(input:checked) {
+        background-color: var(--bg-muted);
+        border-color: #94a3b8 !important;
+    }
+
+    .radio-option:hover {
+        background-color: var(--bg-color);
+    }
+</style>
+{% endblock %}

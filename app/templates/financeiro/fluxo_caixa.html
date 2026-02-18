@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+    <h1>Fluxo de Caixa</h1>
+    <div>
+        <a href="{{ url_for('financeiro.titulos') }}" class="btn"
+            style="background-color: #e2e8f0; color: #475569; margin-right: 0.5rem;">Ver Títulos</a>
+        <a href="{{ url_for('financeiro.transferencia') }}" class="btn btn-primary">Nova Transferência</a>
+    </div>
+</div>
+
+<div
+    style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+    <!-- Cards de Resumo -->
+    <div class="card">
+        <h3 style="color: #64748b; font-size: 0.875rem; margin-bottom: 0.5rem;">Saldo Disponível (Hoje)</h3>
+        <p style="font-size: 1.5rem; font-weight: 700; color: #020617;">R$ {{ "%.2f"|format(saldo_atual) }}</p>
+    </div>
+
+    <div class="card">
+        <h3 style="color: #64748b; font-size: 0.875rem; margin-bottom: 0.5rem;">(+) A Receber</h3>
+        <p style="font-size: 1.5rem; font-weight: 700; color: #16a34a;">R$ {{ "%.2f"|format(receber) }}</p>
+    </div>
+
+    <div class="card">
+        <h3 style="color: #64748b; font-size: 0.875rem; margin-bottom: 0.5rem;">(-) A Pagar</h3>
+        <p style="font-size: 1.5rem; font-weight: 700; color: #dc2626;">R$ {{ "%.2f"|format(pagar) }}</p>
+    </div>
+
+    <div class="card" style="background-color: #f8fafc; border: 1px solid #e2e8f0;">
+        <h3 style="color: #64748b; font-size: 0.875rem; margin-bottom: 0.5rem;">(=) Saldo Projetado</h3>
+        <p style="font-size: 1.5rem; font-weight: 700; color: #2563eb;">R$ {{ "%.2f"|format(saldo_projetado) }}</p>
+    </div>
+</div>
+
+<div class="card">
+    <h3>Projeção Detalhada</h3>
+    <p style="color: #64748b;">(Gráfico ou tabela dia-a-dia será implementada aqui)</p>
+</div>
+{% endblock %}

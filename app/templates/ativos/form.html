@@ -1,0 +1,234 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="header" style="margin-bottom: 2rem;">
+    <h1>Nova Aquisição de Ativo</h1>
+</div>
+
+<div class="card" style="max-width: 1000px; width: 95%; margin: 0 auto;">
+    <form action="{{ url_for('ativos.novo') }}" method="POST">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 2rem;">
+
+            <!-- Coluna 1: Identificação do Bem -->
+            <div>
+                <h3
+                    style="margin-top: 0; margin-bottom: 1.5rem; color: var(--text-main); border-bottom: 2px solid var(--border-color); padding-bottom: 0.5rem; font-size: 1.1rem;">
+                    1. Identificação do Bem</h3>
+
+                <div style="margin-bottom: 1.25rem;">
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Descrição do Bem</label>
+                    <input type="text" name="descricao" required placeholder="Ex: Veículo Toyota Corolla"
+                        style="width: 100%; padding: 0.6rem; border: 1px solid var(--border-color); border-radius: 4px; background-color: var(--card-bg); color: var(--text-main);">
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.25rem;">
+                    <div>
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Valor Principal
+                            (R$)</label>
+                        <input type="number" step="0.01" name="valor" required
+                            style="width: 100%; padding: 0.6rem; border: 1px solid var(--border-color); border-radius: 4px; background-color: var(--card-bg); color: var(--text-main);">
+                    </div>
+                    <div>
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Data Aquisição</label>
+                        <input type="date" name="data_aquisicao" required
+                            style="width: 100%; padding: 0.6rem; border: 1px solid var(--border-color); border-radius: 4px; background-color: var(--card-bg); color: var(--text-main);">
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 1.25rem;">
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Tipo de Ativo</label>
+                    <select name="tipo" id="tipoAtivo" onchange="toggleFields()"
+                        style="width: 100%; padding: 0.6rem; border: 1px solid var(--border-color); border-radius: 4px; background-color: var(--card-bg); color: var(--text-main);">
+                        {% for t in tipos_ativo %}
+                        <option value="{{ t.value }}">{{ t.value }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Campos específicos para Investimento -->
+                <div id="camposInvestimento"
+                    style="display: none; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.25rem;">
+                    <div>
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Quantidade</label>
+                        <input type="number" step="0.000001" name="quantidade" id="quantidade" value="0"
+                            style="width: 100%; padding: 0.6rem; border: 1px solid #e2e8f0; border-radius: 4px;">
+                    </div>
+                    <div>
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Preço Unitário
+                            (R$)</label>
+                        <input type="number" step="0.01" name="valor_unitario" id="valor_unitario" value="0.00"
+                            style="width: 100%; padding: 0.6rem; border: 1px solid #e2e8f0; border-radius: 4px;">
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 1.25rem;">
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Fornecedor (Origem)</label>
+                    <select name="fornecedor_id" required
+                        style="width: 100%; padding: 0.6rem; border: 1px solid var(--border-color); border-radius: 4px; background-color: var(--card-bg); color: var(--text-main);">
+                        {% for f in fornecedores %}
+                        <option value="{{ f.id }}">{{ f.nome }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div style="margin-bottom: 1.25rem;">
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Conta no Balanço
+                        (Destino)</label>
+                    <select name="conta_ativo_id" required
+                        style="width: 100%; padding: 0.6rem; border: 1px solid var(--border-color); border-radius: 4px; background-color: var(--card-bg); color: var(--text-main);">
+                        {% for c in contas_ativo %}
+                        <option value="{{ c.id }}">{{ c.codigo }} - {{ c.nome }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <!-- Coluna 2: Pagamento e Parcelas -->
+            <div id="colunaPagamento"
+                style="background-color: var(--bg-muted); padding: 1.5rem; border-radius: 8px; border: 1px solid var(--border-color);">
+                <div id="headerPagamentoNormal">
+                    <h3
+                        style="margin-top: 0; margin-bottom: 1.5rem; color: var(--text-main); border-bottom: 2px solid var(--border-color); padding-bottom: 0.5rem; font-size: 1.1rem;">
+                        2. Condições de Pagamento</h3>
+                </div>
+
+                <div id="camposPagamentoFixo">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.25rem;">
+                        <div>
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Nº de
+                                Parcelas</label>
+                            <input type="number" name="num_parcelas" id="num_parcelas" value="1" min="1" required
+                                style="width: 100%; padding: 0.6rem; border: 1px solid var(--border-color); border-radius: 4px; background-color: var(--card-bg); color: var(--text-main);">
+                        </div>
+                        <div>
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Juros Totais
+                                (R$)</label>
+                            <input type="number" step="0.01" name="valor_juros" id="valor_juros" value="0.00"
+                                style="width: 100%; padding: 0.6rem; border: 1px solid var(--border-color); border-radius: 4px; background-color: var(--card-bg); color: var(--text-main);">
+                        </div>
+                    </div>
+
+                    <div style="margin-bottom: 1.25rem;">
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Data do 1º
+                            Vencimento</label>
+                        <input type="date" name="data_primeiro_vencimento" id="data_primeiro_vencimento"
+                            style="width: 100%; padding: 0.6rem; border: 1px solid var(--border-color); border-radius: 4px; background-color: var(--card-bg); color: var(--text-main);">
+                    </div>
+                </div>
+
+                <!-- Campo exclusivo para Investimento (Pagamento à Vista) -->
+                <div id="camposPagamentoInvestimento" style="display: none;">
+                    <h3
+                        style="margin-top: 0; margin-bottom: 1.5rem; color: var(--text-main); border-bottom: 2px solid var(--border-color); padding-bottom: 0.5rem; font-size: 1.1rem;">
+                        2. Pagamento à Vista</h3>
+                    <div style="margin-bottom: 1.25rem;">
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Banco / Carteira de
+                            Origem</label>
+                        <select name="banco_ativo_id" id="banco_ativo_id"
+                            style="width: 100%; padding: 0.6rem; border: 1px solid var(--border-color); border-radius: 4px; background-color: var(--card-bg); color: var(--text-main);">
+                            {% for b in bancos %}
+                            <option value="{{ b.id }}">{{ b.descricao }} (Saldo: R$ {{
+                                "{:,.2f}".format(b.valor_atual).replace(",", "X").replace(".", ",").replace("X", ".")
+                                }})</option>
+                            {% endfor %}
+                        </select>
+                        <small style="color: #64748b; margin-top: 0.25rem; display: block;">Investimentos são
+                            registrados com saída imediata do caixa.</small>
+                    </div>
+                </div>
+
+                <div
+                    style="margin-top: 3rem; background: var(--card-bg); padding: 1rem; border: 1px dashed var(--border-color); border-radius: 6px;">
+                    <strong
+                        style="color: var(--text-main); font-size: 0.85rem; display: block; margin-bottom: 0.5rem;">Resumo
+                        Contábil:</strong>
+                    <p id="resumoContabil"
+                        style="margin: 0; font-size: 0.8rem; color: var(--text-muted); line-height: 1.4;">
+                        O sistema registrará o bem pelo <b>valor principal</b> e classificará os juros como <b>despesa
+                            de juros</b> automaticamente no financeiro.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            let parametrosContabeis = {};
+
+            async function carregarParametros() {
+                try {
+                    const response = await fetch('/api/contabilidade/parametros');
+                    const data = await response.json();
+                    parametrosContabeis = data.valores;
+                    // Forçar atualização do campo inicial
+                    toggleFields();
+                } catch (e) {
+                    console.error("Erro ao carregar parâmetros", e);
+                }
+            }
+
+            function toggleFields() {
+                const tipo = document.getElementById('tipoAtivo').value;
+                const camposInvest = document.getElementById('camposInvestimento');
+                const camposPagFixos = document.getElementById('camposPagamentoFixo');
+                const camposPagInvest = document.getElementById('camposPagamentoInvestimento');
+                const headerPagNormal = document.getElementById('headerPagamentoNormal');
+                const resumo = document.getElementById('resumoContabil');
+                const inputValor = document.getElementsByName('valor')[0];
+                const selectContaAtivo = document.getElementsByName('conta_ativo_id')[0];
+
+                // Sugerir conta baseada nos parâmetros contábeis
+                if (parametrosContabeis) {
+                    let chaveParametro = '';
+                    if (tipo === 'Veiculo') chaveParametro = 'conta_ativo_veiculo';
+                    else if (tipo === 'Imovel') chaveParametro = 'conta_ativo_imovel';
+                    else if (tipo === 'Investimento') chaveParametro = 'conta_ativo_investimento';
+                    else if (tipo === 'Banco') chaveParametro = 'conta_ativo_banco';
+                    else chaveParametro = 'conta_ativo_outros';
+
+                    const contaSugerida = parametrosContabeis[chaveParametro];
+                    if (contaSugerida) {
+                        selectContaAtivo.value = contaSugerida;
+                    }
+                }
+
+                if (tipo === 'Investimento') {
+                    camposInvest.style.display = 'grid';
+                    camposPagFixos.style.display = 'none';
+                    camposPagInvest.style.display = 'block';
+                    headerPagNormal.style.display = 'none';
+                    inputValor.disabled = true;
+                    inputValor.value = "";
+                    resumo.innerHTML = "O sistema registrará o investimento debitando a conta de destino e creditando a conta bancária escolhida <b>imediatamente</b>.";
+
+                    document.getElementById('quantidade').required = true;
+                    document.getElementById('valor_unitario').required = true;
+                    document.getElementById('banco_ativo_id').required = true;
+                    document.getElementById('num_parcelas').required = false;
+                } else {
+                    camposInvest.style.display = 'none';
+                    camposPagFixos.style.display = 'block';
+                    camposPagInvest.style.display = 'none';
+                    headerPagNormal.style.display = 'block';
+                    inputValor.disabled = false;
+                    resumo.innerHTML = "O sistema registrará o bem pelo <b>valor principal</b> e classificará os juros como <b>despesa de juros</b> automaticamente no financeiro.";
+
+                    document.getElementById('quantidade').required = false;
+                    document.getElementById('valor_unitario').required = false;
+                    document.getElementById('banco_ativo_id').required = false;
+                    document.getElementById('num_parcelas').required = true;
+                }
+            }
+            // Executar no carregamento
+            carregarParametros();
+        </script>
+</div>
+
+<div
+    style="margin-top: 2rem; padding-top: 1.5rem; border-top: 2px solid #f1f5f9; display: flex; justify-content: flex-end; gap: 1rem;">
+    <a href="{{ url_for('ativos.lista') }}" class="btn"
+        style="background-color: var(--bg-muted); color: var(--text-muted); padding: 0.75rem 1.5rem; border: 1px solid var(--border-color);">Cancelar</a>
+    <button type="submit" class="btn btn-primary" style="padding: 0.75rem 2rem;">Registrar Aquisição</button>
+</div>
+</form>
+</div>
+{% endblock %}

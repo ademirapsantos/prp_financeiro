@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div style="display: flex; flex-direction: column; align-items: center; width: 100%;">
+    <div class="header" style="margin-bottom: 2rem; text-align: center;">
+        <h1>{{ 'Editar Entidade' if entidade else 'Nova Entidade' }}</h1>
+    </div>
+
+    <div class="card" style="width: 100%; max-width: 600px;">
+        <form action="{{ url_for('entidades.editar', id=entidade.id) if entidade else url_for('entidades.nova') }}"
+            method="POST">
+            <div style="margin-bottom: 1rem;">
+                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Nome</label>
+                <input type="text" name="nome" value="{{ entidade.nome if entidade else '' }}" required
+                    class="form-control">
+            </div>
+
+            <div style="margin-bottom: 1rem;">
+                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Tipo</label>
+                <select name="tipo" class="form-control">
+                    <option value="Cliente" {{ 'selected' if entidade and entidade.tipo=='Cliente' }}>Cliente</option>
+                    <option value="Fornecedor" {{ 'selected' if entidade and entidade.tipo=='Fornecedor' }}>Fornecedor
+                    </option>
+                    <option value="Outros" {{ 'selected' if entidade and entidade.tipo=='Outros' }}>Outros</option>
+                </select>
+            </div>
+
+            <div style="margin-bottom: 1rem;">
+                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Documento (CPF/CNPJ)</label>
+                <input type="text" name="documento" value="{{ entidade.documento if entidade else '' }}"
+                    class="form-control">
+            </div>
+
+            <!-- Seção Dinâmica de Contas -->
+            <div id="wrapper-contas"
+                style="margin-bottom: 1.5rem; padding: 1.25rem; background: var(--bg-muted); border: 1px solid var(--border-color); border-radius: 10px;">
+                <label
+                    style="display: block; margin-bottom: 1rem; font-weight: 700; color: var(--accent-color); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px;">Configuração
+                    de Contas Automáticas</label>
+
+                <!-- Campos para Fornecedor -->
+                <div id="campo-fornecedor"
+                    style="display: {{ 'block' if not entidade or entidade.tipo == 'Fornecedor' else 'none' }};">
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Categoria de Despesa /
+                        Pagamento</label>
+                    <select name="conta_compra_id_forn" class="form-control selects-conta">
+                        <option value="">Selecione...</option>
+                        {% for c in contas %}
+                        <option value="{{ c.id }}" data-tipo="{{ c.tipo }}" {{ 'selected' if entidade and
+                            entidade.conta_compra_id==c.id }}>{{
+                            c.codigo }} - {{ c.nome }}</option>
+                        {% endfor %}
+                    </select>
+                    <small class="text-muted">Conta usada para compras e pagamentos (Passivo ou Despesa).</small>
+                </div>
+
+                <!-- Campos para Cliente -->
+                <div id="campo-cliente"
+                    style="display: {{ 'block' if entidade and entidade.tipo == 'Cliente' else 'none' }};">
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Categoria de Receita /
+                        Recebimento</label>
+                    <select name="conta_venda_id_cli" class="form-control selects-conta">
+                        <option value="">Selecione...</option>
+                        {% for c in contas %}
+                        <option value="{{ c.id }}" data-tipo="{{ c.tipo }}" {{ 'selected' if entidade and
+                            (entidade.conta_venda_id==c.id or entidade.conta_resultado_id==c.id) }}>{{ c.codigo }} - {{
+                            c.nome }}</option>
+                        {% endfor %}
+                    </select>
+                    <small class="text-muted">Conta usada para vendas e recebimentos (Receita).</small>
+                </div>
+
+                <!-- Campos para Outros (Empréstimos) -->
+                <div id="campo-outros"
+                    style="display: {{ 'block' if entidade and entidade.tipo == 'Outros' else 'none' }};">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div>
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Categoria p/ Tomar
+                                (Dívida)</label>
+                            <select name="conta_compra_id_out" class="form-control selects-conta">
+                                <option value="">Selecione...</option>
+                                {% for c in contas %}
+                                <option value="{{ c.id }}" data-tipo="{{ c.tipo }}" {{ 'selected' if entidade and
+                                    entidade.conta_compra_id==c.id }}>{{ c.codigo }} - {{ c.nome }}</option>
+                                {% endfor %}
+                            </select>
+                            <small class="text-muted">Para quando você <b>toma</b> empréstimo (Passivo/Despesa).</small>
+                        </div>
+                        <div>
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Categoria p/
+                                Emprestar</label>
+                            <select name="conta_venda_id_out" class="form-control selects-conta">
+                                <option value="">Selecione...</option>
+                                {% for c in contas %}
+                                <option value="{{ c.id }}" data-tipo="{{ c.tipo }}" {{ 'selected' if entidade and
+                                    entidade.conta_venda_id==c.id }}>{{ c.codigo }} - {{ c.nome }}</option>
+                                {% endfor %}
+                            </select>
+                            <small class="text-muted">Para quando você <b>concede</b> empréstimo (Receita).</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div style="margin-top: 2rem;">
+                <button type="submit" class="btn btn-primary">Salvar</button>
+                <a href="{{ url_for('entidades.lista') }}" class="btn"
+                    style="background-color: #e2e8f0; color: #475569; margin-left: 1rem;">Cancelar</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    function updateSelectFilters() {
+        const tipoEntidade = document.querySelector('select[name="tipo"]').value;
+
+        // Regras:
+        // Cliente -> Receita
+        // Fornecedor -> Despesa ou Passivo
+        // Outros -> Tomar (Passivo ou Despesa), Emprestar (Receita)
+
+        const filterMap = {
+            'Cliente': {
+                'conta_venda_id_cli': ['Receita']
+            },
+            'Fornecedor': {
+                'conta_compra_id_forn': ['Despesa', 'Passivo']
+            },
+            'Outros': {
+                'conta_compra_id_out': ['Passivo', 'Despesa'],
+                'conta_venda_id_out': ['Receita']
+            }
+        };
+
+        const currentFilters = filterMap[tipoEntidade] || {};
+
+        document.querySelectorAll('.selects-conta').forEach(select => {
+            const allowedTypes = currentFilters[select.name];
+            if (allowedTypes) {
+                Array.from(select.options).forEach(opt => {
+                    if (opt.value === "") {
+                        opt.style.display = "block";
+                        return;
+                    }
+                    const tipoConta = opt.getAttribute('data-tipo');
+                    opt.style.display = allowedTypes.includes(tipoConta) ? "block" : "none";
+                });
+            } else {
+                // If no specific filter for this select, show all options
+                Array.from(select.options).forEach(opt => {
+                    opt.style.display = "block";
+                });
+            }
+        });
+    }
+
+    document.querySelector('select[name="tipo"]').addEventListener('change', function () {
+        const val = this.value;
+        document.getElementById('campo-fornecedor').style.display = (val === 'Fornecedor') ? 'block' : 'none';
+        document.getElementById('campo-cliente').style.display = (val === 'Cliente') ? 'block' : 'none';
+        document.getElementById('campo-outros').style.display = (val === 'Outros') ? 'block' : 'none';
+        updateSelectFilters();
+    });
+
+    // Inicializar filtros no carregamento (edição)
+    window.addEventListener('scroll', () => { }, { passive: true }); // Apenas para evitar delay
+    document.addEventListener('DOMContentLoaded', updateSelectFilters);
+</script>
+{% endblock %}

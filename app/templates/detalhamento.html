@@ -1,0 +1,153 @@
+﻿{% extends "base.html" %}
+
+{% block content %}
+<div class="full-height-page">
+    <div class="header"
+        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+        <div>
+            <a href="{{ url_for('main.dashboard') }}" class="btn"
+                style="background-color: var(--border-color); color: var(--text-muted); padding: 0.5rem 1rem; margin-right: 1rem;"
+                title="Voltar para Dashboard">←</a>
+            <h1 style="display: inline; margin: 0; color: var(--text-main);">{{ tipo_label }} - {{ mes_nome }}/{{ ano }}
+            </h1>
+        </div>
+    </div>
+
+    <div class="table-container" style="flex-grow: 1; display: flex; flex-direction: column; overflow: hidden;">
+        {% if titulos %}
+        <div class="table-scroll" style="flex-grow: 1; overflow-y: auto;">
+            <table style="width: 100%; border-collapse: collapse;">
+                <thead
+                    style="position: sticky; top: 0; z-index: 10; background-color: var(--table-header-bg); border-bottom: 2px solid var(--border-color);">
+                    <tr style="text-align: left;">
+                        <th style="padding: 1rem;">ID</th>
+                        <th style="padding: 1rem;">Vencimento</th>
+                        <th style="padding: 1rem;">Descrição</th>
+                        <th style="padding: 1rem;">Entidade</th>
+                        <th style="padding: 1rem;">Tipo</th>
+                        {% if tipo_label == 'Recebido' or tipo_label == 'Pago' %}
+                        <th style="padding: 1rem;">Banco/Caixa</th>
+                        {% endif %}
+                        <th style="padding: 1rem; text-align: right;">Valor</th>
+                        <th style="padding: 1rem;">Status</th>
+                        {% if tipo_label == 'A Pagar' %}
+                        <th style="padding: 1rem;">Ações</th>
+                        {% endif %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for t in titulos %}
+                    <tr style="border-bottom: 1px solid var(--border-color); transition: background-color 0.2s;">
+                        <td style="padding: 0.75rem 1rem;">{{ t.id }}</td>
+                        <td style="padding: 0.75rem 1rem;">{{ t.data_vencimento.strftime('%d/%m/%Y') }}</td>
+                        <td style="padding: 0.75rem 1rem;">
+                            <div style="font-weight: 600; color: var(--text-main);">{{ t.descricao }}</div>
+                            {% if t.total_parcelas %}
+                            <span
+                                style="font-size: 0.75rem; color: var(--text-muted); background: var(--bg-color); padding: 2px 6px; border-radius: 4px; border: 1px solid var(--border-color);">
+                                Parcela {{ t.parcela_atual }}/{{ t.total_parcelas }}
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td style="padding: 0.75rem 1rem;">{{ t.entidade.nome }}</td>
+                        <td style="padding: 0.75rem 1rem;">
+                            <span
+                                class="{{ 'text-success' if 'RECEBER' in t.tipo|upper or 'Receber' in t.tipo else 'text-danger' }}">
+                                {{ t.tipo }}
+                            </span>
+                        </td>
+                        {% if tipo_label == 'Recebido' or tipo_label == 'Pago' %}
+                        <td style="padding: 0.75rem 1rem;">
+                            {% if t.transacoes %}
+                            {{ t.transacoes[0].ativo.descricao if t.transacoes[0].ativo else 'Caixa Geral' }}
+                            {% else %}
+                            ---
+                            {% endif %}
+                        </td>
+                        {% endif %}
+                        <td style="padding: 0.75rem 1rem; text-align: right; font-weight: 600;">
+                            R$ {{ "{:,.2f}".format(t.valor).replace(",", "X").replace(".", ",").replace("X", ".") }}
+                        </td>
+                        <td style="padding: 0.75rem 1rem;">
+                            <span style="padding: 2px 6px; border-radius: 4px; 
+                        background-color: {{ '#065f46' if t.status == 'Pago' or t.status == 'PAGO' else '#991b1b' }}; 
+                        color: #ffffff; 
+                        font-size: 0.8rem; font-weight: 600;">
+                                {{ t.status }}
+                            </span>
+                        </td>
+                        {% if tipo_label == 'A Pagar' %}
+                        <td style="padding: 0.75rem 1rem;">
+                            {% if t.status == 'Aberto' or t.status == 'ABERTO' %}
+                            <a href="{{ url_for('financeiro.liquidar_titulo_route', titulo_id=t.id) }}"
+                                class="btn btn-success" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;">Liquidar</a>
+                            {% endif %}
+                        </td>
+                        {% endif %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot
+                    style="position: sticky; bottom: 0; background-color: var(--table-header-bg); font-weight: 700; border-top: 2px solid var(--border-color); z-index: 5;">
+                    <tr>
+                        <td colspan="{{ 6 if tipo_label in ['Recebido', 'Pago'] else 5 }}"
+                            style="padding: 1rem; text-align: right; color: var(--text-muted);">Total Geral (Mês):</td>
+                        <td style="padding: 1rem; text-align: right; font-size: 1.1rem; color: var(--text-main);">
+                            R$ {{ "{:,.2f}".format(total).replace(",", "X").replace(".", ",").replace("X", ".") }}
+                        </td>
+                        <td></td>
+                        {% if tipo_label == 'A Pagar' %}
+                        <td></td>
+                        {% endif %}
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+
+        <!-- Paginação -->
+        <div class="pagination-container"
+            style="padding: 1rem 1.5rem; display: flex; justify-content: space-between; align-items: center; background: var(--table-header-bg); border-top: 1px solid var(--border-color); flex-shrink: 0;">
+            <div style="font-size: 0.85rem; color: var(--text-muted);">
+                Mostrando página <b>{{ pagination.page }}</b> de <b>{{ pagination.pages or 1 }}</b> (Total: {{
+                pagination.total or 0 }} registros)
+            </div>
+            {% if pagination.pages > 1 %}
+            <div style="display: flex; gap: 0.25rem;">
+                {% if pagination.has_prev %}
+                <a href="{{ url_for('main.detalhamento', ano=ano, mes=mes, tipo=tipo, page=pagination.prev_num) }}"
+                    class="btn"
+                    style="padding: 0.4rem 0.8rem; font-size: 0.85rem; background: var(--card-bg); border: 1px solid var(--border-color); color: var(--text-main);">«
+                    Anterior</a>
+                {% endif %}
+
+                {% for p in pagination.iter_pages(left_edge=1, left_current=2, right_current=2, right_edge=1) %}
+                {% if p %}
+                <a href="{{ url_for('main.detalhamento', ano=ano, mes=mes, tipo=tipo, page=p) }}"
+                    class="btn {{ 'btn-primary' if p == pagination.page else '' }}"
+                    style="padding: 0.4rem 0.8rem; font-size: 0.85rem; {% if p != pagination.page %}background: var(--card-bg); border: 1px solid var(--border-color); color: var(--text-main);{% endif %}">{{
+                    p }}</a>
+                {% else %}
+                <span style="padding: 0.4rem 0.8rem; color: var(--text-muted);">...</span>
+                {% endif %}
+                {% endfor %}
+
+                {% if pagination.has_next %}
+                <a href="{{ url_for('main.detalhamento', ano=ano, mes=mes, tipo=tipo, page=pagination.next_num) }}"
+                    class="btn"
+                    style="padding: 0.4rem 0.8rem; font-size: 0.85rem; background: var(--card-bg); border: 1px solid var(--border-color); color: var(--text-main);">Próxima
+                    »</a>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+
+        {% else %}
+        <div style="padding: 3rem; text-align: center; color: #64748b; background-color: var(--card-bg); flex-grow: 1;">
+            <p style="font-size: 1.1rem; margin-bottom: 1rem;">📭 Nenhum lançamento encontrado</p>
+            <p style="font-size: 0.9rem;">Não há registros de <strong>{{ tipo_label }}</strong> para <strong>{{ mes_nome
+                    }}/{{ ano }}</strong>.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
