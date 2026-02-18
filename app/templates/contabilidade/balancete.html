@@ -108,16 +108,17 @@
                         style="position: sticky; bottom: 0; z-index: 10; background-color: var(--table-header-bg); border-top: 2px solid var(--border-color); font-weight: bold;">
                         <tr>
                             <td colspan="2" style="padding: 0.75rem; text-align: right;">TOTAIS:</td>
-                            <td style="padding: 0.75rem; text-align: right;"
-                                class="{{ 'text-success' if totais.saldo_anterior > 0 else ('text-danger' if totais.saldo_anterior < 0 else '') }}">
+                            <td style="padding: 0.75rem; text-align: right; color: var(--text-main);">
                                 R$ {{ "{:,.2f}".format(totais.saldo_anterior).replace(",", "X").replace(".",
                                 ",").replace("X", ".") }}
                             </td>
-                            <td style="padding: 0.75rem; text-align: right; color: #2563eb;">
+                            <td
+                                style="padding: 0.75rem; text-align: right; color: #2563eb; border-left: 2px solid var(--border-color);">
                                 R$ {{ "{:,.2f}".format(totais.debitos).replace(",", "X").replace(".", ",").replace("X",
                                 ".") }}
                             </td>
-                            <td style="padding: 0.75rem; text-align: right; color: #dc2626;">
+                            <td
+                                style="padding: 0.75rem; text-align: right; color: #dc2626; border-right: 2px solid var(--border-color);">
                                 R$ {{ "{:,.2f}".format(totais.creditos).replace(",", "X").replace(".", ",").replace("X",
                                 ".") }}
                             </td>
@@ -132,11 +133,23 @@
         </div>
     </div>
 
-    <div style="margin-top: 1rem; color: var(--text-muted); font-size: 0.85rem; display: flex; gap: 2rem;">
-        <span><strong>Dica:</strong> O saldo atual considera a natureza da conta (Devedora ou Credora).</span>
-        <span><span style="color: #2563eb;">●</span> Débitos</span>
-        <span><span style="color: #dc2626;">●</span> Créditos</span>
+    <div style="margin-top: 1rem; display: flex; justify-content: space-between; align-items: center;">
+        <div style="color: var(--text-muted); font-size: 0.85rem; display: flex; gap: 2rem;">
+            <span><strong>Dica:</strong> O saldo atual considera a natureza da conta (Devedora ou Credora).</span>
+            <span><span style="color: #2563eb;">●</span> Débitos</span>
+            <span><span style="color: #dc2626;">●</span> Créditos</span>
+        </div>
+
+        {% set diff = (totais.debitos - totais.creditos) | abs %}
+        <div style="padding: 0.5rem 1rem; border-radius: 6px; font-weight: bold; display: flex; align-items: center; gap: 0.5rem;
+                    {% if diff < 0.01 %}
+                        background-color: #dcfce7; color: #166534; border: 1px solid #bbf7d0;
+                    {% else %}
+                        background-color: #fee2e2; color: #991b1b; border: 1px solid #fecaca;
+                    {% endif %}">
+            {% if diff < 0.01 %} ✅ Balancete Equilibrado (D=C) {% else %} ⚠️ Atenção: Diferença de R$ {{ "{:,.2f}"
+                .format(diff).replace(",", "X" ).replace(".", "," ).replace("X", "." ) }} {% endif %} </div>
+        </div>
     </div>
-</div>
-{% include 'contabilidade/dialog_parametros.html' %}
-{% endblock %}
+    {% include 'contabilidade/dialog_parametros.html' %}
+    {% endblock %}

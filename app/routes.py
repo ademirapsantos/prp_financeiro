@@ -303,51 +303,8 @@ def get_balancete_results(data_inicio, data_fim):
             saldo_atual = saldo_anterior + cre_per_total - deb_per_total
             
         # --- SINCRONIZAÇÃO COM DASHBOARD (GRUPO 3: PATRIMÔNIO LÍQUIDO) ---
-        # Regra: Ativos (Exceto 1.5) - A Pagar
-        if conta.codigo.startswith('3'):
-            # 1. Calcular Ativos (exceto 1.5) na data fim
-            res_ativos_fim = db.session.query(
-                func.sum(PartidaDiario.valor).filter(PartidaDiario.tipo == 'D').label('debitos'),
-                func.sum(PartidaDiario.valor).filter(PartidaDiario.tipo == 'C').label('creditos')
-            ).join(ContaContabil).join(LivroDiario).filter(
-                ContaContabil.codigo.like('1%'),
-                ~ContaContabil.codigo.like('1.5%'),
-                LivroDiario.data <= data_fim
-            ).first()
-            ativos_fim = (res_ativos_fim.debitos or 0) - (res_ativos_fim.creditos or 0)
-            
-            # 2. Calcular A Pagar (Todos títulos em aberto com vencimento ATÉ data_fim)
-            # Isso garante que dívidas de meses anteriores continuem aparecendo se não pagas.
-            ap_fim = db.session.query(func.sum(Titulo.valor)).filter(
-                Titulo.tipo == TipoTitulo.PAGAR.value,
-                Titulo.status == StatusTitulo.ABERTO.value,
-                Titulo.data_vencimento <= data_fim.date()
-            ).scalar() or 0
-            
-            # --- CORREÇÃO CONCEITUAL ---
-            # Para o PL (Natureza Credora), Ativos somam (Crédito) e Dívidas subtraem (Débito)
-            deb_per_total = ap_fim      # Débito: O que sai / Dívida
-            cre_per_total = ativos_fim  # Crédito: O que soma / Ativo
-            saldo_atual = ativos_fim - ap_fim
-            
-            # 3. Calcular Anterior
-            res_ativos_ini = db.session.query(
-                func.sum(PartidaDiario.valor).filter(PartidaDiario.tipo == 'D').label('debitos'),
-                func.sum(PartidaDiario.valor).filter(PartidaDiario.tipo == 'C').label('creditos')
-            ).join(ContaContabil).join(LivroDiario).filter(
-                ContaContabil.codigo.like('1%'),
-                ~ContaContabil.codigo.like('1.5%'),
-                LivroDiario.data < data_inicio
-            ).first()
-            ativos_ini = (res_ativos_ini.debitos or 0) - (res_ativos_ini.creditos or 0)
-            
-            ap_ini = db.session.query(func.sum(Titulo.valor)).filter(
-                Titulo.tipo == TipoTitulo.PAGAR.value,
-                Titulo.status == StatusTitulo.ABERTO.value,
-                Titulo.data_vencimento < data_inicio.date()
-            ).scalar() or 0
-            
-            saldo_anterior = ativos_ini - ap_ini
+        # Removido: O balancete agora reflete puramente os lançamentos do livro diário.
+        # Isso garante que a equação Ativo = Passivo + PL se mantenha correta sem redundâncias.
         # -----------------------------------------------------------------
             
         nivel = len(conta.codigo.split('.'))
@@ -386,18 +343,51 @@ def balancete():
     balancete_data = get_balancete_results(data_inicio, data_fim)
 
     # Calcular totais das colunas (Soma de Nível 1 para evitar duplicidade)
+    # Em um Balancete de Verificação, o saldo final de cada conta é apresentado 
+    # de acordo com sua natureza (Devedora ou Credora).
     totais = {
-        'saldo_anterior': 0,
+        'saldo_anterior_devedor': 0,
+        'saldo_anterior_credor': 0,
         'debitos': 0,
         'creditos': 0,
-        'saldo_atual': 0
+        'saldo_atual_devedor': 0,
+        'saldo_atual_credor': 0,
+        'saldo_anterior': 0, # Para compatibilidade com template se necessário
+        'saldo_atual': 0     # Para compatibilidade com template se necessário
     }
+    
     for item in balancete_data:
         if item['nivel'] == 1:
-            totais['saldo_anterior'] += item['saldo_anterior']
             totais['debitos'] += item['debitos']
             totais['creditos'] += item['creditos']
-            totais['saldo_atual'] += item['saldo_atual']
+            
+            # Saldo Anterior
+            if item['natureza'] == 'Devedora':
+                if item['saldo_anterior'] >= 0:
+                    totais['saldo_anterior_devedor'] += item['saldo_anterior']
+                else:
+                    totais['saldo_anterior_credor'] += abs(item['saldo_anterior'])
+                
+                # Saldo Atual
+                if item['saldo_atual'] >= 0:
+                    totais['saldo_atual_devedor'] += item['saldo_atual']
+                else:
+                    totais['saldo_atual_credor'] += abs(item['saldo_atual'])
+            else: # Credora
+                if item['saldo_anterior'] >= 0:
+                    totais['saldo_anterior_credor'] += item['saldo_anterior']
+                else:
+                    totais['saldo_anterior_devedor'] += abs(item['saldo_anterior'])
+                
+                # Saldo Atual
+                if item['saldo_atual'] >= 0:
+                    totais['saldo_atual_credor'] += item['saldo_atual']
+                else:
+                    totais['saldo_atual_devedor'] += abs(item['saldo_atual'])
+
+    # Valores simplificados para o rodapé (compatibilidade)
+    totais['saldo_anterior'] = totais['saldo_anterior_devedor'] - totais['saldo_anterior_credor']
+    totais['saldo_atual'] = totais['saldo_atual_devedor'] - totais['saldo_atual_credor']
 
     return render_template('contabilidade/balancete.html',
                            balancete=balancete_data,
