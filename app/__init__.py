@@ -84,7 +84,7 @@ def create_app():
             'auth' in request.endpoint
         ):
             # Se tentar acessar login/register estando bloqueado, redirecionar para lock_screen
-            if session.get('is_locked') and request.endpoint not in ['auth.lock_screen', 'auth.logout']:
+            if session.get('is_locked') and request.endpoint not in ['auth.lock_screen', 'auth.logout', 'static']:
                 return redirect(url_for('auth.lock_screen'))
             return
 

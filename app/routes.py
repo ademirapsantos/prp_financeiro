@@ -12,65 +12,100 @@ main_bp = Blueprint('main', __name__)
 
 @main_bp.route('/')
 def dashboard():
-    from .models import TransacaoFinanceira, TipoTitulo, StatusTitulo, TipoTransacao
-    from sqlalchemy import extract
+    from .models import TransacaoFinanceira, TipoTitulo, StatusTitulo, TipoTransacao, CartaoCredito, FaturaCartao, LivroDiario, PartidaDiario, ContaContabil
+    from sqlalchemy import extract, or_
+    import calendar
 
-    # 1. Filtros
+    # 1. Filtros e Datas
     ano_atual = datetime.utcnow().year
     ano = request.args.get('ano', ano_atual, type=int)
     mes_filtro = request.args.get('mes', type=int)
 
-    # 2. Calcular Disponível (Sempre Atual)
+    # Determinar data limite para cálculos de saldo (Disponível/Ativos)
+    if mes_filtro:
+        ultimo_dia = calendar.monthrange(ano, mes_filtro)[1]
+        data_limite = datetime(ano, mes_filtro, ultimo_dia, 23, 59, 59)
+    else:
+        data_limite = datetime(ano, 12, 31, 23, 59, 59)
 
-    from sqlalchemy import or_
+    # 2. Calcular Disponível (Até a Data Limite)
     contas_disponivel_ids = db.session.query(ContaContabil.id).filter(
         or_(ContaContabil.codigo.like('1.1%'), ContaContabil.codigo.like('1.2%')),
         ~ContaContabil.codigo.like('1.1.05%'),
-        ~ContaContabil.codigo.like('1.5%') # Garantia extra para não misturar recebíveis sob 1.1 em db antigo
+        ~ContaContabil.codigo.like('1.5%')
     ).subquery()
     
     res_disp = db.session.query(
         func.sum(PartidaDiario.valor).filter(PartidaDiario.tipo == 'D').label('debitos'),
         func.sum(PartidaDiario.valor).filter(PartidaDiario.tipo == 'C').label('creditos')
-    ).filter(PartidaDiario.conta_id.in_(contas_disponivel_ids)).first()
+    ).join(LivroDiario, PartidaDiario.diario_id == LivroDiario.id)\
+     .filter(PartidaDiario.conta_id.in_(contas_disponivel_ids))\
+     .filter(LivroDiario.data <= data_limite).first()
     disponivel = (res_disp.debitos or 0) - (res_disp.creditos or 0) if res_disp else 0
 
-    # 2.1 Calcular Total Ativos (exceto 1.5) para o Patrimônio
-    res_ativos_total = db.session.query(
-        func.sum(PartidaDiario.valor).filter(PartidaDiario.tipo == 'D').label('debitos'),
-        func.sum(PartidaDiario.valor).filter(PartidaDiario.tipo == 'C').label('creditos')
-    ).join(ContaContabil).filter(
-        ContaContabil.codigo.like('1%'),
-        ~ContaContabil.codigo.like('1.5%')
-    ).first()
-    total_ativos_regime_caixa = (res_ativos_total.debitos or 0) - (res_ativos_total.creditos or 0)
+    # 3. Métricas de Cartão (Sincronizadas com o Filtro)
+    if mes_filtro:
+        # Se houver mês, mostramos o comportamento DO MÊS
+        # 3.1 Total Gasto no Mês (Fatura)
+        cartao_limite_disponivel = db.session.query(func.sum(FaturaCartao.total))\
+            .filter(extract('year', FaturaCartao.data_vencimento) == ano, 
+                    extract('month', FaturaCartao.data_vencimento) == mes_filtro).scalar() or 0
+        cartao_label_limite = "Gasto no Mês"
+        
+        # 3.2 Saldo da Fatura Selecionada (Pendente de Pagamento)
+        total_ciclo_aberto = db.session.query(func.sum(FaturaCartao.total - func.coalesce(FaturaCartao.total_pago, 0)))\
+            .filter(extract('year', FaturaCartao.data_vencimento) == ano, 
+                    extract('month', FaturaCartao.data_vencimento) == mes_filtro).scalar() or 0
+        cartao_label_ciclo = "Fatura Pendente"
+    else:
+        # Sem mês: mostramos o LIMITE ATUAL e as FATURAS EM ABERTO ATUAIS
+        cartao_limite_disponivel = db.session.query(func.sum(CartaoCredito.limite_disponivel)).scalar() or 0
+        cartao_label_limite = "Limite Disponível"
+        
+        total_ciclo_aberto = db.session.query(func.sum(FaturaCartao.total - func.coalesce(FaturaCartao.total_pago, 0)))\
+            .filter(FaturaCartao.status == 'aberta').scalar() or 0
+        cartao_label_ciclo = "Fatura Atual"
 
-    # 3. Totais (A Receber / A Pagar) - Filtrados por Mês se selecionado
+    # 4. Totais (A Receber / A Pagar) - Filtrados por Ano e Mês
     def get_total_titulos(tipo, mes=None):
         query = db.session.query(func.sum(Titulo.valor)).filter(
             Titulo.tipo == tipo,
-            Titulo.status == StatusTitulo.ABERTO.value
+            Titulo.status == StatusTitulo.ABERTO.value,
+            extract('year', Titulo.data_vencimento) == ano
         )
         if mes:
-            query = query.filter(extract('year', Titulo.data_vencimento) == ano, extract('month', Titulo.data_vencimento) == mes)
+            query = query.filter(extract('month', Titulo.data_vencimento) == mes)
         return query.scalar() or 0
 
     total_a_receber = get_total_titulos(TipoTitulo.RECEBER.value, mes_filtro)
-    total_a_pagar = get_total_titulos(TipoTitulo.PAGAR.value, mes_filtro)
+    
+    # A Pagar Original (Títulos)
+    total_a_pagar_titulos = get_total_titulos(TipoTitulo.PAGAR.value, mes_filtro)
+    
+    # A Pagar Faturas Fechadas (Mês Selecionado ou Ano Inteiro)
+    query_faturas_fechadas = db.session.query(func.sum(FaturaCartao.total - func.coalesce(FaturaCartao.total_pago, 0)))\
+        .filter(FaturaCartao.status == 'fechada')\
+        .filter(or_(FaturaCartao.situacao_pagamento != 'paga', FaturaCartao.total_pago < FaturaCartao.total))\
+        .filter(extract('year', FaturaCartao.data_vencimento) == ano)
+    
+    if mes_filtro:
+        query_faturas_fechadas = query_faturas_fechadas.filter(extract('month', FaturaCartao.data_vencimento) == mes_filtro)
+    
+    total_faturas_fechadas = query_faturas_fechadas.scalar() or 0
+    total_a_pagar = total_a_pagar_titulos + total_faturas_fechadas
 
-    # 4. Patrimônio Líquido (Regra Refinada: Ativos - A Pagar)
-    # Reflete o Capital Próprio considerando bens e dinheiro, menos dívidas em aberto.
+    # 5. Patrimônio Líquido (Ativos na data - Dívidas na data)
     res_ativos_total = db.session.query(
         func.sum(PartidaDiario.valor).filter(PartidaDiario.tipo == 'D').label('debitos'),
         func.sum(PartidaDiario.valor).filter(PartidaDiario.tipo == 'C').label('creditos')
-    ).join(ContaContabil).filter(
-        ContaContabil.codigo.like('1%'),
-        ~ContaContabil.codigo.like('1.5%')
-    ).first()
+    ).join(ContaContabil).join(LivroDiario, PartidaDiario.diario_id == LivroDiario.id)\
+     .filter(ContaContabil.codigo.like('1%'), ~ContaContabil.codigo.like('1.5%'))\
+     .filter(LivroDiario.data <= data_limite).first()
+    
     total_ativos_regime_caixa = (res_ativos_total.debitos or 0) - (res_ativos_total.creditos or 0)
     patrimonio_liquido = total_ativos_regime_caixa - total_a_pagar
 
-    # 4. Dados para o Gráfico (Dinâmico: 12 meses ou Mês Selecionado)
+    # 6. Dados para o Gráfico (Dinâmico: 12 meses ou Mês Selecionado)
     chart_data = {'recebido': [], 'pago': [], 'a_receber': [], 'a_pagar': []}
     chart_labels = []
     
@@ -80,16 +115,17 @@ def dashboard():
     for m in iteracao_meses:
         chart_labels.append(meses_nomes[m-1])
         
-        # Recebido / Pago (Transações liquidadas)
+        # Recebido / Pago
         res_trans = db.session.query(
             func.sum(TransacaoFinanceira.valor).filter(TransacaoFinanceira.tipo == TipoTransacao.RECEBIMENTO.value).label('recebido'),
             func.sum(TransacaoFinanceira.valor).filter(TransacaoFinanceira.tipo == TipoTransacao.PAGAMENTO.value).label('pago')
-        ).filter(
+        ).outerjoin(Titulo).filter(
             extract('year', TransacaoFinanceira.data) == ano,
-            extract('month', TransacaoFinanceira.data) == m
+            extract('month', TransacaoFinanceira.data) == m,
+            or_(Titulo.status != StatusTitulo.CANCELADO.value, Titulo.id == None)
         ).first()
         
-        # A Receber / A Pagar (Títulos em aberto com vencimento no mês)
+        # A Receber
         a_receber_m = db.session.query(func.sum(Titulo.valor)).filter(
             Titulo.tipo == TipoTitulo.RECEBER.value,
             Titulo.status == StatusTitulo.ABERTO.value,
@@ -97,17 +133,26 @@ def dashboard():
             extract('month', Titulo.data_vencimento) == m
         ).scalar() or 0
         
-        a_pagar_m = db.session.query(func.sum(Titulo.valor)).filter(
+        # A Pagar (Títulos + Faturas Fechadas)
+        a_pagar_titulos_m = db.session.query(func.sum(Titulo.valor)).filter(
             Titulo.tipo == TipoTitulo.PAGAR.value,
             Titulo.status == StatusTitulo.ABERTO.value,
             extract('year', Titulo.data_vencimento) == ano,
             extract('month', Titulo.data_vencimento) == m
         ).scalar() or 0
         
+        a_pagar_faturas_m = db.session.query(func.sum(FaturaCartao.total - func.coalesce(FaturaCartao.total_pago, 0)))\
+            .filter(FaturaCartao.status == 'fechada')\
+            .filter(or_(FaturaCartao.situacao_pagamento != 'paga', FaturaCartao.total_pago < FaturaCartao.total))\
+            .filter(extract('year', FaturaCartao.data_vencimento) == ano, extract('month', FaturaCartao.data_vencimento) == m)\
+            .scalar() or 0
+            
+        a_pagar_total_m = a_pagar_titulos_m + a_pagar_faturas_m
+        
         chart_data['recebido'].append(float(res_trans.recebido or 0))
         chart_data['pago'].append(float(res_trans.pago or 0))
         chart_data['a_receber'].append(float(a_receber_m))
-        chart_data['a_pagar'].append(float(a_pagar_m))
+        chart_data['a_pagar'].append(float(a_pagar_total_m))
 
     anos_disponiveis = [ano_atual - 1, ano_atual, ano_atual + 1]
 
@@ -116,11 +161,15 @@ def dashboard():
                          disponivel=disponivel,
                          total_a_receber=total_a_receber,
                          total_a_pagar=total_a_pagar,
+                         cartao_limite_disponivel=cartao_limite_disponivel,
+                         cartao_label_limite=cartao_label_limite,
+                         total_ciclo_aberto=total_ciclo_aberto,
+                         cartao_label_ciclo=cartao_label_ciclo,
                          chart_data=chart_data,
                          chart_labels=chart_labels,
                          ano_selecionado=ano,
                          mes_selecionado=mes_filtro,
-                         anos_disponiveis=anos_disponiveis)
+                         anos_disponiveis=[ano_atual-1, ano_atual, ano_atual+1])
 
 @main_bp.route('/contabilidade/diario')
 def diario():
@@ -460,8 +509,8 @@ def exportar_balancete():
 
 @main_bp.route('/detalhamento/<int:ano>/<int:mes>/<tipo>')
 def detalhamento(ano, mes, tipo):
-    from .models import TransacaoFinanceira, TipoTransacao, Titulo, TipoTitulo, StatusTitulo
-    from sqlalchemy import extract
+    from .models import TransacaoFinanceira, TipoTransacao, Titulo, TipoTitulo, StatusTitulo, FaturaCartao
+    from sqlalchemy import extract, func, or_
     from sqlalchemy.orm import joinedload
     
     page = request.args.get('page', 1, type=int)
@@ -474,6 +523,7 @@ def detalhamento(ano, mes, tipo):
     query = Titulo.query.options(joinedload(Titulo.entidade))
     total_query = db.session.query(func.sum(Titulo.valor))
     tipo_label = ""
+    faturas_detalhe = []
     
     if tipo == 'recebido':
         tipo_label = "Recebido"
@@ -528,12 +578,26 @@ def detalhamento(ano, mes, tipo):
             extract('year', Titulo.data_vencimento) == ano,
             extract('month', Titulo.data_vencimento) == mes
         )
-        total = total_query.filter(
+        total_titulos = total_query.filter(
             Titulo.tipo == TipoTitulo.PAGAR.value,
             Titulo.status == StatusTitulo.ABERTO.value,
             extract('year', Titulo.data_vencimento) == ano,
             extract('month', Titulo.data_vencimento) == mes
         ).scalar() or 0
+        
+        # Somar faturas fechadas no mês
+        total_faturas = db.session.query(func.sum(FaturaCartao.total - func.coalesce(FaturaCartao.total_pago, 0)))\
+            .filter(FaturaCartao.status == 'fechada')\
+            .filter(or_(FaturaCartao.situacao_pagamento != 'paga', FaturaCartao.total_pago < FaturaCartao.total))\
+            .filter(extract('year', FaturaCartao.data_vencimento) == ano, extract('month', FaturaCartao.data_vencimento) == mes)\
+            .scalar() or 0
+            
+        total = total_titulos + total_faturas
+        
+        faturas_detalhe = FaturaCartao.query.filter(FaturaCartao.status == 'fechada')\
+            .filter(or_(FaturaCartao.situacao_pagamento != 'paga', FaturaCartao.total_pago < FaturaCartao.total))\
+            .filter(extract('year', FaturaCartao.data_vencimento) == ano, extract('month', FaturaCartao.data_vencimento) == mes)\
+            .all()
     
     pagination = query.order_by(Titulo.data_vencimento.asc()).paginate(page=page, per_page=per_page, error_out=False)
     titulos = pagination.items
@@ -565,15 +629,24 @@ def ajuda():
 
 @main_bp.route('/api/dashboard/drilldown')
 def api_drilldown():
-    from .models import TipoConta, StatusTitulo, TipoTitulo
-    from sqlalchemy import extract, or_
+    from .models import TipoConta, StatusTitulo, TipoTitulo, CartaoCredito, FaturaCartao, LivroDiario, PartidaDiario, ContaContabil, Titulo
+    from sqlalchemy import extract, or_, func
     import math
+    import calendar
     
     tipo = request.args.get('tipo')
     ano = request.args.get('ano', datetime.utcnow().year, type=int)
     mes = request.args.get('mes', type=int)
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 50, type=int)
+
+    # Determinar data limite para cálculos de saldo (Disponível/Ativos)
+    if mes:
+        ultimo_dia = calendar.monthrange(ano, mes)[1]
+        data_limite = datetime(ano, mes, ultimo_dia, 23, 59, 59)
+    else:
+        # Fim do ano filtrado
+        data_limite = datetime(ano, 12, 31, 23, 59, 59)
 
     data = {
         'title': '',
@@ -585,18 +658,18 @@ def api_drilldown():
 
     if tipo == 'patrimonio':
         # Detalhamento: Ativos (Exceto 1.5) - A Pagar (Regra Refinada)
-        data['title'] = 'Composição do Patrimônio Líquido (Ativos - A Pagar)'
+        data['title'] = 'Composição do Patrimônio Líquido (Ativos - Dívidas)'
         
-        # 1. Adicionar Todos os Ativos (exceto 1.5)
+        # 1. Ativos (Cronológico até data_limite)
         ativos = db.session.query(
             ContaContabil.codigo, 
             ContaContabil.nome,
             func.sum(PartidaDiario.valor).filter(PartidaDiario.tipo == 'D').label('debitos'),
             func.sum(PartidaDiario.valor).filter(PartidaDiario.tipo == 'C').label('creditos')
-        ).join(PartidaDiario).filter(
-            ContaContabil.codigo.like('1%'),
-            ~ContaContabil.codigo.like('1.5%')
-        ).group_by(ContaContabil.id).all()
+        ).join(PartidaDiario).join(LivroDiario, PartidaDiario.diario_id == LivroDiario.id)\
+        .filter(ContaContabil.codigo.like('1%'), ~ContaContabil.codigo.like('1.5%'))\
+        .filter(LivroDiario.data <= data_limite)\
+        .group_by(ContaContabil.id).all()
 
         for a in ativos:
             saldo = (a.debitos or 0) - (a.creditos or 0)
@@ -607,20 +680,38 @@ def api_drilldown():
                     'tipo': 'Ativo'
                 })
 
-        # 2. Adicionar Títulos a Pagar (Passivo Corrente)
+        # 2. Títulos a Pagar (No Ano, opcional Mês)
         query_pagar = Titulo.query.filter(
             Titulo.tipo == TipoTitulo.PAGAR.value,
-            Titulo.status == StatusTitulo.ABERTO.value
+            Titulo.status == StatusTitulo.ABERTO.value,
+            extract('year', Titulo.data_vencimento) == ano
         )
         if mes:
-            query_pagar = query_pagar.filter(extract('year', Titulo.data_vencimento) == ano, extract('month', Titulo.data_vencimento) == mes)
+            query_pagar = query_pagar.filter(extract('month', Titulo.data_vencimento) == mes)
         
         titulos = query_pagar.order_by(Titulo.data_vencimento.asc()).all()
         for t in titulos:
             all_items.append({
                 'label': f"{t.data_vencimento.strftime('%d/%m/%Y')} - {t.descricao} ({t.entidade.nome})",
-                'valor': float(-t.valor), # Subtrai do PL
-                'tipo': 'A Pagar'
+                'valor': float(-t.valor),
+                'tipo': 'A Pagar (Título)'
+            })
+            
+        # 3. Faturas Fechadas Não Pagas (No Ano, opcional Mês)
+        query_faturas = FaturaCartao.query.filter(FaturaCartao.status == 'fechada')\
+            .filter(or_(FaturaCartao.situacao_pagamento != 'paga', FaturaCartao.total_pago < FaturaCartao.total))\
+            .filter(extract('year', FaturaCartao.data_vencimento) == ano)
+            
+        if mes:
+            query_faturas = query_faturas.filter(extract('month', FaturaCartao.data_vencimento) == mes)
+            
+        faturas = query_faturas.all()
+        for f in faturas:
+            saldo_f = f.total - (f.total_pago or 0)
+            all_items.append({
+                'label': f"Fatura {f.cartao.nome} - Venc: {f.data_vencimento.strftime('%d/%m/%Y')}",
+                'valor': float(-saldo_f),
+                'tipo': 'A Pagar (Cartão Fechado)'
             })
 
     elif tipo == 'disponivel':
@@ -628,7 +719,8 @@ def api_drilldown():
         
         contas_ids = db.session.query(ContaContabil.id).filter(
             or_(ContaContabil.codigo.like('1.1%'), ContaContabil.codigo.like('1.2%')),
-            ~ContaContabil.codigo.like('1.1.05%')
+            ~ContaContabil.codigo.like('1.1.05%'),
+            ~ContaContabil.codigo.like('1.5%')
         ).subquery()
 
         saldos = db.session.query(
@@ -636,9 +728,10 @@ def api_drilldown():
             ContaContabil.nome,
             func.sum(PartidaDiario.valor).filter(PartidaDiario.tipo == 'D').label('debitos'),
             func.sum(PartidaDiario.valor).filter(PartidaDiario.tipo == 'C').label('creditos')
-        ).join(PartidaDiario).filter(
-            PartidaDiario.conta_id.in_(contas_ids)
-        ).group_by(ContaContabil.id).all()
+        ).join(PartidaDiario).join(LivroDiario, PartidaDiario.diario_id == LivroDiario.id)\
+        .filter(PartidaDiario.conta_id.in_(contas_ids))\
+        .filter(LivroDiario.data <= data_limite)\
+        .group_by(ContaContabil.id).all()
 
         for s in saldos:
             saldo = (s.debitos or 0) - (s.creditos or 0)
@@ -649,13 +742,14 @@ def api_drilldown():
                 })
 
     elif tipo == 'a_receber':
-        data['title'] = f'Títulos a Receber {"(Vencimento no Mês)" if mes else "(Total Aberto)"}'
+        data['title'] = f'Títulos a Receber'
         query = Titulo.query.filter(
             Titulo.tipo == TipoTitulo.RECEBER.value,
-            Titulo.status == StatusTitulo.ABERTO.value
+            Titulo.status == StatusTitulo.ABERTO.value,
+            extract('year', Titulo.data_vencimento) == ano
         )
         if mes:
-            query = query.filter(extract('year', Titulo.data_vencimento) == ano, extract('month', Titulo.data_vencimento) == mes)
+            query = query.filter(extract('month', Titulo.data_vencimento) == mes)
         
         titulos = query.order_by(Titulo.data_vencimento.asc()).all()
         for t in titulos:
@@ -665,20 +759,84 @@ def api_drilldown():
             })
 
     elif tipo == 'a_pagar':
-        data['title'] = f'Títulos a Pagar {"(Vencimento no Mês)" if mes else "(Total Aberto)"}'
-        query = Titulo.query.filter(
+        data['title'] = f'Dívidas Totais'
+        
+        # 1. Títulos a Pagar
+        query_titulos = Titulo.query.filter(
             Titulo.tipo == TipoTitulo.PAGAR.value,
-            Titulo.status == StatusTitulo.ABERTO.value
+            Titulo.status == StatusTitulo.ABERTO.value,
+            extract('year', Titulo.data_vencimento) == ano
         )
         if mes:
-            query = query.filter(extract('year', Titulo.data_vencimento) == ano, extract('month', Titulo.data_vencimento) == mes)
+            query_titulos = query_titulos.filter(extract('month', Titulo.data_vencimento) == mes)
         
-        titulos = query.order_by(Titulo.data_vencimento.asc()).all()
+        titulos = query_titulos.order_by(Titulo.data_vencimento.asc()).all()
         for t in titulos:
             all_items.append({
                 'label': f"{t.data_vencimento.strftime('%d/%m/%Y')} - {t.descricao} ({t.entidade.nome})",
-                'valor': float(t.valor)
+                'valor': float(t.valor),
+                'tipo': 'Título'
             })
+            
+        # 2. Faturas Fechadas Não Pagas
+        query_faturas = FaturaCartao.query.filter(FaturaCartao.status == 'fechada')\
+            .filter(or_(FaturaCartao.situacao_pagamento != 'paga', FaturaCartao.total_pago < FaturaCartao.total))\
+            .filter(extract('year', FaturaCartao.data_vencimento) == ano)
+        
+        if mes:
+            query_faturas = query_faturas.filter(extract('month', FaturaCartao.data_vencimento) == mes)
+            
+        faturas = query_faturas.all()
+        for f in faturas:
+            saldo = f.total - (f.total_pago or 0)
+            all_items.append({
+                'label': f"Fatura {f.cartao.nome} - Venc: {f.data_vencimento.strftime('%d/%m/%Y')}",
+                'valor': float(saldo),
+                'tipo': 'Cartão (Fatura Fechada)'
+            })
+
+    elif tipo == 'cartao_limite_disponivel':
+        if mes:
+            data['title'] = f'Gasto no Cartão de Crédito ({mes}/{ano})'
+            faturas = FaturaCartao.query.filter(
+                extract('year', FaturaCartao.data_vencimento) == ano,
+                extract('month', FaturaCartao.data_vencimento) == mes
+            ).all()
+            for f in faturas:
+                all_items.append({
+                    'label': f"Cartão {f.cartao.nome} - Fatura Venc: {f.data_vencimento.strftime('%d/%m/%Y')}",
+                    'valor': float(f.total),
+                    'tipo': f'Total Gasto: R$ {f.total:,.2f}'
+                })
+        else:
+            data['title'] = 'Limite Disponível por Cartão (Total Atual)'
+            cartoes = CartaoCredito.query.filter_by(ativo=True).all()
+            for c in cartoes:
+                all_items.append({
+                    'label': f"{c.nome} (Limite Total: R$ {c.limite_total:,.2f})",
+                    'valor': float(c.limite_disponivel or 0),
+                    'tipo': 'Limite Disponível'
+                })
+
+    elif tipo == 'cartao_ciclo_aberto':
+        if mes:
+            data['title'] = f'Fatura Pendente ({mes}/{ano})'
+            faturas = FaturaCartao.query.filter(
+                extract('year', FaturaCartao.data_vencimento) == ano,
+                extract('month', FaturaCartao.data_vencimento) == mes
+            ).all()
+        else:
+            data['title'] = 'Fatura Atual (Ciclo Aberto)'
+            faturas = FaturaCartao.query.filter_by(status='aberta').all()
+            
+        for f in faturas:
+            saldo_f = f.total - (f.total_pago or 0)
+            if abs(saldo_f) > 0.01:
+                all_items.append({
+                    'label': f"Fatura {f.cartao.nome} ({f.competencia})",
+                    'valor': float(saldo_f),
+                    'tipo': f'A Pagar: R$ {saldo_f:,.2f}'
+                })
 
     # Paginação manual da lista consolidada
     total_items = len(all_items)
@@ -722,7 +880,8 @@ def api_contabilidade_parametros():
     chaves = [
         'conta_lucro_venda', 'conta_prejuizo_venda',
         'conta_ativo_banco', 'conta_ativo_veiculo', 
-        'conta_ativo_imovel', 'conta_ativo_investimento', 'conta_ativo_outros'
+        'conta_ativo_imovel', 'conta_ativo_investimento', 'conta_ativo_outros',
+        'CONTA_DESCONTO_OBTIDO_ID', 'CONTA_DESCONTO_CONCEDIDO_ID'
     ]
     
     valores = {chave: Configuracao.get_valor(chave) for chave in chaves}

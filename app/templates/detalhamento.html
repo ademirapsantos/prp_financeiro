@@ -86,6 +86,40 @@
                         {% endif %}
                     </tr>
                     {% endfor %}
+
+                    {% if faturas_detalhe %}
+                    <tr style="background-color: var(--bg-muted); font-weight: bold;">
+                        <td colspan="{{ 8 if tipo_label == 'A Pagar' else 7 }}"
+                            style="padding: 0.5rem 1rem; font-size: 0.8rem; text-transform: uppercase; color: var(--text-muted);">
+                            Faturas de Cartão (Fechadas)</td>
+                    </tr>
+                    {% for f in faturas_detalhe %}
+                    <tr style="border-bottom: 1px solid var(--border-color); border-left: 4px solid #f59e0b;">
+                        <td style="padding: 0.75rem 1rem;">F-{{ f.id }}</td>
+                        <td style="padding: 0.75rem 1rem;">{{ f.data_vencimento.strftime('%d/%m/%Y') }}</td>
+                        <td style="padding: 0.75rem 1rem;">
+                            <div style="font-weight: 600; color: var(--text-main);">Fatura {{ f.cartao.nome }}</div>
+                            <small style="color: var(--text-muted);">{{ f.competencia }}</small>
+                        </td>
+                        <td style="padding: 0.75rem 1rem;">Administradora Cartão</td>
+                        <td style="padding: 0.75rem 1rem;"><span class="text-danger">A Pagar (Cartão)</span></td>
+                        <td style="padding: 0.75rem 1rem; text-align: right; font-weight: 600;">
+                            R$ {{ "{:,.2f}".format(f.total - (f.total_pago or 0)).replace(",", "X").replace(".",
+                            ",").replace("X", ".") }}
+                        </td>
+                        <td style="padding: 0.75rem 1rem;">
+                            <span
+                                style="padding: 2px 6px; border-radius: 4px; background-color: #991b1b; color: #ffffff; font-size: 0.8rem; font-weight: 600;">{{
+                                f.situacao_pagamento.upper().replace('_', ' ') }}</span>
+                        </td>
+                        <td style="padding: 0.75rem 1rem;">
+                            <a href="{{ url_for('financeiro.detalhes_cartao', cartao_id=f.cartao_id) }}" class="btn"
+                                style="padding: 0.25rem 0.5rem; font-size: 0.8rem; background: var(--bg-muted);">Ver
+                                Cartão</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% endif %}
                 </tbody>
                 <tfoot
                     style="position: sticky; bottom: 0; background-color: var(--table-header-bg); font-weight: 700; border-top: 2px solid var(--border-color); z-index: 5;">
