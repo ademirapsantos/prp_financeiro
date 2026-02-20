@@ -19,6 +19,7 @@ services:
       - GITHUB_REPO=ademirapsantos/prp_financeiro
       - ENVIRONMENT=hml
       - MANIFEST_BASE_URL=https://ademirapsantos.github.io/prp_financeiro
+      - UPDATER_BASE_URL=http://prp-updater-hml:5005
     restart: always
 
   prp-updater-hml:
@@ -31,6 +32,10 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - .:/app
+    networks:
+      default:
+        aliases:
+          - prp-updater
     environment:
       - UPDATE_TOKEN=${UPDATE_TOKEN:-prp_secure_token_2026}
       - COMPOSE_FILE=docker-compose.hml.yml
