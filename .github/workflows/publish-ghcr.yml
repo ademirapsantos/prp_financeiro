@@ -50,23 +50,12 @@ jobs:
             ghcr.io/${{ github.repository }}:${{ env.TAG_ENV }}-latest
             ghcr.io/${{ github.repository }}:${{ env.TAG_ENV }}-v${{ steps.version.outputs.VERSION }}
 
-      - name: Update Manifest
-        run: |
-          mkdir -p manifest
-          cat <<EOF > manifest/${{ env.ENV_NAME }}.json
-          {
-            "version": "${{ steps.version.outputs.VERSION }}",
-            "tag": "${{ env.TAG_ENV }}-v${{ steps.version.outputs.VERSION }}",
-            "date": "$(date -u +'%Y-%m-%dT%H:%M:%SZ')",
-            "commit": "${{ github.sha }}"
-          }
-          EOF
-
-      - name: Deploy Manifest to gh-pages
-        uses: peaceiris/actions-gh-pages@v3
+      - name: Build and push image
+          # context . 
+        uses: docker/build-push-action@v5
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./manifest
-          keep_files: true
-          user_name: 'github-actions[bot]'
-          user_email: 'github-actions[bot]@users.noreply.github.com'
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:${{ env.TAG_ENV }}-latest
+            ghcr.io/${{ github.repository }}:${{ env.TAG_ENV }}-v${{ steps.version.outputs.VERSION }}

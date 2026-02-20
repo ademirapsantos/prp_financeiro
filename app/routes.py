@@ -917,6 +917,13 @@ def api_contabilidade_parametros():
 
 # --- Módulo de Atualização e Notificações ---
 
+def parse_version(v_str):
+    """Converte string de versão (ex: '1.4.1') em tupla de inteiros para comparação."""
+    try:
+        return tuple(map(int, (v_str.strip().replace('v', '').split('.'))))
+    except:
+        return (0, 0, 0)
+
 @main_bp.route('/api/system/latest')
 def system_latest():
     """
@@ -951,7 +958,7 @@ def system_latest():
         data = None
         source = None
 
-        # 1. Tentar ler do arquivo local (Prioridade Máxima)
+        # 1. Tentar ler do arquivo local (Se configurado)
         if manifest_file:
             if os.path.exists(manifest_file):
                 try:
@@ -963,7 +970,7 @@ def system_latest():
             else:
                 current_app.logger.warning(f"MANIFEST_FILE configurado mas não encontrado: {manifest_file}")
 
-        # 2. Tentar baixar da URL remota (Fallback)
+        # 2. Tentar baixar da URL remota (Fonte principal ou Fallback)
         if not data and manifest_base_url:
             manifest_url = f"{manifest_base_url}/{env}.json"
             source = f"url:{manifest_url}"
@@ -985,22 +992,24 @@ def system_latest():
                 error_resp["details"] = "Verifique se o arquivo local existe ou se a URL é válida e acessível."
             return jsonify(error_resp), 500
 
-        latest_version = data.get('version')
+        latest_version = data.get('version', data.get('latest_version'))
         if not latest_version:
             return jsonify({"error": "manifest_invalid_format", "details": "'version' key missing"}), 500
 
-        # Comparação básica de versão (SemVer simples ou string literal)
-        is_new = latest_version > __version__
+        # Comparação robusta SemVer
+        current_v_tuple = parse_version(__version__)
+        latest_v_tuple = parse_version(latest_version)
+        is_new = latest_v_tuple > current_v_tuple
         
         return jsonify({
-            "latest_version": latest_version,
             "current_version": __version__,
+            "latest_version": latest_version,
             "is_new": is_new,
             "tag": data.get('tag'),
-            "date": data.get('date'),
             "commit": data.get('commit'),
-            "environment": env,
-            "source": source if flask_env == 'development' else None
+            "date": data.get('date'),
+            "environment": data.get('environment', env),
+            "source": source
         })
             
     except Exception as e:

@@ -1,0 +1,43 @@
+name: Publish PROD Manifest
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  publish-manifest:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Read Version
+        id: version
+        run: |
+          VERSION=$(grep "__version__ =" app/version.py | cut -d'"' -f2)
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Generate PROD Manifest
+        run: |
+          mkdir -p public
+          cat <<EOF > public/prod.json
+          {
+            "latest_version": "${{ steps.version.outputs.VERSION }}",
+            "tag": "prod-v${{ steps.version.outputs.VERSION }}",
+            "commit": "${{ github.sha }}",
+            "date": "$(date -u +'%Y-%m-%dT%H:%M:%SZ')",
+            "environment": "prod"
+          }
+          EOF
+
+      - name: Deploy to gh-pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./public
+          keep_files: true
+          user_name: 'github-actions[bot]'
+          user_email: 'github-actions[bot]@users.noreply.github.com'
