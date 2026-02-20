@@ -44,6 +44,9 @@ def create_app():
     login_manager.login_message_category = 'info'
     login_manager.init_app(app)
 
+    app.jinja_env.globals["APP_VERSION"] = __version__
+    app.jinja_env.globals["APP_BUILD"] = __build__
+
     @login_manager.unauthorized_handler
     def unauthorized():
         if request.path.startswith('/api/'):
@@ -146,9 +149,7 @@ def create_app():
 
         return dict(
             notificacoes_alert=notificacoes_financeiras,
-            notificacoes_sistema=notificacoes_sistema,
-            app_version=app.config.get('__version__', '1.4.0'),
-            app_build=app.config.get('__build__', '')
+            notificacoes_sistema=notificacoes_sistema
         )
 
 
