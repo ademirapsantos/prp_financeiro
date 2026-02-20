@@ -1,0 +1,16 @@
+#!/bin/sh
+
+# Check if we are on the 'dev' branch
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
+
+if [ "$BRANCH" = "dev" ]; then
+    echo "Branch dev detected. Attempting to bump version..."
+    python tools/bump_version.py
+    if [ $? -eq 0 ]; then
+        git add app/version.py
+        echo "Version bumped and added to commit."
+    else
+        echo "Failed to bump version."
+        exit 1
+    fi
+fi

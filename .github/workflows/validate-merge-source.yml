@@ -1,0 +1,29 @@
+name: Validate Merge Source
+
+on:
+  pull_request:
+    branches:
+      - main
+      - release
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check merge rules
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const pr = context.payload.pull_request;
+            const baseRef = pr.base.ref;
+            const headRef = pr.head.ref;
+
+            console.log(`Reviewing PR from ${headRef} to ${baseRef}`);
+
+            if (baseRef === 'main' && headRef !== 'release') {
+              core.setFailed('ERROR: merges into "main" must come from "release" branch.');
+            }
+            if (baseRef === 'release' && headRef !== 'dev') {
+              core.setFailed('ERROR: merges into "release" must come from "dev" branch.');
+            }

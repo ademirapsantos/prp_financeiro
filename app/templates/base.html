@@ -62,7 +62,8 @@
                             {% for n in notificacoes_sistema %}
                             <li onclick="handleSystemNotif('{{ n.id }}', '{{ n.tipo }}')" style="cursor: pointer;">
                                 <div class="notif-item">
-                                    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                                    <div
+                                        style="display: flex; justify-content: space-between; align-items: flex-start;">
                                         <strong>{{ n.titulo }}</strong>
                                         <small>{{ n.criada_em.strftime('%d/%m %H:%M') }}</small>
                                     </div>
@@ -70,7 +71,7 @@
                                 </div>
                             </li>
                             {% endfor %}
-                            
+
                             {% if notificacoes_sistema and notificacoes_alert %}
                             <div class="dropdown-divider"></div>
                             {% endif %}
@@ -89,11 +90,12 @@
                                 </div>
                             </li>
                             {% else %}
-                                {% if not notificacoes_sistema %}
-                                <li class="empty-notif" style="padding: 1rem; text-align: center; color: var(--text-muted); font-size: 0.9rem;">
-                                    Nenhuma notificação nova.
-                                </li>
-                                {% endif %}
+                            {% if not notificacoes_sistema %}
+                            <li class="empty-notif"
+                                style="padding: 1rem; text-align: center; color: var(--text-muted); font-size: 0.9rem;">
+                                Nenhuma notificação nova.
+                            </li>
+                            {% endif %}
                             {% endfor %}
                         </ul>
                     </div>
@@ -984,18 +986,18 @@
                 if (data.is_new && data.latest_version !== ignoredVersion) {
                     document.getElementById('new-version-tag').innerText = 'v' + data.latest_version;
                     document.getElementById('update-modal').classList.add('show');
-                    
+
                     // Guardar payload globalmente para "Mais Tarde"
                     window.latestUpdate = data;
                 }
-            } catch (e) { 
-                console.error('Falha ao checar atualização', e); 
+            } catch (e) {
+                console.error('Falha ao checar atualização', e);
             }
         }
 
         async function ignoreUpdate() {
             const version = document.getElementById('new-version-tag').innerText.replace('v', '');
-            
+
             // Persistir no DB como notificação se clicar em "Mais Tarde"
             if (window.latestUpdate) {
                 try {
@@ -1009,24 +1011,23 @@
                             payload: window.latestUpdate
                         })
                     });
-                } catch(e) { console.error('Erro ao salvar notificação', e); }
+                } catch (e) { console.error('Erro ao salvar notificação', e); }
             }
-            
+
             localStorage.setItem('ignored_version', version);
             document.getElementById('update-modal').classList.remove('show');
             showToast('Lembrete salvo nas notificações.', 'info');
         }
 
-        async function requestUpdate() {
+        async function requestUpdate(event) {
             if (!confirm('O sistema entrará em modo manutenção e será reiniciado. Deseja continuar?')) return;
 
-            const btn = event.target.closest('button');
+            const btn = event ? event.target.closest('button') : document.querySelector('#update-modal .btn-primary');
             const originalHtml = btn.innerHTML;
             btn.disabled = true;
             btn.innerHTML = '<span class="status-dot warning" style="display:inline-block; vertical-align:middle; margin-right:8px;"></span> Atualizando...';
 
             try {
-                // Chama o backend (Admin) em vez de chamar o sidecar diretamente
                 const res = await fetch('/api/system/update', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' }
@@ -1036,9 +1037,7 @@
                 if (result.status === 'success') {
                     showToast('Atualização iniciada! O sistema irá reiniciar em breve.', 'success');
                     document.getElementById('update-modal').classList.remove('show');
-                    
-                    // Aguardar alguns segundos e tentar recarregar (cairá na tela de manutenção ou voltará atualizado)
-                    setTimeout(() => window.location.reload(), 5000);
+                    setTimeout(() => window.location.reload(), 8000);
                 } else {
                     showToast('Erro na atualização: ' + (result.error || result.message), 'error');
                     btn.disabled = false;
