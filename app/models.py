@@ -337,3 +337,17 @@ class UpdateLog(db.Model):
     to_version = db.Column(db.String(20))
     status = db.Column(db.String(20)) # 'pending', 'success', 'failed'
     details = db.Column(db.Text, nullable=True)
+
+class Notificacao(db.Model):
+    __tablename__ = 'notificacoes'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True) # Null = Global
+    tipo = db.Column(db.String(50), nullable=False) # ex: 'UPDATE_AVAILABLE'
+    titulo = db.Column(db.String(100), nullable=False)
+    mensagem = db.Column(db.Text, nullable=False)
+    payload_json = db.Column(db.Text, nullable=True) # Guardar {latest_version, ambiente}
+    lida = db.Column(db.Boolean, default=False)
+    criada_em = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship('User', backref='notificacoes_list')
+

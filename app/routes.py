@@ -1,10 +1,14 @@
-from flask import Blueprint, render_template, request, redirect, url_for, send_file, current_app
+from flask import Blueprint, render_template, request, redirect, url_for, send_file, current_app, jsonify
+import requests
+from flask_login import login_required, current_user
+import json
 import io
 import os
+import math
 import markdown
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill
-from .models import ContaContabil, Titulo, LivroDiario, PartidaDiario, db, TipoConta, StatusTitulo, TipoTitulo, Configuracao
+from .models import Notificacao, UpdateLog, Configuracao, db, ContaContabil, Titulo, LivroDiario, PartidaDiario, TipoConta, StatusTitulo, TipoTitulo, CartaoCredito, FaturaCartao
 from .version import __version__, __build__
 from datetime import datetime, timedelta
 from sqlalchemy import func
@@ -910,3 +914,142 @@ def api_contabilidade_parametros():
         "contas": analiticas,
         "valores": valores
     }
+
+# --- Módulo de Atualização e Notificações ---
+
+@main_bp.route('/api/system/latest')
+@login_required
+def system_latest():
+    repo = os.getenv('GITHUB_REPO', 'ademirapsantos/prp_financeiro')
+    env = os.getenv('ENVIRONMENT', 'dev')
+    
+    try:
+        if env == 'dev':
+            return jsonify({"version": __version__, "build": __build__, "is_new": False})
+            
+        url = f"https://api.github.com/repos/{repo}/tags"
+        response = requests.get(url, timeout=5)
+        if response.status_code == 200:
+            tags = response.json()
+            if not tags:
+                return jsonify({"error": "No tags found"}), 404
+            
+            if env == 'hml':
+                env_tags = [t for t in tags if t['name'].startswith('hml-')]
+            else:
+                env_tags = [t for t in tags if not t['name'].startswith('hml-') and not t['name'].startswith('dev-')]
+                
+            if not env_tags:
+                return jsonify({"error": f"No tags for environment {env} found"}), 404
+                
+            latest_tag = env_tags[0]['name']
+            version_clean = latest_tag.replace('hml-v', '').replace('prod-v', '').replace('v', '')
+            
+            is_new = version_clean > __version__
+            
+            return jsonify({
+                "latest_version": version_clean,
+                "current_version": __version__,
+                "is_new": is_new,
+                "tag_name": latest_tag
+            })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+    return jsonify({"error": "Unknown error"}), 500
+
+@main_bp.route('/api/system/update', methods=['POST'])
+@login_required
+def system_update():
+    if not current_user.is_admin:
+        return jsonify({"error": "Unauthorized"}), 403
+        
+    if Configuracao.get_valor('UPDATE_IN_PROGRESS') == 'true':
+        return jsonify({"error": "Update already in progress"}), 400
+        
+    try:
+        Configuracao.set_valor('UPDATE_IN_PROGRESS', 'true')
+        Configuracao.set_valor('MAINTENANCE_MODE', 'true')
+        
+        updater_url = os.getenv('UPDATER_URL', 'http://prp-updater:5005/api/update')
+        token = os.getenv('UPDATE_TOKEN', 'change_me_token')
+        
+        headers = {"Authorization": f"Bearer {token}"}
+        
+        # Chamar o sidecar (timeout curto pois o sidecar deve lidar em background se demorar muito, 
+        # mas o updater.py atual é síncrono. Vamos dar 60s)
+        response = requests.post(updater_url, headers=headers, timeout=60)
+        
+        if response.status_code == 200:
+            return jsonify({"status": "success", "message": "Update initiated successfully"})
+        else:
+            Configuracao.set_valor('UPDATE_IN_PROGRESS', 'false')
+            Configuracao.set_valor('MAINTENANCE_MODE', 'false')
+            return jsonify({"error": "Updater failed", "details": response.text}), 500
+            
+    except Exception as e:
+        Configuracao.set_valor('UPDATE_IN_PROGRESS', 'false')
+        Configuracao.set_valor('MAINTENANCE_MODE', 'false')
+        return jsonify({"error": str(e)}), 500
+
+@main_bp.route('/api/notifications')
+@login_required
+def get_notifications():
+    notificacoes = Notificacao.query.filter(
+        (Notificacao.user_id == current_user.id) | (Notificacao.user_id == None)
+    ).filter_by(lida=False).order_by(Notificacao.criada_em.desc()).all()
+    
+    return jsonify({
+        "notifications": [{
+            "id": n.id,
+            "tipo": n.tipo,
+            "titulo": n.titulo,
+            "mensagem": n.mensagem,
+            "payload_json": json.loads(n.payload_json) if n.payload_json else {},
+            "criada_em": n.criada_em.isoformat()
+        } for n in notificacoes]
+    })
+
+@main_bp.route('/api/notifications/<int:id>/read', methods=['POST'])
+@login_required
+def mark_notification_read(id):
+    notif = Notificacao.query.get_or_404(id)
+    if notif.user_id and notif.user_id != current_user.id:
+        return jsonify({"error": "Unauthorized"}), 403
+    
+    notif.lida = True
+    db.session.commit()
+    return jsonify({"status": "success"})
+
+@main_bp.route('/api/notifications', methods=['POST'])
+@login_required
+def create_notification_api():
+    data = request.get_json()
+    new_notif = Notificacao(
+        user_id=current_user.id,
+        tipo=data.get('tipo', 'INFO'),
+        titulo=data.get('titulo'),
+        mensagem=data.get('mensagem'),
+        payload_json=json.dumps(data.get('payload', {})) if data.get('payload') else None
+    )
+    db.session.add(new_notif)
+    db.session.commit()
+    return jsonify({"status": "success", "id": new_notif.id})
+
+@main_bp.route('/api/system/maintenance/on', methods=['POST'])
+@login_required
+def maintenance_on():
+    if not current_user.is_admin:
+        return jsonify({"error": "Unauthorized"}), 403
+    Configuracao.set_valor('MAINTENANCE_MODE', 'true')
+    return jsonify({"status": "success"})
+
+@main_bp.route('/api/system/maintenance/off', methods=['POST'])
+@login_required
+def maintenance_off():
+    if not current_user.is_admin:
+        return jsonify({"error": "Unauthorized"}), 403
+    Configuracao.set_valor('MAINTENANCE_MODE', 'false')
+    Configuracao.set_valor('UPDATE_IN_PROGRESS', 'false')
+    return jsonify({"status": "success"})
+
