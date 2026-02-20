@@ -24,10 +24,15 @@ def titulos():
     page = request.args.get('page', 1, type=int)
     per_page = 50
 
+    # Definir status com base na aba
+    status_alvo = StatusTitulo.PAGO.value if active_tab == 'pagas' else StatusTitulo.ABERTO.value
+    if status_filtro:
+        status_alvo = status_filtro
+
     # Query base para os totais (sem paginação, mas com filtros)
     total_query = db.session.query(
-        func.sum(Titulo.valor).filter(Titulo.tipo == TipoTitulo.RECEBER.value, Titulo.status == StatusTitulo.ABERTO.value).label('receber'),
-        func.sum(Titulo.valor).filter(Titulo.tipo == TipoTitulo.PAGAR.value, Titulo.status == StatusTitulo.ABERTO.value).label('pagar')
+        func.sum(Titulo.valor).filter(Titulo.tipo == TipoTitulo.RECEBER.value, Titulo.status == status_alvo).label('receber'),
+        func.sum(Titulo.valor).filter(Titulo.tipo == TipoTitulo.PAGAR.value, Titulo.status == status_alvo).label('pagar')
     )
 
     query = Titulo.query.options(joinedload(Titulo.entidade), joinedload(Titulo.ativo))
@@ -57,12 +62,8 @@ def titulos():
         elif status_filtro == StatusTitulo.ABERTO.value:
             active_tab = 'pendentes'
     else:
-        if active_tab == 'pagas':
-            query = query.filter(Titulo.status == StatusTitulo.PAGO.value)
-            total_query = total_query.filter(Titulo.status == StatusTitulo.PAGO.value)
-        else:
-            query = query.filter(Titulo.status == StatusTitulo.ABERTO.value)
-            total_query = total_query.filter(Titulo.status == StatusTitulo.ABERTO.value)
+        query = query.filter(Titulo.status == status_alvo)
+        total_query = total_query.filter(Titulo.status == status_alvo)
 
     # Executar query de totais
     res_totais = total_query.first()

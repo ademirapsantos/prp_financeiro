@@ -138,9 +138,11 @@
         style="flex-grow: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden; padding: 0;">
         <div
             style="display: flex; gap: 2rem; padding: 1rem 1.5rem; background: var(--table-header-bg); border-bottom: 1px solid var(--border-color); flex-shrink: 0;">
-            <p style="margin: 0;"><strong>Total a Receber:</strong> <span class="text-success">R$ {{
+            <p style="margin: 0;"><strong>Total {{ 'Recebido' if active_tab == 'pagas' else 'a Receber' }}:</strong>
+                <span class="text-success">R$ {{
                     "{:,.2f}".format(total_receber).replace(",", "X").replace(".", ",").replace("X", ".") }}</span></p>
-            <p style="margin: 0;"><strong>Total a Pagar:</strong> <span class="text-danger">R$ {{
+            <p style="margin: 0;"><strong>Total {{ 'Pago' if active_tab == 'pagas' else 'a Pagar' }}:</strong> <span
+                    class="text-danger">R$ {{
                     "{:,.2f}".format(total_pagar).replace(",", "X").replace(".", ",").replace("X", ".") }}</span></p>
         </div>
         <div class="table-container" style="flex-grow: 1; overflow: hidden; display: flex; flex-direction: column;">

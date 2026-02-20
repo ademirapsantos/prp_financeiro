@@ -750,14 +750,37 @@ class AssetService:
         
         diferenca = Decimal(str(valor_venda)) - ativo.valor_atual
         if diferenca > 0:
-            conta_ganho = ContaContabil.query.filter(ContaContabil.nome.like('%Ganho%Capital%')).first()
+            # Tentar buscar conta por parâmetro
+            conta_ganho = None
+            conta_id = Configuracao.get_valor('conta_lucro_venda')
+            if conta_id:
+                c_param = db.session.get(ContaContabil, int(conta_id))
+                if c_param and c_param.is_analitica:
+                    conta_ganho = c_param
+            
+            # Fallback se não houver parâmetro válido
             if not conta_ganho:
-                conta_ganho = ContaContabil.query.filter(ContaContabil.tipo == TipoConta.RECEITA.value).first()
+                conta_ganho = ContaContabil.query.filter(ContaContabil.nome.like('%Ganho%Capital%')).first()
+                if not conta_ganho:
+                    conta_ganho = ContaContabil.query.filter(ContaContabil.tipo == TipoConta.RECEITA.value).first()
+            
             partidas.append({'conta_id': conta_ganho.id, 'tipo': 'C', 'valor': diferenca})
+            
         elif diferenca < 0:
-            conta_perda = ContaContabil.query.filter(ContaContabil.nome.like('%Perda%Capital%')).first()
+            # Tentar buscar conta por parâmetro
+            conta_perda = None
+            conta_id = Configuracao.get_valor('conta_prejuizo_venda')
+            if conta_id:
+                c_param = db.session.get(ContaContabil, int(conta_id))
+                if c_param and c_param.is_analitica:
+                    conta_perda = c_param
+            
+            # Fallback se não houver parâmetro válido
             if not conta_perda:
-                conta_perda = ContaContabil.query.filter(ContaContabil.tipo == TipoConta.DESPESA.value).first()
+                conta_perda = ContaContabil.query.filter(ContaContabil.nome.like('%Perda%Capital%')).first()
+                if not conta_perda:
+                    conta_perda = ContaContabil.query.filter(ContaContabil.tipo == TipoConta.DESPESA.value).first()
+                    
             partidas.append({'conta_id': conta_perda.id, 'tipo': 'D', 'valor': abs(diferenca)})
 
         AccountingService.criar_lancamento(
