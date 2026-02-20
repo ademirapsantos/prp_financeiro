@@ -5,6 +5,10 @@ on:
     branches:
       - release
 
+permissions:
+  contents: read
+  packages: write
+
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
@@ -27,7 +31,9 @@ jobs:
         with:
           context: .
           push: true
-          tags: ghcr.io/${{ github.repository }}:hml-latest,ghcr.io/${{ github.repository }}:hml-${{ github.sha }}
+          tags: |
+            ghcr.io/${{ github.repository }}:hml-latest
+            ghcr.io/${{ github.repository }}:hml-${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
