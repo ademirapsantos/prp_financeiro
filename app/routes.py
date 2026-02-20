@@ -928,9 +928,7 @@ def parse_version(v_str):
 def system_latest():
     """
     Retorna a versão mais recente do sistema disponível para o ambiente atual.
-    Prioridade:
-    1. MANIFEST_FILE (Arquivo local montado via volume)
-    2. MANIFEST_BASE_URL (URL remota baseada em GITHUB_REPO ou variável explícita)
+    Suporta manifestos com chaves 'version' ou 'latest_version'.
     """
     repo = os.getenv('GITHUB_REPO', 'ademirapsantos/prp_financeiro')
     env = os.getenv('ENVIRONMENT', 'dev')
@@ -946,15 +944,6 @@ def system_latest():
             manifest_base_url = f"https://{parts[0]}.github.io/{parts[1]}"
 
     try:
-        # Se for ambiente de desenvolvimento puro, retorna a própria versão como latest
-        if env == 'dev' and not manifest_file and not os.getenv('MANIFEST_BASE_URL'):
-            return jsonify({
-                "latest_version": __version__,
-                "current_version": __version__,
-                "is_new": False,
-                "environment": env
-            })
-
         data = None
         source = None
 
@@ -965,36 +954,56 @@ def system_latest():
                     with open(manifest_file, 'r', encoding='utf-8') as f:
                         data = json.load(f)
                         source = f"file:{manifest_file}"
-                except Exception as e:
-                    current_app.logger.error(f"Erro ao ler MANIFEST_FILE {manifest_file}: {str(e)}")
+                except json.JSONDecodeError:
+                    current_app.logger.exception(f"Erro de JSON inválido em MANIFEST_FILE {manifest_file}")
+                    return jsonify({"error": "manifest_invalid_json", "details": f"Arquivo {manifest_file} não é um JSON válido"}), 500
+                except Exception:
+                    current_app.logger.exception(f"Erro ao ler MANIFEST_FILE {manifest_file}")
             else:
                 current_app.logger.warning(f"MANIFEST_FILE configurado mas não encontrado: {manifest_file}")
 
         # 2. Tentar baixar da URL remota (Fonte principal ou Fallback)
         if not data and manifest_base_url:
             manifest_url = f"{manifest_base_url}/{env}.json"
-            source = f"url:{manifest_url}"
+            source = manifest_url
             try:
                 response = requests.get(manifest_url, timeout=5)
                 if response.status_code == 200:
                     data = response.json()
                 else:
                     current_app.logger.error(f"Manifest não encontrado na URL {manifest_url}. Status: {response.status_code}")
-            except Exception as e:
-                current_app.logger.error(f"Erro ao baixar manifest de {manifest_url}: {str(e)}")
+            except json.JSONDecodeError:
+                current_app.logger.exception(f"Resposta remota não é um JSON válido: {manifest_url}")
+                return jsonify({"error": "manifest_invalid_json", "details": "A resposta da URL remota não é um JSON válido"}), 500
+            except Exception:
+                current_app.logger.exception(f"Erro ao baixar manifest de {manifest_url}")
 
-        # Se não encontrou de nenhuma forma
+        # Se não encontrou de nenhuma forma e não é dev puro
         if not data:
-            msg = "manifest_fetch_failed"
-            current_app.logger.error(f"Failed to fetch manifest: Missing configuration or resources unavailable.")
-            error_resp = {"error": msg}
-            if flask_env == 'development':
-                error_resp["details"] = "Verifique se o arquivo local existe ou se a URL é válida e acessível."
-            return jsonify(error_resp), 500
+            if env == 'dev':
+                return jsonify({
+                    "current_version": __version__,
+                    "latest_version": __version__,
+                    "is_new": False,
+                    "environment": env,
+                    "source": "local_dev"
+                })
+            
+            return jsonify({
+                "error": "manifest_fetch_failed",
+                "details": "Não foi possível obter o manifesto de nenhuma fonte configurada."
+            }), 500
 
-        latest_version = data.get('version', data.get('latest_version'))
+        # Extrair versão - Suporta 'version' ou 'latest_version'
+        latest_version = data.get('version') or data.get('latest_version')
+        
         if not latest_version:
-            return jsonify({"error": "manifest_invalid_format", "details": "'version' key missing"}), 500
+            received_keys = list(data.keys())
+            current_app.logger.error(f"Manifesto com formato inválido. Chaves recebidas: {received_keys}")
+            return jsonify({
+                "error": "manifest_invalid_format", 
+                "details": f"Chave 'version' ou 'latest_version' não encontrada. Chaves recebidas: {received_keys}"
+            }), 500
 
         # Comparação robusta SemVer
         current_v_tuple = parse_version(__version__)
@@ -1008,16 +1017,16 @@ def system_latest():
             "tag": data.get('tag'),
             "commit": data.get('commit'),
             "date": data.get('date'),
-            "environment": data.get('environment', env),
+            "environment": env,
             "source": source
         })
             
-    except Exception as e:
+    except Exception:
         current_app.logger.exception("Erro fatal ao processar /api/system/latest")
-        resp = {"error": "manifest_fetch_failed"}
-        if flask_env == 'development':
-            resp["details"] = repr(e)
-        return jsonify(resp), 500
+        return jsonify({
+            "error": "manifest_fetch_failed",
+            "details": "Ocorreu um erro interno ao processar a verificação de versão."
+        }), 500
 
 @main_bp.route('/api/system/update', methods=['POST'])
 @login_required
