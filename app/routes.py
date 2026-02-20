@@ -1042,25 +1042,42 @@ def system_update():
         Configuracao.set_valor('MAINTENANCE_MODE', 'true')
         
         # Updater interaction is backend-only
-        updater_url = os.getenv('UPDATER_URL', 'http://prp-updater:5005/api/update')
+        # Prioritize UPDATER_BASE_URL, fallback based on ENVIRONMENT
+        updater_base_url = os.getenv('UPDATER_BASE_URL')
+        if not updater_base_url:
+            env = os.getenv('ENVIRONMENT', 'dev')
+            if env == 'hml':
+                updater_base_url = "http://prp-updater-hml:5005"
+            elif env == 'prod':
+                updater_base_url = "http://prp-updater-prod:5005"
+            else:
+                updater_base_url = "http://prp-updater:5005"
+        
+        updater_url = f"{updater_base_url.rstrip('/')}/api/update"
         token = os.getenv('UPDATE_TOKEN', 'change_me_token')
         
         headers = {"Authorization": f"Bearer {token}"}
         
         # Call the sidecar
-        response = requests.post(updater_url, headers=headers, timeout=60)
-        
-        if response.status_code == 200:
-            return jsonify({"status": "success", "message": "Update initiated successfully"})
-        else:
-            # Rollback flags if failed
+        try:
+            response = requests.post(updater_url, headers=headers, timeout=60)
+            
+            if response.status_code == 200:
+                return jsonify({"status": "success", "message": "Update initiated successfully"})
+            else:
+                # Rollback flags if failed
+                Configuracao.set_valor('UPDATE_IN_PROGRESS', 'false')
+                Configuracao.set_valor('MAINTENANCE_MODE', 'false')
+                return jsonify({"error": "updater_failed", "details": response.text}), response.status_code
+        except requests.exceptions.ConnectionError:
             Configuracao.set_valor('UPDATE_IN_PROGRESS', 'false')
             Configuracao.set_valor('MAINTENANCE_MODE', 'false')
-            return jsonify({"error": "Updater failed", "details": response.text}), 500
+            return jsonify({"error": "updater_unreachable", "details": "Falha ao conectar ao serviço updater (DNS/Rede)"}), 502
             
     except Exception as e:
         Configuracao.set_valor('UPDATE_IN_PROGRESS', 'false')
         Configuracao.set_valor('MAINTENANCE_MODE', 'false')
+        current_app.logger.exception("Erro ao acionar updater")
         return jsonify({"error": str(e)}), 500
 
 @main_bp.route('/api/notifications')
@@ -1096,12 +1113,29 @@ def mark_notification_read(id):
 @login_required
 def create_notification_api():
     data = request.get_json()
+    tipo = data.get('tipo', 'INFO')
+    payload = data.get('payload', {})
+    
+    # Prevenção de duplicidade para UPDATE_AVAILABLE
+    if tipo == 'UPDATE_AVAILABLE' and payload.get('latest_version'):
+        versao = payload.get('latest_version')
+        existente = Notificacao.query.filter_by(
+            user_id=current_user.id, 
+            tipo='UPDATE_AVAILABLE',
+            lida=False
+        ).all()
+        
+        for n in existente:
+            p = json.loads(n.payload_json) if n.payload_json else {}
+            if p.get('latest_version') == versao:
+                return jsonify({"status": "success", "id": n.id, "message": "Notification already exists"})
+
     new_notif = Notificacao(
         user_id=current_user.id,
-        tipo=data.get('tipo', 'INFO'),
+        tipo=tipo,
         titulo=data.get('titulo'),
         mensagem=data.get('mensagem'),
-        payload_json=json.dumps(data.get('payload', {})) if data.get('payload') else None
+        payload_json=json.dumps(payload) if payload else None
     )
     db.session.add(new_notif)
     db.session.commit()

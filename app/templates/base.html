@@ -1001,7 +1001,7 @@
             // Persistir no DB como notificação se clicar em "Mais Tarde"
             if (window.latestUpdate) {
                 try {
-                    await fetch('/api/notifications', {
+                    const res = await fetch('/api/notifications', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -1011,6 +1011,43 @@
                             payload: window.latestUpdate
                         })
                     });
+                    const data = await res.json();
+
+                    if (data.status === 'success') {
+                        // Atualizar sino em real-time
+                        const notifList = document.querySelector('.notification-list');
+                        const emptyItem = notifList.querySelector('.empty-notif');
+                        if (emptyItem) emptyItem.remove();
+
+                        const newItem = document.createElement('li');
+                        newItem.setAttribute('onclick', `handleSystemNotif('${data.id}', 'UPDATE_AVAILABLE', ${JSON.stringify(window.latestUpdate)})`);
+                        newItem.style.cursor = 'pointer';
+                        newItem.id = `notif-item-${data.id}`;
+                        newItem.innerHTML = `
+                            <div class="notif-item">
+                                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                                    <strong>Atualização Disponível</strong>
+                                    <small>agora</small>
+                                </div>
+                                <small>A versão v${window.latestUpdate.latest_version} está disponível. Clique para atualizar.</small>
+                            </div>
+                        `;
+
+                        // Inserir no topo (seção sistema)
+                        notifList.prepend(newItem);
+
+                        // Atualizar badge
+                        const badge = document.querySelector('.notification-badge');
+                        if (badge) {
+                            badge.innerText = parseInt(badge.innerText) + 1;
+                        } else {
+                            const wrapper = document.querySelector('.notification-wrapper button');
+                            const newBadge = document.createElement('span');
+                            newBadge.className = 'notification-badge';
+                            newBadge.innerText = '1';
+                            wrapper.appendChild(newBadge);
+                        }
+                    }
                 } catch (e) { console.error('Erro ao salvar notificação', e); }
             }
 
@@ -1050,15 +1087,34 @@
             }
         }
 
-        function handleSystemNotif(id, tipo) {
+        function handleSystemNotif(id, tipo, payload) {
             if (tipo === 'UPDATE_AVAILABLE') {
-                // Reabrir modal de update
-                checkUpdate();
+                // Se recebemos payload (item real-time), usamos ele
+                if (payload) {
+                    localStorage.removeItem('ignored_version');
+                    document.getElementById('new-version-tag').innerText = 'v' + payload.latest_version;
+                    document.getElementById('update-modal').classList.add('show');
+                    window.latestUpdate = payload;
+                } else {
+                    // Fallback para comportamento antigo
+                    localStorage.removeItem('ignored_version');
+                    checkUpdate();
+                }
             }
             // Marcar como lida
             fetch(`/api/notifications/${id}/read`, { method: 'POST' })
                 .then(() => {
-                    // Opcional: remover da UI ou recarregar
+                    const item = document.getElementById(`notif-item-${id}`) || document.querySelector(`li[onclick*="'${id}'"]`);
+                    if (item) {
+                        item.remove();
+                        // Decrementar badge
+                        const badge = document.querySelector('.notification-badge');
+                        if (badge) {
+                            const newCount = parseInt(badge.innerText) - 1;
+                            if (newCount > 0) badge.innerText = newCount;
+                            else badge.remove();
+                        }
+                    }
                 });
         }
 
