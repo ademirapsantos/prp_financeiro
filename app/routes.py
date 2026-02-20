@@ -922,41 +922,35 @@ def api_contabilidade_parametros():
 def system_latest():
     repo = os.getenv('GITHUB_REPO', 'ademirapsantos/prp_financeiro')
     env = os.getenv('ENVIRONMENT', 'dev')
+    base_url = os.getenv('MANIFEST_BASE_URL', f'https://{repo.split("/")[0]}.github.io/{repo.split("/")[1]}')
     
     try:
         if env == 'dev':
             return jsonify({"version": __version__, "build": __build__, "is_new": False})
             
-        url = f"https://api.github.com/repos/{repo}/tags"
-        response = requests.get(url, timeout=5)
+        manifest_url = f"{base_url}/{env}.json"
+        response = requests.get(manifest_url, timeout=5)
+        
         if response.status_code == 200:
-            tags = response.json()
-            if not tags:
-                return jsonify({"error": "No tags found"}), 404
+            data = response.json()
+            latest_version = data.get('version')
             
-            if env == 'hml':
-                env_tags = [t for t in tags if t['name'].startswith('hml-')]
-            else:
-                env_tags = [t for t in tags if not t['name'].startswith('hml-') and not t['name'].startswith('dev-')]
-                
-            if not env_tags:
-                return jsonify({"error": f"No tags for environment {env} found"}), 404
-                
-            latest_tag = env_tags[0]['name']
-            version_clean = latest_tag.replace('hml-v', '').replace('prod-v', '').replace('v', '')
-            
-            is_new = version_clean > __version__
+            # Simple version comparison
+            is_new = latest_version > __version__
             
             return jsonify({
-                "latest_version": version_clean,
+                "latest_version": latest_version,
                 "current_version": __version__,
                 "is_new": is_new,
-                "tag_name": latest_tag
+                "tag": data.get('tag'),
+                "date": data.get('date'),
+                "commit": data.get('commit')
             })
+        else:
+            return jsonify({"error": f"Manifest not found for {env}"}), 404
+            
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-    
-    return jsonify({"error": "Unknown error"}), 500
 
 @main_bp.route('/api/system/update', methods=['POST'])
 @login_required
@@ -971,18 +965,19 @@ def system_update():
         Configuracao.set_valor('UPDATE_IN_PROGRESS', 'true')
         Configuracao.set_valor('MAINTENANCE_MODE', 'true')
         
+        # Updater interaction is backend-only
         updater_url = os.getenv('UPDATER_URL', 'http://prp-updater:5005/api/update')
         token = os.getenv('UPDATE_TOKEN', 'change_me_token')
         
         headers = {"Authorization": f"Bearer {token}"}
         
-        # Chamar o sidecar (timeout curto pois o sidecar deve lidar em background se demorar muito, 
-        # mas o updater.py atual é síncrono. Vamos dar 60s)
+        # Call the sidecar
         response = requests.post(updater_url, headers=headers, timeout=60)
         
         if response.status_code == 200:
             return jsonify({"status": "success", "message": "Update initiated successfully"})
         else:
+            # Rollback flags if failed
             Configuracao.set_valor('UPDATE_IN_PROGRESS', 'false')
             Configuracao.set_valor('MAINTENANCE_MODE', 'false')
             return jsonify({"error": "Updater failed", "details": response.text}), 500
