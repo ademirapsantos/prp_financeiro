@@ -16,10 +16,14 @@ services:
       - DATABASE_PATH=/app/data/prp_financeiro.db
       - MAINTENANCE_MODE=false
       - UPDATE_TOKEN=${UPDATE_TOKEN:-prp_secure_token_2026}
-      - GITHUB_REPO=ademirapsantos/prp_financeiro
       - ENVIRONMENT=hml
       - MANIFEST_BASE_URL=https://ademirapsantos.github.io/prp_financeiro
       - UPDATER_BASE_URL=http://prp-updater-hml:5005
+    healthcheck:
+      test: [ "CMD", "curl", "-fsS", "http://localhost:5000/health" ]
+      interval: 10s
+      timeout: 3s
+      retries: 10
     restart: always
 
   prp-updater-hml:
@@ -40,4 +44,8 @@ services:
       - UPDATE_TOKEN=${UPDATE_TOKEN:-prp_secure_token_2026}
       - COMPOSE_FILE=docker-compose.hml.yml
       - SERVICE_NAME=prp-financeiro-hml
+      - ENVIRONMENT=hml
+      - MANIFEST_BASE_URL=https://ademirapsantos.github.io/prp_financeiro
+      - GHCR_IMAGE=ghcr.io/ademirapsantos/prp_financeiro
+      - PROJECT_DIR=/app
     restart: always

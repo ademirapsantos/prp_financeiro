@@ -1126,9 +1126,13 @@ def create_notification_api():
         ).all()
         
         for n in existente:
-            p = json.loads(n.payload_json) if n.payload_json else {}
-            if p.get('latest_version') == versao:
-                return jsonify({"status": "success", "id": n.id, "message": "Notification already exists"})
+            try:
+                p = json.loads(n.payload_json) if n.payload_json else {}
+                if p.get('latest_version') == versao:
+                    # Atualiza o payload se for mais recente (opcional, mantendo o existente)
+                    return jsonify({"status": "success", "id": n.id, "message": "Notification already exists"})
+            except (json.JSONDecodeError, TypeError):
+                continue
 
     new_notif = Notificacao(
         user_id=current_user.id,

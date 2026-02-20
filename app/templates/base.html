@@ -60,7 +60,9 @@
                         <div class="dropdown-header">Notificações</div>
                         <ul class="notification-list">
                             {% for n in notificacoes_sistema %}
-                            <li onclick="handleSystemNotif('{{ n.id }}', '{{ n.tipo }}')" style="cursor: pointer;">
+                            <li id="notif-item-{{ n.id }}"
+                                onclick="handleSystemNotif('{{ n.id }}', '{{ n.tipo }}', {{ n.payload_json or 'null' }})"
+                                style="cursor: pointer;">
                                 <div class="notif-item">
                                     <div
                                         style="display: flex; justify-content: space-between; align-items: flex-start;">
@@ -1020,16 +1022,22 @@
                         if (emptyItem) emptyItem.remove();
 
                         const newItem = document.createElement('li');
-                        newItem.setAttribute('onclick', `handleSystemNotif('${data.id}', 'UPDATE_AVAILABLE', ${JSON.stringify(window.latestUpdate)})`);
-                        newItem.style.cursor = 'pointer';
                         newItem.id = `notif-item-${data.id}`;
+                        newItem.style.cursor = 'pointer';
+
+                        // Usar event listener para evitar problemas de aspas com JSON.stringify
+                        const currentUpdate = { ...window.latestUpdate };
+                        newItem.addEventListener('click', () => {
+                            handleSystemNotif(data.id, 'UPDATE_AVAILABLE', currentUpdate);
+                        });
+
                         newItem.innerHTML = `
                             <div class="notif-item">
                                 <div style="display: flex; justify-content: space-between; align-items: flex-start;">
                                     <strong>Atualização Disponível</strong>
                                     <small>agora</small>
                                 </div>
-                                <small>A versão v${window.latestUpdate.latest_version} está disponível. Clique para atualizar.</small>
+                                <small>A versão v${currentUpdate.latest_version} está disponível. Clique para atualizar.</small>
                             </div>
                         `;
 
@@ -1037,9 +1045,9 @@
                         notifList.prepend(newItem);
 
                         // Atualizar badge
-                        const badge = document.querySelector('.notification-badge');
-                        if (badge) {
-                            badge.innerText = parseInt(badge.innerText) + 1;
+                        const badgeCountEl = document.querySelector('.notification-badge');
+                        if (badgeCountEl) {
+                            badgeCountEl.innerText = parseInt(badgeCountEl.innerText) + 1;
                         } else {
                             const wrapper = document.querySelector('.notification-wrapper button');
                             const newBadge = document.createElement('span');

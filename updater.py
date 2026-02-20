@@ -1,39 +1,188 @@
 import os
 import subprocess
+import time
+import json
+import uuid
+import requests
+from datetime import datetime
 from flask import Flask, request, jsonify
 
 app = Flask(__name__)
+
+# Configurações via Variáveis de Ambiente
 UPDATE_TOKEN = os.getenv('UPDATE_TOKEN', 'change_me_token')
+COMPOSE_FILE = os.getenv('COMPOSE_FILE', 'docker-compose.yml')
+SERVICE_NAME = os.getenv('SERVICE_NAME', 'prp-financeiro')
+PROJECT_DIR = os.getenv('PROJECT_DIR', '/app')
+ENVIRONMENT = os.getenv('ENVIRONMENT', 'dev')
+MANIFEST_BASE_URL = os.getenv('MANIFEST_BASE_URL', 'https://ademirapsantos.github.io/prp_financeiro')
+GHCR_IMAGE = os.getenv('GHCR_IMAGE', 'ghcr.io/ademirapsantos/prp_financeiro')
+
+# Caminhos de Arquivos
+DATA_DIR = os.path.join(PROJECT_DIR, 'data')
+LOCK_FILE = os.path.join(DATA_DIR, 'update.lock')
+LOG_FILE = os.path.join(DATA_DIR, 'update_logs.jsonl')
+STATE_FILE = os.path.join(DATA_DIR, 'update_state.json')
+ENV_FILE = os.path.join(PROJECT_DIR, f'.env.{ENVIRONMENT}' if os.path.exists(os.path.join(PROJECT_DIR, f'.env.{ENVIRONMENT}')) else '.env')
+
+os.makedirs(DATA_DIR, exist_ok=True)
+
+def log_event(event_type, details=None):
+    """Registra um evento no log JSONL."""
+    log_entry = {
+        "timestamp": datetime.utcnow().isoformat(),
+        "event": event_type,
+        "details": details or {}
+    }
+    with open(LOG_FILE, 'a') as f:
+        f.write(json.dumps(log_entry) + '\n')
+
+def get_current_tag():
+    """Lê a tag atual do arquivo .env."""
+    env_key = f'PRP_IMAGE_{ENVIRONMENT.upper()}'
+    if not os.path.exists(ENV_FILE):
+        return None
+    with open(ENV_FILE, 'r') as f:
+        for line in f:
+            if line.startswith(f'{env_key}='):
+                val = line.strip().split('=')[1]
+                return val.split(':')[-1] if ':' in val else 'latest'
+    return None
+
+def set_env_tag(tag):
+    """Atualiza a tag no arquivo .env."""
+    env_key = f'PRP_IMAGE_{ENVIRONMENT.upper()}'
+    new_value = f'{GHCR_IMAGE}:{tag}'
+    lines = []
+    found = False
+    
+    if os.path.exists(ENV_FILE):
+        with open(ENV_FILE, 'r') as f:
+            for line in f:
+                if line.startswith(f'{env_key}='):
+                    lines.append(f'{env_key}={new_value}\n')
+                    found = True
+                else:
+                    lines.append(line)
+    
+    if not found:
+        lines.append(f'{env_key}={new_value}\n')
+        
+    with open(ENV_FILE, 'w') as f:
+        f.writelines(lines)
+
+def run_docker_command(cmd_args):
+    """Executa comando docker compose."""
+    full_cmd = ["docker", "compose", "-f", COMPOSE_FILE] + cmd_args
+    result = subprocess.run(full_cmd, cwd=PROJECT_DIR, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise Exception(f"Docker command failed: {result.stderr}")
+    return result.stdout
+
+def check_container_health():
+    """Verifica se o container do serviço está pronto (healthy)."""
+    # Aguarda o container subir (up -d é assíncrono pro estado interno)
+    for _ in range(20): # 20 tentativas (200s total com sleep 10)
+        time.sleep(10)
+        try:
+            # Pega o ID do container do serviço específico
+            container_id = subprocess.check_output(
+                ["docker", "compose", "-f", COMPOSE_FILE, "ps", "-q", SERVICE_NAME],
+                cwd=PROJECT_DIR, text=True
+            ).strip()
+            
+            if not container_id:
+                continue
+                
+            # Inspeciona o status do healthcheck
+            health_status = subprocess.check_output(
+                ["docker", "inspect", "--format", "{{.State.Health.Status}}", container_id],
+                text=True
+            ).strip()
+            
+            if health_status == "healthy":
+                return True
+            if health_status == "unhealthy":
+                return False
+        except Exception as e:
+            log_event("health_check_error", {"error": str(e)})
+            
+    return False
 
 @app.route('/health')
 def health():
-    return {"status": "updater-ready"}
+    return {"status": "ok", "service": "updater"}
 
 @app.route('/api/update', methods=['POST'])
-def update():
+def perform_update():
     token = request.headers.get('Authorization')
     if token != f"Bearer {UPDATE_TOKEN}":
         return jsonify({"error": "Unauthorized"}), 401
     
+    if os.path.exists(LOCK_FILE):
+        return jsonify({"error": "Update already in progress"}), 409
+    
+    update_id = str(uuid.uuid4())
     try:
-        # 1. Colocar em Manutenção (via shell command no app se necessário, 
-        # mas aqui vamos apenas rodar os comandos docker)
+        # 1. Lock
+        with open(LOCK_FILE, 'w') as f:
+            f.write(update_id)
         
-        # 2. Pull da nova imagem
-        subprocess.run(["docker-compose", "pull"], check=True)
+        log_event("update_start", {"update_id": update_id, "env": ENVIRONMENT})
         
-        # 3. Rodar Migrações
-        subprocess.run([
-            "docker-compose", "run", "--rm", "prp-financeiro", 
-            "alembic", "upgrade", "head"
-        ], check=True)
+        # 2. Fetch Manifest
+        manifest_url = f"{MANIFEST_BASE_URL}/{ENVIRONMENT}.json"
+        res = requests.get(manifest_url, timeout=10)
+        res.raise_for_status()
+        manifest = res.json()
+        target_tag = manifest.get('tag')
         
-        # 4. Restart containers
-        subprocess.run(["docker-compose", "up", "-d"], check=True)
+        if not target_tag:
+            raise Exception("Manifest does not contain a 'tag' key")
+            
+        previous_tag = get_current_tag()
+        log_event("target_version", {"tag": target_tag, "previous_tag": previous_tag})
         
-        return jsonify({"status": "success", "message": "Update completed and migrations applied."})
-    except subprocess.CalledProcessError as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+        # 3. Pull and Deploy
+        set_env_tag(target_tag)
+        run_docker_command(["pull", SERVICE_NAME])
+        run_docker_command(["up", "-d", "--no-deps", "--force-recreate", SERVICE_NAME])
+        log_event("deploy_started")
+        
+        # 4. Health Check
+        is_healthy = check_container_health()
+        
+        if is_healthy:
+            log_event("update_success", {"new_tag": target_tag})
+            os.remove(LOCK_FILE)
+            return jsonify({"status": "success", "update_id": update_id})
+        else:
+            # 5. Rollback
+            log_event("health_failed", {"action": "auto_rollback"})
+            if previous_tag:
+                set_env_tag(previous_tag)
+                run_docker_command(["up", "-d", "--no-deps", "--force-recreate", SERVICE_NAME])
+                log_event("rollback_completed", {"restored_tag": previous_tag})
+                os.remove(LOCK_FILE)
+                return jsonify({"error": "health_failed", "details": "App unhealthy after update. Rollback performed."}), 500
+            else:
+                os.remove(LOCK_FILE)
+                return jsonify({"error": "health_failed", "details": "App unhealthy and no previous tag for rollback."}), 500
+                
+    except Exception as e:
+        log_event("update_error", {"error": str(e)})
+        if os.path.exists(LOCK_FILE):
+            os.remove(LOCK_FILE)
+        return jsonify({"error": "unexpected_error", "details": str(e)}), 500
+
+@app.route('/api/rollback', methods=['POST'])
+def manual_rollback():
+    token = request.headers.get('Authorization')
+    if token != f"Bearer {UPDATE_TOKEN}":
+        return jsonify({"error": "Unauthorized"}), 401
+    
+    # Implementação manual se necessário, mas o auto já cobre o caso crítico
+    return jsonify({"message": "Manual rollback logic is built into auto-rollback storage"}), 501
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5005)
