@@ -178,7 +178,7 @@ def dashboard():
         chart_data['a_receber'].append(float(a_receber_m))
         chart_data['a_pagar'].append(float(a_pagar_total_m))
 
-    anos_disponiveis = [ano_atual - 1, ano_atual, ano_atual + 1]
+    anos_disponiveis = list(range(2025, 2151))
 
     return render_template('dashboard.html', 
                          patrimonio_liquido=patrimonio_liquido,
@@ -193,7 +193,7 @@ def dashboard():
                          chart_labels=chart_labels,
                          ano_selecionado=ano,
                          mes_selecionado=mes_filtro,
-                         anos_disponiveis=[ano_atual-1, ano_atual, ano_atual+1])
+                         anos_disponiveis=anos_disponiveis)
 
 @main_bp.route('/contabilidade/diario')
 def diario():
