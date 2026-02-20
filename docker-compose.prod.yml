@@ -18,7 +18,7 @@ services:
       - UPDATE_TOKEN=${UPDATE_TOKEN}
       - GITHUB_REPO=ademirapsantos/prp_financeiro
       - ENVIRONMENT=prod
-      - MANIFEST_FILE=/app/manifests/prod.json
+      - MANIFEST_BASE_URL=https://ademirapsantos.github.io/prp_financeiro
     restart: always
 
   prp-updater-prod:

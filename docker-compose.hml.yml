@@ -18,7 +18,7 @@ services:
       - UPDATE_TOKEN=${UPDATE_TOKEN:-prp_secure_token_2026}
       - GITHUB_REPO=ademirapsantos/prp_financeiro
       - ENVIRONMENT=hml
-      - MANIFEST_FILE=/app/manifests/hml.json
+      - MANIFEST_BASE_URL=https://ademirapsantos.github.io/prp_financeiro
     restart: always
 
   prp-updater-hml:

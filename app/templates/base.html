@@ -1063,7 +1063,9 @@
         }
 
         // Check no load
-        checkUpdate();
+        document.addEventListener('DOMContentLoaded', () => {
+            checkUpdate();
+        });
     </script>
 </body>
 
