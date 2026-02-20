@@ -13,16 +13,9 @@ def create_app():
     app = Flask(__name__)
     app.config['SECRET_KEY'] = 'dev_key_prp_system'
     
-    basedir = os.path.abspath(os.path.dirname(__file__))
-    default_db_path = os.path.join(basedir, '..', 'prp_financeiro.db')
-    
-    # Prioridade: DATABASE_URL > DATABASE_PATH > default
-    db_uri = os.getenv('DATABASE_URL')
-    if not db_uri:
-        db_path = os.getenv('DATABASE_PATH', default_db_path)
-        db_uri = f'sqlite:///{db_path}'
-    
-    app.config['SQLALCHEMY_DATABASE_URI'] = db_uri
+    # Configuração centralizada de caminhos
+    from .config import Config
+    app.config['SQLALCHEMY_DATABASE_URI'] = Config.get_sqlalchemy_uri()
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['__version__'] = __version__
     app.config['__build__'] = __build__

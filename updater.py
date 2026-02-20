@@ -23,10 +23,8 @@ def update():
         subprocess.run(["docker-compose", "pull"], check=True)
         
         # 3. Rodar Migrações
-        # Usamos o container da aplicação para rodar o alembic upgrade head
-        # Mudança: Garantir que o container está up ou usar run --rm
         subprocess.run([
-            "docker-compose", "run", "--rm", "prp-financeiro-test", 
+            "docker-compose", "run", "--rm", "prp-financeiro", 
             "alembic", "upgrade", "head"
         ], check=True)
         

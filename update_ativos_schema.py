@@ -1,7 +1,7 @@
 import sqlite3
 import os
 
-db_path = os.path.join(os.getcwd(), 'prp_financeiro.db')
+db_path = os.path.join(os.getcwd(), 'data/prp_financeiro.db')
 
 def update_schema():
     print(f"Conectando ao banco de dados: {db_path}")

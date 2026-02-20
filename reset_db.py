@@ -3,7 +3,7 @@ import time
 
 # Usar caminho absoluto para garantir que deletamos o arquivo certo
 basedir = os.path.abspath(os.path.dirname(__file__))
-db_file = os.path.join(basedir, 'prp_financeiro.db')
+db_file = os.path.join(basedir, 'data/prp_financeiro.db')
 
 if os.path.exists(db_file):
     try:

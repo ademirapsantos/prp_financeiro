@@ -11,10 +11,10 @@ def test_crud_entidades():
     print(f"DB URI: {app.config['SQLALCHEMY_DATABASE_URI']}")
     import os
     print(f"CWD: {os.getcwd()}")
-    if os.path.exists('instance/prp_financeiro.db'):
-        print("Arquivo encontrado em INSTANCE/prp_financeiro.db")
-    if os.path.exists('prp_financeiro.db'):
-        print("Arquivo encontrado em prp_financeiro.db")
+    if os.path.exists('instance/data/prp_financeiro.db'):
+        print("Arquivo encontrado em INSTANCE/data/prp_financeiro.db")
+    if os.path.exists('data/prp_financeiro.db'):
+        print("Arquivo encontrado em data/prp_financeiro.db")
 
     with app.app_context():
         print(f"Colunas Entidade: {Entidade.__table__.columns.keys()}")
