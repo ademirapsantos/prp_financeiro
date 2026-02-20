@@ -19,7 +19,7 @@ jobs:
 
     - name: Build Docker image
       run: |
-        docker build . --file Dockerfile --tag prp-financeiro:test
+        docker build . --file Dockerfile --tag prp-financeiro
 
     - name: Docker Compose Check
       run: |

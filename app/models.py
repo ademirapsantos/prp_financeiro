@@ -215,6 +215,10 @@ class Configuracao(db.Model):
         return config.valor if config else default
 
     @staticmethod
+    def is_maintenance():
+        return Configuracao.get_valor('MAINTENANCE_MODE') == 'true'
+
+    @staticmethod
     def set_valor(chave, valor, descricao=None):
         config = Configuracao.query.filter_by(chave=chave).first()
         if config:
@@ -323,3 +327,13 @@ class PagamentoFaturaCartao(db.Model):
     transacao_financeira_id = db.Column(db.Integer, db.ForeignKey('transacoes_financeiras.id'), nullable=True)
     
     banco = db.relationship('Ativo', backref='pagamentos_fatura')
+
+class UpdateLog(db.Model):
+    __tablename__ = 'update_logs'
+    id = db.Column(db.Integer, primary_key=True)
+    started_at = db.Column(db.DateTime, default=datetime.utcnow)
+    finished_at = db.Column(db.DateTime, nullable=True)
+    from_version = db.Column(db.String(20))
+    to_version = db.Column(db.String(20))
+    status = db.Column(db.String(20)) # 'pending', 'success', 'failed'
+    details = db.Column(db.Text, nullable=True)
