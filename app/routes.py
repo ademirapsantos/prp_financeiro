@@ -19,7 +19,7 @@ main_bp = Blueprint('main', __name__)
 def check_maintenance():
     if Configuracao.is_maintenance():
         # Permitir apenas rotas críticas e estáticos
-        allowed_paths = ['/api/version', '/health', '/static/', '/login', '/logout']
+        allowed_paths = ['/api/version', '/api/system/latest', '/health', '/static/', '/login', '/logout']
         if not any(request.path.startswith(p) for p in allowed_paths):
             return render_template('manutencao.html'), 503
 
@@ -918,7 +918,6 @@ def api_contabilidade_parametros():
 # --- Módulo de Atualização e Notificações ---
 
 @main_bp.route('/api/system/latest')
-@login_required
 def system_latest():
     """
     Retorna a versão mais recente do sistema disponível para o ambiente atual.
@@ -979,8 +978,8 @@ def system_latest():
 
         # Se não encontrou de nenhuma forma
         if not data:
-            msg = "Missing MANIFEST_FILE or MANIFEST_BASE_URL configuration, or resources unavailable."
-            current_app.logger.error(msg)
+            msg = "manifest_fetch_failed"
+            current_app.logger.error(f"Failed to fetch manifest: Missing configuration or resources unavailable.")
             error_resp = {"error": msg}
             if flask_env == 'development':
                 error_resp["details"] = "Verifique se o arquivo local existe ou se a URL é válida e acessível."
@@ -988,7 +987,7 @@ def system_latest():
 
         latest_version = data.get('version')
         if not latest_version:
-            return jsonify({"error": "Invalid manifest format: 'version' key missing"}), 500
+            return jsonify({"error": "manifest_invalid_format", "details": "'version' key missing"}), 500
 
         # Comparação básica de versão (SemVer simples ou string literal)
         is_new = latest_version > __version__
@@ -1006,7 +1005,7 @@ def system_latest():
             
     except Exception as e:
         current_app.logger.exception("Erro fatal ao processar /api/system/latest")
-        resp = {"error": "Internal server error processing version check"}
+        resp = {"error": "manifest_fetch_failed"}
         if flask_env == 'development':
             resp["details"] = repr(e)
         return jsonify(resp), 500
