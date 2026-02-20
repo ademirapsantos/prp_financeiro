@@ -16,29 +16,22 @@ Para ativar o incremento automático de versão localmente, você deve configura
 git config core.hooksPath .githooks
 ```
 
-Isso ativará o `pre-commit` que executa `tools/bump_version.py` quando você está na branch `dev`.
+## 3. Configuração de Manifestos (Versão Latest)
+O endpoint `/api/system/latest` busca a versão seguindo esta prioridade:
 
-## 3. CI/CD e Manifestos
-O workflow `.github/workflows/publish-ghcr.yml` realiza o build e publica:
-1. Imagem Docker no GHCR.
-2. Manifesto de versão (`hml.json` ou `prod.json`) na branch `gh-pages`.
-   - **URL do Manifesto**: `https://ademirapsantos.github.io/prp_financeiro/hml.json` (ou `prod.json`)
+1.  **Arquivo Local (`MANIFEST_FILE`)**:
+    *   Prioridade máxima. Útil para evitar chamadas externas.
+    *   Configure no `docker-compose.yml` montando o volume `./manifests:/app/manifests:ro`.
+2.  **URL Remota (`MANIFEST_BASE_URL`)**:
+    *   Fallback caso o arquivo local não exista.
+    *   Monta a URL: `{MANIFEST_BASE_URL}/{ENVIRONMENT}.json`.
 
-## 4. Atualização In-App
-A aplicação consulta o manifesto correspondente ao `ENVIRONMENT` configurado no `docker-compose.yml`.
-- Se uma nova versão for detectada, um modal centralizado aparecerá para o Admin.
-- O backend chama o sidecar `updater` internamente usando o `UPDATE_TOKEN`.
-
-## 5. Regras de Proteção de Branch (GitHub)
-Recomenda-se configurar no GitHub:
-- **Branch `main`**: 
-  - Exigir PR antes do merge.
-  - Exigir que o check `Validate Merge Source` passe (impede merges que não venham de `release`).
-- **Branch `release`**:
-  - Exigir PR antes do merge.
-  - Exigir que o check `Validate Merge Source` passe (impede merges que não venham de `dev`).
-
-## 6. Docker Compose
-- `docker-compose.hml.yml`: Porta 5001, Ambiente HML.
-- `docker-compose.prod.yml`: Porta 5000, Ambiente PROD.
+## 4. Como Testar no Docker
+Para verificar o manifest no container HML:
+```bash
+docker exec -it prp-financeiro-hml flask shell
+# Ou via curl (requer auth):
+curl -u admin:password http://localhost:5001/api/system/latest
+```
+Em caso de erro, verifique os logs: `docker logs prp-financeiro-hml`.
 

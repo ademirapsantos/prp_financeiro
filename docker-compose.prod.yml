@@ -9,6 +9,7 @@ services:
     volumes:
       - ./data/prod:/app/data
       - ./instance:/app/instance
+      - ./manifests:/app/manifests:ro
     environment:
       - FLASK_ENV=production
       - SECRET_KEY=prod_key_change_me
@@ -17,6 +18,7 @@ services:
       - UPDATE_TOKEN=${UPDATE_TOKEN}
       - GITHUB_REPO=ademirapsantos/prp_financeiro
       - ENVIRONMENT=prod
+      - MANIFEST_FILE=/app/manifests/prod.json
     restart: always
 
   prp-updater-prod:
