@@ -2,7 +2,7 @@ import sqlite3
 import os
 from datetime import date
 
-db_path = 'prp_financeiro.db'
+db_path = 'data/prp_financeiro.db'
 if os.path.exists(db_path):
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row

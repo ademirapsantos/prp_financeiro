@@ -3,7 +3,7 @@ import os
 
 def migrate():
     basedir = os.path.abspath(os.path.dirname(__file__))
-    db_path = os.path.join(basedir, 'prp_financeiro.db')
+    db_path = os.path.join(basedir, 'data/prp_financeiro.db')
     
     if not os.path.exists(db_path):
         print(f"Banco de dados não encontrado em: {db_path}")

@@ -7,12 +7,13 @@ services:
     ports:
       - "5002:5000" # Mapeia porta 5002 (Host) (Base Teste) para 5000 (Container)
     volumes:
-      - ./prp_financeiro.db:/app/prp_financeiro.db # Persistência do banco SQLite
+      - ./data:/app/data
       - ./instance:/app/instance
     restart: always
     environment:
       - FLASK_ENV=development
       - SECRET_KEY=prod_key_change_me
+      - DATABASE_PATH=/app/data/prp_financeiro.db
 
   prp-updater:
     build:

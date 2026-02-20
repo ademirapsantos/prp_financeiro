@@ -1,4 +1,6 @@
-from flask import render_template, redirect, url_for, flash, request, session, current_app
+from flask import render_template, redirect, url_for, flash, request, session, current_app, send_file
+import os
+import shutil
 from flask_login import login_user, logout_user, login_required, current_user
 from . import auth_bp
 from ..models import User, db, Configuracao, ContaContabil, LivroDiario, PartidaDiario, Entidade, Ativo, Titulo, TransacaoFinanceira, ConfiguracaoSMTP
@@ -386,42 +388,54 @@ def export_backup():
     if not current_user.is_admin:
         return {"success": False, "message": "Acesso negado."}, 403
 
-    output = io.StringIO()
-    writer = csv.writer(output)
+    import zipfile
+    from ..config import Config
+    
+    # 1. Obter caminho do banco
+    db_path = Config.get_db_path()
+    if not os.path.exists(db_path):
+        return {"success": False, "message": "Banco de dados não encontrado para backup."}, 404
 
-    from ..models import User, ContaContabil, Titulo, Entidade, Ativo, \
-        TransacaoFinanceira, LivroDiario, PartidaDiario, Configuracao, ConfiguracaoSMTP
-    models = [
-        User, ContaContabil, Entidade, Ativo, Titulo, 
-        TransacaoFinanceira, LivroDiario, PartidaDiario, Configuracao, ConfiguracaoSMTP
-    ]
-
-    for model in models:
-        writer.writerow([f"--- TABLE: {model.__tablename__} ---"])
-        # Get columns
-        columns = [column.key for column in model.__table__.columns]
-        writer.writerow(columns)
+    # 2. Preparar Buffer ZIP
+    memory_file = io.BytesIO()
+    with zipfile.ZipFile(memory_file, 'w', zipfile.ZIP_DEFLATED) as zf:
+        # Adicionar o arquivo .db
+        zf.write(db_path, "prp_financeiro.db")
         
-        records = model.query.all()
-        for record in records:
-            row = []
-            for col in columns:
-                val = getattr(record, col)
-                if isinstance(val, (datetime, date)):
-                    row.append(val.isoformat())
-                elif isinstance(val, Decimal):
-                    row.append(str(val))
-                else:
-                    row.append(val)
-            writer.writerow(row)
-        writer.writerow([]) # Empty line between tables
+        # 3. Exportar tabelas para CSV
+        # Identificar tabelas dinamicamente
+        for table_name, table_obj in db.metadata.tables.items():
+            output_csv = io.StringIO()
+            writer = csv.writer(output_csv, delimiter=';')
+            
+            # Cabeçalho
+            columns = [col.name for col in table_obj.columns]
+            writer.writerow(columns)
+            
+            # Dados
+            # Usar db.session.execute para ser genérico e evitar problemas com classes em rotas circulares
+            result = db.session.execute(table_obj.select())
+            for row in result:
+                processed_row = []
+                for val in row:
+                    if isinstance(val, (datetime, date)):
+                        processed_row.append(val.isoformat())
+                    elif val is None:
+                        processed_row.append('')
+                    else:
+                        processed_row.append(str(val))
+                writer.writerow(processed_row)
+            
+            zf.writestr(f"csv/{table_name}.csv", output_csv.getvalue())
 
-    output.seek(0)
-    from flask import Response
-    return Response(
-        output.getvalue(),
-        mimetype="text/csv",
-        headers={"Content-disposition": f"attachment; filename=prp_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"}
+    memory_file.seek(0)
+    filename = f"backup_prp_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
+    
+    return send_file(
+        memory_file,
+        mimetype='application/zip',
+        as_attachment=True,
+        download_name=filename
     )
 
 @auth_bp.route('/api/backup/restore', methods=['POST'])
@@ -430,90 +444,49 @@ def restore_backup():
     if not current_user.is_admin:
         return {"success": False, "message": "Acesso negado."}, 403
 
+    import zipfile
+    from ..config import Config
+    from ..models import db, Configuracao
+    
     file = request.files.get('file')
     if not file:
         return {"success": False, "message": "Nenhum arquivo enviado."}, 400
 
+    # 1. Ativar modo de manutenção
+    Configuracao.set_valor('MAINTENANCE_MODE', 'true', 'Sistema em restauração de backup')
+    
     try:
-        # Desabilitar chaves estrangeiras para limpeza e recarregamento massivo (SQLite)
-        db.session.execute(db.text("PRAGMA foreign_keys = OFF;"))
-        
-        stream = io.StringIO(file.stream.read().decode("UTF-8"), newline=None)
-        reader = csv.reader(stream)
-        
-        # Ordem de limpeza (Reversa)
-        models_to_clear = [
-            PartidaDiario, LivroDiario, TransacaoFinanceira, 
-            Titulo, Ativo, Entidade, ContaContabil, User, Configuracao, ConfiguracaoSMTP
-        ]
-        
-        for model in models_to_clear:
-            db.session.query(model).delete()
-        
-        db.session.flush() # Sincronizar as exclusões antes da inserção
-
-        # Ordem de inserção (Dependência)
-        # 1. User
-        # 2. Configuracao (Simples)
-        # 3. ContaContabil (Recursivo/Hierárquico)
-        # 4. Entidade
-        # 5. Ativo
-        # 6. Titulo
-        # ... e assim por diante
-        
-        current_table = None
-        current_columns = None
-        
-        # Mapeamento de nomes de tabela para classes
-        table_map = {m.__tablename__: m for m in models_to_clear}
-        
-        # Reset para ler do início
-        stream.seek(0)
-        reader = csv.reader(stream)
-        
-        for row in reader:
-            if not row: continue
+        if file.filename.endswith('.db'):
+            # Restauração direta de arquivo .db
+            db_path = Config.get_db_path()
+            # Criar backup temporário do atual
+            shutil.copy2(db_path, db_path + ".old")
+            file.save(db_path)
             
-            if row[0].startswith("--- TABLE:"):
-                current_table = row[0].split(":")[1].strip().replace(" ---", "")
-                current_columns = next(reader)
-                continue
-            
-            if current_table and current_columns:
-                model_class = table_map.get(current_table)
-                if model_class:
-                    data = {}
-                    for i, col in enumerate(current_columns):
-                        val = row[i]
-                        if val == "":
-                            data[col] = None
-                        else:
-                            # Tentar converter tipos específicos baseados no modelo se necessário
-                            # Aqui simplificamos esperando que o SQLAlchemy lide com strings para a maioria,
-                            # exceto campos críticos como data e booleano.
-                            column_type = getattr(model_class, col).property.columns[0].type
-                            if "DATETIME" in str(column_type).upper():
-                                data[col] = datetime.fromisoformat(val)
-                            elif "DATE" in str(column_type).upper():
-                                data[col] = datetime.fromisoformat(val).date()
-                            elif "BOOLEAN" in str(column_type).upper():
-                                data[col] = val.upper() == 'TRUE'
-                            elif "NUMERIC" in str(column_type).upper() or "DECIMAL" in str(column_type).upper():
-                                data[col] = Decimal(val)
-                            elif "INTEGER" in str(column_type).upper():
-                                data[col] = int(val)
-                            else:
-                                data[col] = val
+        elif file.filename.endswith('.zip'):
+            # Restauração via ZIP
+            with zipfile.ZipFile(file) as zf:
+                if "prp_financeiro.db" in zf.namelist():
+                    db_path = Config.get_db_path()
+                    # Backup temporário
+                    if os.path.exists(db_path):
+                        shutil.copy2(db_path, db_path + ".old")
                     
-                    obj = model_class(**data)
-                    db.session.add(obj)
-        
-        db.session.commit()
-        db.session.execute(db.text("PRAGMA foreign_keys = ON;"))
-        return {"success": True, "message": "Dados restaurados com sucesso!"}
+                    # Extrair apenas o .db
+                    with zf.open("prp_financeiro.db") as source, open(db_path, "wb") as target:
+                        shutil.copyfileobj(source, target)
+                else:
+                    raise Exception("Arquivo 'prp_financeiro.db' não encontrado dentro do ZIP.")
+        else:
+            raise Exception("Formato de arquivo não suportado. Use .db ou .zip")
+
+        # 2. Desativar modo de manutenção
+        Configuracao.set_valor('MAINTENANCE_MODE', 'false')
+        return {"success": True, "message": "Dados restaurados com sucesso! O sistema sairá do modo de manutenção."}
         
     except Exception as e:
         db.session.rollback()
+        Configuracao.set_valor('MAINTENANCE_MODE', 'false')
         return {"success": False, "message": f"Erro no restore: {str(e)}"}, 500
 
 @auth_bp.route('/api/perfil/tema', methods=['POST'])
