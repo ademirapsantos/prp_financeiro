@@ -33,6 +33,13 @@
             <li><a href="{{ url_for('ativos.lista') }}"
                     class="{{ 'active' if 'ativos' in request.endpoint else '' }}">Ativos</a></li>
         </ul>
+        <div class="sidebar-footer"
+            style="padding: 1.5rem; border-top: 1px solid var(--border-color); margin-top: auto;">
+            <p class="text-muted" style="font-size: 0.75rem; margin: 0; opacity: 0.8;">
+                PRP Financeiro &copy; 2026<br>
+                Versão: <strong>{{ app_version }}</strong>
+            </p>
+        </div>
     </nav>
 
     <main class="main-content">
@@ -99,12 +106,6 @@
                         <div class="dropdown-divider"></div>
                         <a href="{{ url_for('auth.logout') }}" class="logout-link">Sair</a>
                     </div>
-                </div>
-                <div class="mt-3">
-                    <p class="text-muted" style="font-size: 0.85rem;">
-                        PRP Financeiro &copy; 2026 | Versão: <strong>{{ config.__version__ if config else '1.4.0'
-                            }}</strong>
-                    </p>
                 </div>
             </div>
         </header>
