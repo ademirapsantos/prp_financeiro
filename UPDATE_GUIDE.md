@@ -30,8 +30,12 @@ O endpoint `/api/system/latest` busca a versão seguindo esta prioridade:
 Para verificar o manifest no container HML:
 ```bash
 docker exec -it prp-financeiro-hml flask shell
-# Ou via curl (requer auth):
-curl -u admin:password http://localhost:5001/api/system/latest
+# Ou via curl (endpoints públicos):
+curl -i http://localhost:5001/api/system/latest
+curl -i http://localhost:5001/api/version
 ```
+> [!NOTE]
+> `/api/system/latest` e `/api/version` são públicos para permitir que o frontend e o sistema de notificação verifiquem atualizações sem exigir login prévio.
+
 Em caso de erro, verifique os logs: `docker logs prp-financeiro-hml`.
 

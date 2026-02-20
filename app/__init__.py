@@ -44,6 +44,12 @@ def create_app():
     login_manager.login_message_category = 'info'
     login_manager.init_app(app)
 
+    @login_manager.unauthorized_handler
+    def unauthorized():
+        if request.path.startswith('/api/'):
+            return {"error": "unauthorized"}, 401
+        return redirect(url_for('auth.login'))
+
     @login_manager.user_loader
     def load_user(user_id):
         from .models import User
@@ -80,11 +86,12 @@ def create_app():
         from .models import User
         from flask import session
         
-        # Permitir acesso a rotas estáticas e ao blueprint de auth
-        # Exceto a tela de bloqueio se não estiver logado (gerenciado pelo login_required ou lógica interna)
+        # Permitir acesso a rotas estáticas, blueprint de auth e endpoints públicos de sistema
+        public_endpoints = ['main.api_version', 'main.system_latest']
         if request.endpoint and (
             'static' in request.endpoint or 
-            'auth' in request.endpoint
+            'auth' in request.endpoint or
+            request.endpoint in public_endpoints
         ):
             # Se tentar acessar login/register estando bloqueado, redirecionar para lock_screen
             if session.get('is_locked') and request.endpoint not in ['auth.lock_screen', 'auth.logout', 'static']:
@@ -100,6 +107,10 @@ def create_app():
 
         # Bloquear acesso se não estiver logado
         if not current_user.is_authenticated:
+            # Se for API, o unauthorized_handler cuidará disso se usarmos login_required,
+            # mas aqui é uma proteção global. Vamos garantir que APIs retornem JSON.
+            if request.path.startswith('/api/'):
+                return {"error": "unauthorized"}, 401
             return redirect(url_for('auth.login'))
         
         # Bloquear se o sistema estiver em estado de "Bloqueio"
