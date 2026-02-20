@@ -13,3 +13,17 @@ services:
     environment:
       - FLASK_ENV=development
       - SECRET_KEY=prod_key_change_me
+
+  prp-updater:
+    build:
+      context: .
+      dockerfile: Dockerfile.updater
+    container_name: prp_updater
+    ports:
+      - "5005:5005"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - .:/app
+    environment:
+      - UPDATE_TOKEN=prp_secure_token_2026
+    restart: always

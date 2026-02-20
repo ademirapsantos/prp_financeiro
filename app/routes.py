@@ -4,11 +4,31 @@ import os
 import markdown
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill
-from .models import ContaContabil, Titulo, LivroDiario, PartidaDiario, db, TipoConta, StatusTitulo, TipoTitulo
+from .models import ContaContabil, Titulo, LivroDiario, PartidaDiario, db, TipoConta, StatusTitulo, TipoTitulo, Configuracao
+from .version import __version__, __build__
 from datetime import datetime, timedelta
 from sqlalchemy import func
 
 main_bp = Blueprint('main', __name__)
+
+@main_bp.before_app_request
+def check_maintenance():
+    if Configuracao.is_maintenance():
+        # Permitir apenas rotas críticas e estáticos
+        allowed_paths = ['/api/version', '/health', '/static/', '/login', '/logout']
+        if not any(request.path.startswith(p) for p in allowed_paths):
+            return render_template('manutencao.html'), 503
+
+@main_bp.route('/health')
+def health():
+    return {"status": "healthy", "version": __version__}
+
+@main_bp.route('/api/version')
+def api_version():
+    return {
+        "version": __version__,
+        "build": __build__
+    }
 
 @main_bp.route('/')
 def dashboard():
@@ -509,7 +529,7 @@ def exportar_balancete():
 
 @main_bp.route('/detalhamento/<int:ano>/<int:mes>/<tipo>')
 def detalhamento(ano, mes, tipo):
-    from .models import TransacaoFinanceira, TipoTransacao, Titulo, TipoTitulo, StatusTitulo, FaturaCartao
+    from .models import LivroDiario, PartidaDiario, ContaContabil, Titulo, TransacaoFinanceira, TipoTransacao, StatusTitulo, FaturaCartao, Configuracao
     from sqlalchemy import extract, func, or_
     from sqlalchemy.orm import joinedload
     

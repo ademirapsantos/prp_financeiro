@@ -4,6 +4,7 @@ from sqlalchemy.orm import DeclarativeBase
 from flask_login import LoginManager, current_user
 from flask_mail import Mail
 import os
+from .version import __version__, __build__
 
 db = SQLAlchemy()
 mail = Mail()
@@ -16,6 +17,8 @@ def create_app():
     db_path = os.path.join(basedir, '..', 'prp_financeiro.db')
     app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    app.config['__version__'] = __version__
+    app.config['__build__'] = __build__
 
     # Flask-Mail base config (Os valores reais virão do DB)
     from .models import ConfiguracaoSMTP
@@ -122,6 +125,10 @@ def create_app():
             Titulo.data_vencimento >= hoje
         ).order_by(Titulo.data_vencimento.asc()).all()
 
-        return dict(notificacoes_alert=notificacoes)
+        return dict(
+            notificacoes_alert=notificacoes,
+            app_version=app.config.get('__version__', '1.4.0'),
+            app_build=app.config.get('__build__', '')
+        )
 
     return app

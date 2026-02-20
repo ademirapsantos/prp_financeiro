@@ -33,6 +33,13 @@
             <li><a href="{{ url_for('ativos.lista') }}"
                     class="{{ 'active' if 'ativos' in request.endpoint else '' }}">Ativos</a></li>
         </ul>
+        <div class="sidebar-footer"
+            style="padding: 1.5rem; border-top: 1px solid var(--border-color); margin-top: auto;">
+            <p class="text-muted" style="font-size: 0.75rem; margin: 0; opacity: 0.8;">
+                PRP Financeiro &copy; 2026<br>
+                Versão: <strong>{{ app_version }}</strong>
+            </p>
+        </div>
     </nav>
 
     <main class="main-content">
@@ -456,6 +463,27 @@
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal de Atualização -->
+        <div id="update-modal" class="modal">
+            <div class="modal-content" style="max-width: 450px; text-align: center; padding: 2rem;">
+                <div style="font-size: 3rem; color: var(--accent-color); margin-bottom: 1rem;">🚀</div>
+                <h2 style="margin-bottom: 0.5rem;">Nova Versão Disponível!</h2>
+                <p style="color: var(--text-muted); margin-bottom: 1.5rem;">
+                    Uma nova atualização do <strong>PRP Financeiro</strong> está pronta para ser instalada.
+                    <br><span class="badge badge-primary" id="new-version-tag"
+                        style="font-size: 1rem; margin-top: 0.5rem;">v0.0.0</span>
+                </p>
+                <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                    <button class="btn btn-primary btn-block py-2 font-weight-bold" onclick="requestUpdate()">
+                        <i class="fas fa-download mr-2"></i>Atualizar Agora
+                    </button>
+                    <button class="btn btn-link py-2" onclick="ignoreUpdate()" style="color: var(--text-muted);">
+                        Lembrar mais tarde
+                    </button>
                 </div>
             </div>
         </div>
@@ -919,6 +947,66 @@
                 })
                 .catch(err => console.error('Erro ao chamar API de tema:', err));
         }
+    </script>
+    <!-- Lógica de Atualização -->
+    <script>
+        async function checkUpdate() {
+            const currentVersion = "{{ config.__version__ if config else '1.4.0' }}";
+            const ignoredVersion = localStorage.getItem('ignored_version');
+
+            try {
+                // Simulação de check remoto
+                const response = await fetch('/api/version');
+                const data = await response.json();
+
+                // MOCK para demonstração. Em prod: data.latest_version
+                const latestVersion = "1.5.0";
+
+                if (latestVersion !== currentVersion && latestVersion !== ignoredVersion) {
+                    document.getElementById('new-version-tag').innerText = 'v' + latestVersion;
+                    document.getElementById('update-modal').classList.add('show');
+                }
+            } catch (e) { console.error('Falha ao checar atualização', e); }
+        }
+
+        function ignoreUpdate() {
+            const version = document.getElementById('new-version-tag').innerText.replace('v', '');
+            localStorage.setItem('ignored_version', version);
+            document.getElementById('update-modal').classList.remove('show');
+        }
+
+        async function requestUpdate() {
+            if (!confirm('O sistema entrará em modo manutenção e será reiniciado. Deseja continuar?')) return;
+
+            const btn = event.target.closest('button');
+            const originalHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> Atualizando...';
+
+            try {
+                const res = await fetch('http://localhost:5005/api/update', {
+                    method: 'POST',
+                    headers: { 'Authorization': 'Bearer prp_secure_token_2026' }
+                });
+                const result = await res.json();
+
+                if (result.status === 'success') {
+                    showToast('Atualização concluída com sucesso! Recarregando...', 'success');
+                    setTimeout(() => window.location.reload(), 2000);
+                } else {
+                    alert('Erro na atualização: ' + result.message);
+                    btn.disabled = false;
+                    btn.innerHTML = originalHtml;
+                }
+            } catch (e) {
+                alert('O servidor de atualização não respondeu. Certifique-se que o sidecar prp-updater está rodando.');
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+            }
+        }
+
+        // Check no load
+        checkUpdate();
     </script>
 </body>
 
