@@ -12,7 +12,11 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            background-color: var(--bg-color);
+            background-image: linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)),
+            url("{{ url_for('static', filename='img/bg_auth.jpg') }}");
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
             margin: 0;
             height: 100vh;
         }
@@ -21,10 +25,12 @@
             width: 100%;
             max-width: 400px;
             padding: var(--spacing-lg);
-            background: white;
-            border-radius: 12px;
-            box-shadow: var(--shadow-md);
-            border: 1px solid var(--border-color);
+            background: rgba(255, 255, 255, 0.15);
+            -webkit-backdrop-filter: blur(20px);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
         }
 
         .login-header {
@@ -33,9 +39,15 @@
         }
 
         .login-header h1 {
-            color: var(--primary-color);
-            font-size: 1.75rem;
+            color: #ffffff;
+            font-size: 2rem;
             margin-bottom: 0.5rem;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+        }
+
+        .login-header p {
+            color: #f1f5f9 !important;
+            opacity: 0.9;
         }
 
         .form-group {
@@ -46,7 +58,8 @@
             display: block;
             margin-bottom: 0.5rem;
             font-weight: 500;
-            color: var(--text-main);
+            color: #ffffff;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
         }
 
         .form-control {
@@ -81,7 +94,7 @@
             <p class="text-muted">Acesse sua conta</p>
         </div>
 
-        <form method="POST">
+        <form id="login-form" method="POST">
             <div class="form-group">
                 <label for="email">E-mail</label>
                 <input type="email" id="email" name="email" class="form-control" required autofocus>
@@ -91,15 +104,30 @@
                 <input type="password" id="password" name="password" class="form-control" required>
                 <div style="text-align: right; margin-top: 0.5rem;">
                     <a href="{{ url_for('auth.forgot_password') }}"
-                        style="font-size: 0.85rem; color: var(--primary-color); text-decoration: none;">Esqueci minha
+                        style="font-size: 0.85rem; color: var(--accent-color); text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5); text-decoration: none; font-weight: 600;">Esqueci
+                        minha
                         senha</a>
                 </div>
             </div>
-            <button type="submit" class="btn btn-primary btn-login">Entrar</button>
+            <button type="submit" class="btn btn-primary btn-login"
+                style="background: var(--accent-color); border: none; font-weight: 600;">Entrar</button>
         </form>
     </div>
 
     <script>
+        // Enviar com tecla Enter
+        const loginForm = document.getElementById('login-form');
+        const inputs = loginForm.querySelectorAll('input');
+
+        inputs.forEach(input => {
+            input.addEventListener('keypress', function (e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    loginForm.submit();
+                }
+            });
+        });
+
         function showToast(message, type = 'info') {
             const container = document.getElementById('toast-container');
             const toast = document.createElement('div');

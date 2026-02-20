@@ -40,8 +40,13 @@
 
                 <div
                     style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color); display: flex; gap: 0.5rem;">
+                    <a href="{{ url_for('financeiro.detalhes_banco', banco_id=banco.id) }}" class="btn"
+                        style="background-color: var(--primary-color); color: white; font-size: 0.8rem; padding: 0.25rem 0.5rem; border: 1px solid var(--primary-color);">Detalhes</a>
                     <a href="{{ url_for('financeiro.extrato_banco', banco_id=banco.id) }}" class="btn"
                         style="background-color: var(--bg-muted); color: var(--text-muted); font-size: 0.8rem; padding: 0.25rem 0.5rem; border: 1px solid var(--border-color);">Extrato</a>
+                    <a href="{{ url_for('financeiro.transferencia', origem_id=banco.banco_obj.conta_contabil_id, redirect='bancos') }}"
+                        class="btn"
+                        style="background-color: #fef9c3; color: #854d0e; font-size: 0.8rem; padding: 0.25rem 0.5rem; border: 1px solid #fef08a;">Transferir</a>
                     <a href="{{ url_for('financeiro.editar_banco', banco_id=banco.id) }}" class="btn"
                         style="background-color: var(--bg-muted); color: var(--text-muted); font-size: 0.8rem; padding: 0.25rem 0.5rem; border: 1px solid var(--border-color);">Editar</a>
                 </div>

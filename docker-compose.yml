@@ -5,7 +5,7 @@ services:
     build: .
     container_name: prp_financeiro_test
     ports:
-      - "5001:5000" # Mapeia porta 5001 (Host) para 5000 (Container)
+      - "5002:5000" # Mapeia porta 5002 (Host) (Base Teste) para 5000 (Container)
     volumes:
       - ./prp_financeiro.db:/app/prp_financeiro.db # Persistência do banco SQLite
       - ./instance:/app/instance
@@ -13,3 +13,17 @@ services:
     environment:
       - FLASK_ENV=development
       - SECRET_KEY=prod_key_change_me
+
+  prp-updater:
+    build:
+      context: .
+      dockerfile: Dockerfile.updater
+    container_name: prp_updater
+    ports:
+      - "5005:5005"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - .:/app
+    environment:
+      - UPDATE_TOKEN=prp_secure_token_2026
+    restart: always

@@ -1,114 +1,165 @@
-# 📔 Guia Mestre do Usuário - PRP Financeiro
+# 📔 Manual do Usuário - PRP Financeiro
 
-Bem-vindo ao nível avançado de gestão. O **PRP Financeiro** é uma ferramenta de alta precisão. Este guia expandido detalha fluxos complexos para que você tenha controle absoluto sobre seu patrimônio.
-
----
-
-## 📑 1. Glossário Contábil (Para Não-Contadores)
-
-Para dominar o sistema, entenda como o dinheiro se move:
-*   **Ativo**: Tudo o que você tem (Dinheiro no banco, Carros, Imóveis, Ações).
-*   **Passivo**: Tudo o que você deve (Empréstimos, Parcelas, Salários).
-*   **DRE (Resultado)**: Onde você vê se teve lucro ou prejuízo (Receitas - Despesas).
-*   **Partida Dobrada**: Se você compra um carro de R$ 50k, o sistema cria um Ativo (Carro) de +50k e um Passivo (Dívida) de -50k. O balanço sempre fecha.
+Seja bem-vindo ao **PRP Financeiro**! Este manual foi criado para ajudar você a dominar suas finanças pessoais ou empresariais de forma simples, organizada e com a precisão de um contador profissional, mas sem complicações.
 
 ---
 
-## 🏢 2. Gestão de Ativos e Investimentos (O Coração do Patrimônio)
+## 1. Visão Geral
 
-### 2.1. Ativos Imobilizados (Carros, Imóveis)
-*   **Financiamento**: Ao comprar um imobilizado e escolher "Parcelado", o sistema faz 3 coisas:
-    1.  Registra o bem no seu Ativo.
-    2.  Cria os títulos no seu "Contas a Pagar".
-    3.  Lança os **Juros** separadamente (caso informados), garantindo que o valor do bem seja o custo real e os juros sejam contabilizados como despesa financeira.
-*   **Venda e Ganho de Capital**: Ao vender um imóvel por um valor maior do que você pagou, o sistema detecta a diferença e registra automaticamente um **"Ganho de Capital"** na sua contabilidade.
+O **PRP (Personal Resource Planning)** é uma ferramenta completa para quem deseja ter controle total sobre o seu dinheiro. Diferente de uma planilha comum, o PRP utiliza inteligência contábil para garantir que nenhum centavo se perca.
 
-### 2.2. Investimentos (Ações, FIIs, Tesouro)
-*   **Preço Médio**: O sistema não apenas soma valores, ele calcula o **Custo Médio Ponderado**. Se você comprou 10 ações a R$ 10 e depois 10 a R$ 20, seu custo médio é R$ 15.
-*   **Venda Parcial**: Ao vender apenas 5 ações, o sistema baixa o Ativo pelo custo médio (R$ 15 cada) e o que você recebeu a mais (ou a menos) vira lucro ou prejuízo imediato.
-*   **Estorno**: Errou o lançamento da compra? Use o botão **Estornar**. Ele apagará o ativo, os títulos e desfará o lançamento contábil, deixando tudo limpo.
+**Com o PRP, você controla:**
+- **Bancos:** Seus saldos reais em cada conta.
+- **Contas a Pagar e Receber:** Organize seus boletos e ganhos futuros.
+- **Cartão de Crédito:** Controle faturas, limites e compras parceladas.
+- **Ativos:** Gerencie seus bens (casa, carro) e investimentos.
+- **Contabilidade Automática:** O sistema faz os registros contábeis por trás das cenas enquanto você apenas lança suas contas.
 
 ---
 
-## 👥 3. Entidades Inteligentes (Automatizando Lançamentos)
+## 2. Como começar em 15 minutos (Guia Rápido)
 
-Cadastrar uma entidade corretamente é o "segredo" para que os lançamentos financeiros gerem a contabilidade exata sem que você precise ser um expert no assunto. No cadastro, você encontrará dois campos cruciais:
+Siga este checklist inicial para deixar tudo pronto:
 
-### 3.1. Conta Patrimonial (Balanço)
-*   **O que é?** Representa o seu direito ou sua obrigação. É uma conta que "acumula" saldo no tempo.
-*   **Para que serve?** Ela diz ao sistema *onde a dívida está pendente*.
-    *   **Para Fornecedores**: Deve ser uma conta do tipo **Passivo** (ex: *Fornecedores a Pagar* ou *Empréstimos a Pagar*).
-    *   **Para Clientes**: Deve ser uma conta do tipo **Ativo** (ex: *Clientes a Receber* ou *Vendas a Receber*).
-*   **Na prática**: Quando você lança um boleto de R$ 100, este valor fica "estacionado" nesta conta patrimonial até o dia que você fizer o pagamento (liquidação).
-
-### 3.2. Conta de Resultado (Categoria de Gasto/Ganho)
-*   **O que é?** Representa a *natureza* do evento. É uma conta que indica de onde veio o lucro ou para onde foi o gasto.
-*   **Para que serve?** Ela alimenta o seu relatório de Lucros e Perdas (DRE).
-    *   **Para Fornecedores**: Deve ser uma conta de **Despesa** (ex: *Energia Elétrica*, *Aluguel*, *Manutenção*).
-    *   **Para Clientes**: Deve ser uma conta de **Receita** (ex: *Receita de Serviços*, *Receita de Consultoria*).
-*   **Na prática**: Ela explica *com o quê* o dinheiro foi gasto ou *de onde* ele veio.
-
-### 3.3. Configuração para Entidades do tipo 'Outros'
-Use este tipo para parceiros que podem ser tanto compradores quanto vendedores, ou para instituições financeiras.
-*   **Conta de Venda (Ativo)**: Use uma conta de direito (ex: *Outros Valores a Receber*). Esta conta será usada quando você **vender** um ativo para esta entidade.
-*   **Conta de Compra (Passivo)**: Use uma conta de obrigação (ex: *Contas a Pagar Diversas*). Esta conta será usada quando você **comprar** um bem desta entidade.
+1.  **[ ] Confirmar Contas Contábeis:** O sistema já vem com uma estrutura básica. Verifique em **Entidades** ou **Parâmetros** se as categorias fazem sentido para você.
+2.  **[ ] Cadastrar Bancos:** Vá ao menu **Bancos** e registre as contas que você usa (ex: Santander, Nubank).
+3.  **[ ] Cadastrar Entidades:** No menu **Entidades**, cadastre as pessoas ou empresas com quem você transaciona (ex: "Energia Elétrica", "Supermercado", "Seu Empregador"). Isso é essencial para que o sistema saiba onde classificar cada gasto.
+4.  **[ ] Lançar um Título:** Vá em **Financeiro** e registre uma conta que você tem a pagar este mês.
+5.  **[ ] Liquidar (Pagar):** No mesmo menu, clique para pagar (liquidar) o título que você acabou de criar.
+6.  **[ ] Ver o Resultado:** Volte ao **Dashboard** para ver como seu "Patrimônio" mudou e confira no menu **Contabilidade > Livro Diário** o registro automático que o sistema criou.
 
 ---
 
-| Tipo de Entidade | Conta Patrimonial (Sugestão) | Conta de Resultado (Sugestão) |
-| :--- | :--- | :--- |
-| **Fornecedor** | Fornecedores a Pagar (Passivo) | Despesas Diversas (Despesa) |
-| **Cliente** | Clientes a Receber (Ativo) | Receita de Vendas (Receita) |
-| **Outros** | Contas a Receber/Pagar Diversas | (Configurável por transação) |
+## 3. Conceitos Básicos (Para Leigos)
+
+Para usar o sistema como um mestre, você só precisa entender estes 4 conceitos:
+
+-   **Título:** É uma "promessa" ou documento. Um boleto que chegou é um **Título a Pagar**. Um valor que você combinou receber é um **Título a Receber**.
+-   **Liquidação:** É o ato de pagar ou receber de verdade. No PRP, você primeiro cria o título e depois "liquida" quando o dinheiro sai ou entra no banco.
+-   **Competência:** É o mês ao qual o gasto "pertence". Exemplo: Você usou o cartão em Janeiro, mas só paga em Fevereiro. A *competência* é Janeiro. O sistema cuida disso para você.
+-   **Contabilidade Automática:** Cada vez que você paga algo, o sistema faz dois lançamentos (as "partidas dobradas"): tira dinheiro do seu Banco e registra que você teve uma Despesa. Isso mantém o balanço sempre correto.
 
 ---
 
-## 💰 4. Ciclo Financeiro e Conciliação
+## 4. Dashboard
 
-### 4.1. Provisão vs Liquidação (O Segredo da Organização)
-Nunca pague uma conta sem antes "provisioná-la".
-1.  **Lance o Título**: Registre a conta assim que ela chegar.
-2.  **Liquide no Dia**: Só marque como pago no dia que o dinheiro sair do banco.
-3.  **Transferências Entre Contas**: Use esta ferramenta para movimentar dinheiro entre Bancos (ex: Saque para o Caixa). Isso evita que você tenha que criar um título a pagar e outro a receber.
+O Dashboard é o seu painel de controle. Veja o que cada card informa:
 
-### 4.2. Fluxo de Caixa e Drilldown
-No Dashboard, os gráficos são **vivos**. 
-*   **Quer saber o que gastou em Maio?** Clique na barra azul de Maio. O sistema filtrará todos os títulos pagos naquele mês para você conferir item por item.
+| Card | O que significa |
+| :--- | :--- |
+| **Patrimônio Líquido** | A soma de tudo que você tem (Dinheiro + Ativos) menos o que você deve. |
+| **Disponível (Bancos)** | Quanto dinheiro você tem em mãos agora em todas as suas contas bancárias. |
+| **A Receber** | Dinheiro que está para entrar (salários, vendas, etc.). |
+| **A Pagar** | Total das suas dívidas próximas, incluindo faturas de cartão já fechadas. |
+| **Cartão - Limite** | Quanto você ainda pode gastar no seu cartão de crédito hoje. |
+| **Cartão - Ciclo Aberto**| Quanto você já gastou na fatura atual que ainda não fechou. |
 
----
-
-## 📊 5. Contabilidade para Auditoria
-
-*   **Livro Diário**: É a sua bússola. Se você encontrar um erro, o ID do lançamento no Diário ajudará a localizar a transação original.
-*   **Balancete Hierárquico**: Não olhe apenas para o saldo final. Use a expansão (setas) para entender quais subcontas estão consumindo seu orçamento.
-*   **Exportação Excel**: Gere os relatórios no fim do mês e abra no Excel. Use filtros da planilha para fazer auditorias cruzadas com seus extratos físicos.
+> [!TIP]
+> Use o filtro de **Mês/Ano** no topo para analisar períodos específicos. Lembre-se: "Pago" significa que o dinheiro saiu do banco, não necessariamente que foi a data da compra no cartão.
 
 ---
 
-## 🛠️ 6. Resolução de Problemas (FAQ)
+## 5. Financeiro (Títulos)
 
-*   **"Meu título não aparece para liquidar!"**: Verifique o filtro de status (ele pode estar como 'Pago' ou 'Cancelado').
-*   **"O saldo do meu banco está errado!"**: Confira se todas as transferências foram lançadas e se não há títulos liquidados na conta errada.
-*   **"Fiz um lançamento errado, e agora?"**: Se for um título, você pode **Estornar**. Se for um ativo, o estorno reverte todas as parcelas de uma vez.
-*   **"O Balancete não abre as contas!"**: Clique exatamente na seta ao lado do código da conta.
+Aqui é onde o dia a dia acontece.
 
----
+### Como lançar um título
+Clique em **Novo Título**, escolha se é **A Pagar** ou **A Receber**, coloque o valor, a data de vencimento e a **Entidade** (ex: Fornecedor de Internet).
 
-## � 7. Segurança de Dados e Backup
+### Como liquidar (Pagar/Receber)
+Na lista de títulos, clique no botão de ação da linha desejada e escolha "Liquidar". Você deve informar de qual **Banco** o dinheiro saiu.
 
-*   **Sessão Segura**: O "Bloqueio de Tela" é ideal para ambientes de escritório. Sua sessão continua ativa, mas os dados ficam ocultos.
-*   **Backup Semanal**: Vá em **Configurações > Exportar Backup**. Baixe o arquivo e guarde em um local seguro (pendrive ou nuvem). Ele contém toda a sua vida financeira.
-
----
-
-## 🚀 8. Guia de Implementação Rápida
-
-Para quem está começando hoje:
-1.  **Ajuste o Perfil**: Defina sua senha e tema.
-2.  **Bancos**: Cadastre suas contas reais com o saldo atual.
-3.  **Investimentos**: Lance sua carteira atual como se fosse uma nova compra hoje.
-4.  **Imóveis/Carros**: Lance seus bens atuais para ter o Patrimônio Líquido correto no Balancete.
+### Descontos na Liquidação
+Se você pagar uma conta com desconto (ex: pagou R$ 90 em um boleto de R$ 100):
+- No campo **Valor Desconto**, coloque R$ 10.
+- O **Valor Líquido** será atualizado para R$ 90.
+- O sistema registrará automaticamente um "Desconto Obtido" (Receita) de R$ 10 para que sua contabilidade não fique com buracos.
 
 ---
 
-*PRP Financeiro - Projetado para a clareza, construído para a precisão.*
+## 6. Bancos
+
+O menu **Bancos** gerencia suas "carteiras" de dinheiro.
+- **Cadastro:** Coloque o nome do banco e o saldo inicial (se houver).
+- **Saldo:** O saldo é atualizado instantaneamente toda vez que você liquida um título ou paga uma fatura de cartão.
+
+---
+
+## 7. Cartão de Crédito
+
+O cartão de crédito no PRP é inteligente e segue o fluxo real dos bancos.
+
+### Configuração
+Ao cadastrar um cartão, informe:
+- **Fechamento:** O dia que a fatura "vira" (ex: dia 5).
+- **Vencimento:** O dia que você paga o boleto da fatura (ex: dia 15).
+- **Limite:** Seu limite total.
+
+### Como funciona a Fatura
+- **Fatura Aberta:** É onde entram suas compras atuais.
+- **Fatura Fechada:** Quando chega o dia do fechamento, o sistema "trava" essas compras e as prepara para pagamento. Compras feitas após esse dia caem automaticamente na próxima fatura.
+
+### Registro de Compras
+- **À Vista:** Registre a compra e escolha o cartão. O limite disponível cai na hora.
+- **Parcelada:** O sistema é incrível aqui! Se você comprar algo de R$ 300 em 3x, ele criará automaticamente as faturas de R$ 100 para os próximos meses, reduzindo o limite total disponível hoje.
+
+### Pagamento da Fatura
+1. Vá em Cartão de Crédito e localize a **Fatura Fechada**.
+2. Clique em Pagar.
+3. Se houver **Encargos** (juros ou taxas), preencha o campo específico.
+   - **Atenção:** O pagamento do "Principal" devolve seu limite de crédito. O pagamento de "Encargos" é uma despesa e não aumenta seu limite.
+
+---
+
+## 8. Entidades (O "Cérebro" do Sistema)
+
+Cadastrar Entidades (Clientes e Fornecedores) poupa seu tempo.
+- Ao cadastrar, você pode definir uma **Conta Contábil Padrão**.
+- **Exemplo:** Cadastre a "Padaria" e vincule à conta de despesa "Alimentação". Sempre que lançar um título para a Padaria, o sistema já saberá que é um gasto com comida!
+
+---
+
+## 9. Ativos e Investimentos
+
+Gerencie o que você possui de valor durável.
+- **Compra de Ativo:** Se você comprar um notebook parcelado, o sistema cria o Ativo e gera os Títulos a Pagar automaticamente.
+- **Venda de Ativo:** Ao vender, o sistema calcula se você teve lucro ou prejuízo e registra no seu patrimônio.
+- **Investimentos:** Acompanhe o valor investido e veja como ele compõe seu Patrimônio Líquido no Dashboard.
+
+---
+
+## 10. Contabilidade (Para Leigos)
+
+Você não precisa ser contador, mas é bom entender onde as coisas ficam:
+- **Plano de Contas:** É a lista organizada de "caixinhas" onde o dinheiro é classificado (Ativos, Dívidas, Receitas, Gastos).
+- **Livro Diário:** É o diário de bordo. Se quiser saber por que seu saldo mudou no dia 10, olhe o Diário.
+- **Parâmetros (⚙️):** Fica no topo da tela de Contabilidade. Aqui você define, por exemplo:
+  - `CONTA_DESCONTO_OBTIDO_ID`: Onde o sistema guarda os descontos que você ganhou.
+  - `CONTA_DESCONTO_CONCEDIDO_ID`: Onde guarda os descontos que você deu para alguém.
+
+---
+
+## 11. Resolução de Problemas (FAQ)
+
+- **"Paguei a fatura, mas o limite não voltou totalmente"**
+  - Provavelmente uma parte do pagamento foi de **Encargos/Juros**. Somente o valor do "Principal" (as compras) recompõe o limite.
+- **"Meu desconto deu erro de conta não configurada"**
+  - Vá em **Contabilidade > ⚙️ Parâmetros** e verifique se as contas de Desconto Obtido/Concedido estão selecionadas corretamente.
+- **"Por que a compra no cartão não aparece como 'Pago' no Dashboard?"**
+  - No Dashboard, "Pago" refere-se a dinheiro saindo do banco. Compras no cartão só viram "Pagamento" quando você paga o boleto da fatura. No momento da compra, elas aparecem no "Ciclo Aberto".
+- **"Cadastrei errado, como corrijo?"**
+  - A maioria das telas permite **Estornar** ou **Excluir**. Se estornar, o sistema faz o lançamento inverso para anular o erro com segurança.
+
+---
+
+## 12. Glossário
+
+- **Ativo:** Tudo que você tem (Dinheiro, Casa, Carro, Ações).
+- **Passivo:** Suas dívidas (Empréstimos, Faturas, Boletos).
+- **Receita:** Dinheiro que entra aumentando sua riqueza (Salário, Juros recebidos).
+- **Despesa:** Gastos que não retornam (Aluguel, Comida, Juros pagos).
+- **Patrimônio Líquido:** Ativos menos Passivos. É o que "sobra" de verdade para você.
+- **Estorno:** Cancelamento de um lançamento feito errado, voltando o estado anterior.
+
+---
+*PRP Financeiro - Controle total, decisão inteligente.*

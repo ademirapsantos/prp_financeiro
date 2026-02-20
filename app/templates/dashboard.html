@@ -75,43 +75,80 @@
 </div>
 
 <!-- Cards de Indicadores -->
-
 <div
-    style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--spacing-md); flex-shrink: 0; margin-bottom: var(--spacing-lg);">
-    <div class="card card-hoverable" style="border-left: 4px solid #6366f1; cursor: pointer;"
+    style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 0.5rem; flex-shrink: 0; margin-bottom: var(--spacing-lg);">
+
+    <!-- Patrimônio Líquido -->
+    <div class="card card-hoverable" style="border-left: 3px solid #6366f1; cursor: pointer; padding: 0.5rem;"
         onclick="abrirDrilldown('patrimonio')">
-        <h3 class="text-muted" style="font-size: 0.75rem; text-transform: uppercase;">Patrimônio Líquido</h3>
-        <p class="money" style="font-size: 1.4rem; margin: 0.4rem 0;">R$ {{
+        <h3 class="text-muted"
+            style="font-size: 0.65rem; text-transform: uppercase; margin-bottom: 0.1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+            Patrimônio Líquido</h3>
+        <p class="money" style="font-size: 1.1rem; margin: 0.2rem 0; white-space: nowrap;">R$ {{
             "{:,.2f}".format(patrimonio_liquido).replace(",", "X").replace(".", ",").replace("X", ".") }}</p>
-        <small style="color: #64748b; font-size: 0.75rem;">Total Acumulado</small>
+        <small style="color: #64748b; font-size: 0.6rem;">Ativos - Dívidas</small>
     </div>
 
-    <div class="card card-hoverable" style="border-left: 4px solid #10b981; cursor: pointer;"
+    <!-- Disponível -->
+    <div class="card card-hoverable" style="border-left: 3px solid #10b981; cursor: pointer; padding: 0.5rem;"
         onclick="abrirDrilldown('disponivel')">
-        <h3 class="text-muted" style="font-size: 0.75rem; text-transform: uppercase;">Disponível (Bancos)</h3>
-        <p class="money text-success" style="font-size: 1.4rem; margin: 0.4rem 0;">R$ {{
+        <h3 class="text-muted"
+            style="font-size: 0.65rem; text-transform: uppercase; margin-bottom: 0.1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+            Disponível (Bancos)</h3>
+        <p class="money text-success" style="font-size: 1.1rem; margin: 0.2rem 0; white-space: nowrap;">R$ {{
             "{:,.2f}".format(disponivel).replace(",", "X").replace(".", ",").replace("X", ".") }}</p>
-        <small style="color: #64748b; font-size: 0.75rem;">Saldo em Conta</small>
+        <small style="color: #64748b; font-size: 0.6rem;">Saldo em Conta</small>
     </div>
 
-    <div class="card card-hoverable" style="border-left: 4px solid #3b82f6; cursor: pointer;"
+    <!-- Limite Cartão -->
+    <div class="card card-hoverable" style="border-left: 3px solid #8b5cf6; cursor: pointer; padding: 0.5rem;"
+        onclick="abrirDrilldown('cartao_limite_disponivel')">
+        <h3 class="text-muted"
+            style="font-size: 0.65rem; text-transform: uppercase; margin-bottom: 0.1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+            {{ cartao_label_limite }}</h3>
+        <p class="money" style="font-size: 1.1rem; margin: 0.2rem 0; color: #8b5cf6; white-space: nowrap;">R$ {{
+            "{:,.2f}".format(cartao_limite_disponivel).replace(",", "X").replace(".", ",").replace("X", ".") }}</p>
+        <small style="color: #64748b; font-size: 0.6rem;">{% if mes_selecionado %}Fatura do Mês{% else %}Total Cartões{%
+            endif %}</small>
+    </div>
+
+    <!-- A Receber -->
+    <div class="card card-hoverable" style="border-left: 3px solid #3b82f6; cursor: pointer; padding: 0.5rem;"
         onclick="abrirDrilldown('a_receber')">
-        <h3 class="text-muted" style="font-size: 0.75rem; text-transform: uppercase;">A Receber {% if
+        <h3 class="text-muted"
+            style="font-size: 0.65rem; text-transform: uppercase; margin-bottom: 0.1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+            A Receber {% if
             mes_selecionado %}(Mês){% endif %}</h3>
-        <p class="money" style="font-size: 1.4rem; margin: 0.4rem 0; color: #3b82f6;">R$ {{
+        <p class="money" style="font-size: 1.1rem; margin: 0.2rem 0; color: #3b82f6; white-space: nowrap;">R$ {{
             "{:,.2f}".format(total_a_receber).replace(",", "X").replace(".", ",").replace("X", ".") }}</p>
-        <small style="color: #64748b; font-size: 0.75rem;">Previsão de Entrada</small>
+        <small style="color: #64748b; font-size: 0.6rem;">Prev. Entradas</small>
     </div>
 
-    <div class="card card-hoverable" style="border-left: 4px solid #ef4444; cursor: pointer;"
+    <!-- A Pagar -->
+    <div class="card card-hoverable" style="border-left: 3px solid #ef4444; cursor: pointer; padding: 0.5rem;"
         onclick="abrirDrilldown('a_pagar')">
-        <h3 class="text-muted" style="font-size: 0.75rem; text-transform: uppercase;">A Pagar {% if mes_selecionado
-            %}(Mês){% endif %}</h3>
-        <p class="money text-danger" style="font-size: 1.4rem; margin: 0.4rem 0;">R$ {{
+        <h3 class="text-muted"
+            style="font-size: 0.65rem; text-transform: uppercase; margin-bottom: 0.1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+            A Pagar (+ Faturas)</h3>
+        <p class="money text-danger" style="font-size: 1.1rem; margin: 0.2rem 0; white-space: nowrap;">R$ {{
             "{:,.2f}".format(total_a_pagar).replace(",", "X").replace(".", ",").replace("X", ".") }}</p>
-        <small style="color: var(--text-muted); font-size: 0.75rem;">Dívidas Pendentes</small>
+        <small style="color: #64748b; font-size: 0.6rem;">Dívidas Aberto</small>
+    </div>
+
+    <!-- Ciclo Aberto -->
+    <div class="card card-hoverable" style="border-left: 3px solid #f59e0b; cursor: pointer; padding: 0.5rem;"
+        onclick="abrirDrilldown('cartao_ciclo_aberto')">
+        <h3 class="text-muted"
+            style="font-size: 0.65rem; text-transform: uppercase; margin-bottom: 0.1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+            {{ cartao_label_ciclo }}</h3>
+        <p class="money" style="font-size: 1.1rem; margin: 0.2rem 0; color: #f59e0b; white-space: nowrap;">R$ {{
+            "{:,.2f}".format(total_ciclo_aberto).replace(",", "X").replace(".", ",").replace("X", ".") }}</p>
+        <small style="color: #64748b; font-size: 0.6rem;">Saldo Pendente</small>
     </div>
 </div>
+
+
+
 
 <style>
     /* Estilos específicos do drilldown já estão no card-hoverable global */
@@ -172,7 +209,7 @@
 
         try {
             let url = "/api/dashboard/drilldown?tipo=" + tipo + "&ano=" + anoSelecionado + "&page=" + page;
-            if (mesSelecionado && (tipo === 'a_receber' || tipo === 'a_pagar')) {
+            if (mesSelecionado) {
                 url += "&mes=" + mesSelecionado;
             }
 

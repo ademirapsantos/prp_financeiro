@@ -22,12 +22,20 @@
                             Lucro/Ganho:</label>
                         <select name="conta_lucro_venda" class="form-control select-contas"
                             style="width: 100%; padding: 0.6rem;"></select>
+                        <small
+                            style="display: block; color: var(--text-muted); font-size: 0.85rem; margin-top: 0.25rem;">
+                            Conta de Receita usada automaticamente quando houver lucro na venda de ativos.
+                        </small>
                     </div>
                     <div class="form-group">
                         <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Conta de
                             Prejuízo/Perda:</label>
                         <select name="conta_prejuizo_venda" class="form-control select-contas"
                             style="width: 100%; padding: 0.6rem;"></select>
+                        <small
+                            style="display: block; color: var(--text-muted); font-size: 0.85rem; margin-top: 0.25rem;">
+                            Conta de Despesa usada automaticamente quando houver prejuízo na venda de ativos.
+                        </small>
                     </div>
                 </div>
 
@@ -60,6 +68,31 @@
                         <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Outros Ativos:</label>
                         <select name="conta_ativo_outros" class="form-control select-contas"
                             style="width: 100%; padding: 0.6rem;"></select>
+                    </div>
+                </div>
+
+                <!-- Seção 3: Descontos -->
+                <div>
+                    <h3
+                        style="font-size: 0.9rem; text-transform: uppercase; color: var(--text-muted); margin-bottom: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; letter-spacing: 0.05em; margin-top: 2rem;">
+                        Descontos</h3>
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Conta de Descontos
+                            Obtidos (Receita):</label>
+                        <select name="CONTA_DESCONTO_OBTIDO_ID" class="form-control select-contas"
+                            style="width: 100%; padding: 0.6rem;"></select>
+                        <small
+                            style="display: block; color: var(--text-muted); font-size: 0.85rem; margin-top: 0.25rem;">Conta
+                            contábil utilizada para registrar descontos obtidos em pagamentos antecipados.</small>
+                    </div>
+                    <div class="form-group">
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Conta de Descontos
+                            Concedidos (Despesa):</label>
+                        <select name="CONTA_DESCONTO_CONCEDIDO_ID" class="form-control select-contas"
+                            style="width: 100%; padding: 0.6rem;"></select>
+                        <small
+                            style="display: block; color: var(--text-muted); font-size: 0.85rem; margin-top: 0.25rem;">Conta
+                            contábil utilizada para registrar descontos concedidos em recebimentos antecipados.</small>
                     </div>
                 </div>
             </form>
@@ -95,11 +128,15 @@
                 // Definir filtro baseado no nome do campo
                 let contasFiltradas = contasAnaliticas;
                 if (select.name === 'conta_lucro_venda') {
-                    contasFiltradas = contasAnaliticas.filter(c => c.tipo === 'Ativo');
+                    contasFiltradas = contasAnaliticas.filter(c => c.tipo === 'Receita');
                 } else if (select.name === 'conta_prejuizo_venda') {
-                    contasFiltradas = contasAnaliticas.filter(c => ['Receita', 'Despesa'].includes(c.tipo));
+                    contasFiltradas = contasAnaliticas.filter(c => c.tipo === 'Despesa');
                 } else if (select.name.startsWith('conta_ativo_')) {
-                    contasFiltradas = contasAnaliticas.filter(c => c.tipo === 'Patrimônio Líquido');
+                    contasFiltradas = contasAnaliticas.filter(c => c.tipo === 'Ativo');
+                } else if (select.name === 'CONTA_DESCONTO_OBTIDO_ID') {
+                    contasFiltradas = contasAnaliticas.filter(c => c.tipo === 'Receita');
+                } else if (select.name === 'CONTA_DESCONTO_CONCEDIDO_ID') {
+                    contasFiltradas = contasAnaliticas.filter(c => c.tipo === 'Despesa');
                 }
 
                 contasFiltradas.forEach(conta => {

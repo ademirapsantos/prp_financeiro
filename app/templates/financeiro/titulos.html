@@ -138,9 +138,11 @@
         style="flex-grow: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden; padding: 0;">
         <div
             style="display: flex; gap: 2rem; padding: 1rem 1.5rem; background: var(--table-header-bg); border-bottom: 1px solid var(--border-color); flex-shrink: 0;">
-            <p style="margin: 0;"><strong>Total a Receber:</strong> <span class="text-success">R$ {{
+            <p style="margin: 0;"><strong>Total {{ 'Recebido' if active_tab == 'pagas' else 'a Receber' }}:</strong>
+                <span class="text-success">R$ {{
                     "{:,.2f}".format(total_receber).replace(",", "X").replace(".", ",").replace("X", ".") }}</span></p>
-            <p style="margin: 0;"><strong>Total a Pagar:</strong> <span class="text-danger">R$ {{
+            <p style="margin: 0;"><strong>Total {{ 'Pago' if active_tab == 'pagas' else 'a Pagar' }}:</strong> <span
+                    class="text-danger">R$ {{
                     "{:,.2f}".format(total_pagar).replace(",", "X").replace(".", ",").replace("X", ".") }}</span></p>
         </div>
         <div class="table-container" style="flex-grow: 1; overflow: hidden; display: flex; flex-direction: column;">
@@ -194,21 +196,30 @@
                                     class="btn btn-success"
                                     style="padding: 0.25rem 0.5rem; font-size: 0.8rem;">Liquidar</a>
                                 {% endif %}
+
                                 {% if t.status != 'Cancelado' and t.status != 'CANCELADO' %}
-                                {% if t.data_emissao >= data_limite_estorno %}
-                                <button class="btn"
+                                {# Lógica de Bloqueio de Estorno #}
+                                {% set bloqueado = false %}
+                                {% set motivo = "" %}
+
+                                {% if t.status in ['Pago', 'PAGO'] and t.data_liquidacao and t.data_liquidacao <
+                                    data_limite_estorno_20 %} {% set bloqueado=true %} {% set
+                                    motivo="Bloqueado: Títulos liquidados há mais de 20 dias não podem ser estornados (Segurança Financeira)"
+                                    %} {% elif t.data_emissao < data_limite_estorno %} {% set bloqueado=true %} {% set
+                                    motivo="Bloqueado: Títulos com mais de 2 meses não podem ser estornados (Segurança Contábil)"
+                                    %} {% endif %} {% if not bloqueado %} <button class="btn"
                                     style="padding: 0.25rem 0.5rem; font-size: 0.8rem; background-color: #fee2e2; color: #dc2626; border: 1px solid #fecaca;"
                                     onclick="confirmarEstorno('{{ t.id }}', '{{ t.descricao }}', '{{ '{:,.2f}'.format(t.valor).replace(',', 'X').replace('.', ',').replace('X', '.') }}', '{{ url_for('financeiro.estornar_titulo_route', titulo_id=t.id) }}')">
                                     Estornar
-                                </button>
-                                {% else %}
-                                <span class="btn"
-                                    style="padding: 0.25rem 0.5rem; font-size: 0.8rem; background-color: var(--bg-color); color: var(--text-muted); border: 1px solid var(--border-color); cursor: not-allowed;"
-                                    title="Bloqueado: Títulos com mais de 2 meses não podem ser estornados (Segurança Contábil)">
-                                    🔒 Estorno Bloqueado
-                                </span>
-                                {% endif %}
-                                {% endif %}
+                                    </button>
+                                    {% else %}
+                                    <span class="btn"
+                                        style="padding: 0.25rem 0.5rem; font-size: 0.8rem; background-color: var(--bg-color); color: var(--text-muted); border: 1px solid var(--border-color); cursor: not-allowed;"
+                                        title="{{ motivo }}">
+                                        🔒 Bloqueado
+                                    </span>
+                                    {% endif %}
+                                    {% endif %}
                             </td>
                         </tr>
                         {% endfor %}

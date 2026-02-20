@@ -4,6 +4,7 @@ from sqlalchemy.orm import DeclarativeBase
 from flask_login import LoginManager, current_user
 from flask_mail import Mail
 import os
+from .version import __version__, __build__
 
 db = SQLAlchemy()
 mail = Mail()
@@ -13,9 +14,18 @@ def create_app():
     app.config['SECRET_KEY'] = 'dev_key_prp_system'
     
     basedir = os.path.abspath(os.path.dirname(__file__))
-    db_path = os.path.join(basedir, '..', 'prp_financeiro.db')
-    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
+    default_db_path = os.path.join(basedir, '..', 'prp_financeiro.db')
+    
+    # Prioridade: DATABASE_URL > DATABASE_PATH > default
+    db_uri = os.getenv('DATABASE_URL')
+    if not db_uri:
+        db_path = os.getenv('DATABASE_PATH', default_db_path)
+        db_uri = f'sqlite:///{db_path}'
+    
+    app.config['SQLALCHEMY_DATABASE_URI'] = db_uri
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    app.config['__version__'] = __version__
+    app.config['__build__'] = __build__
 
     # Flask-Mail base config (Os valores reais virão do DB)
     from .models import ConfiguracaoSMTP
@@ -84,7 +94,7 @@ def create_app():
             'auth' in request.endpoint
         ):
             # Se tentar acessar login/register estando bloqueado, redirecionar para lock_screen
-            if session.get('is_locked') and request.endpoint not in ['auth.lock_screen', 'auth.logout']:
+            if session.get('is_locked') and request.endpoint not in ['auth.lock_screen', 'auth.logout', 'static']:
                 return redirect(url_for('auth.lock_screen'))
             return
 
@@ -110,18 +120,32 @@ def create_app():
     # Context processor para notificações globais
     @app.context_processor
     def inject_notifications():
-        from .models import Titulo, StatusTitulo
+        from .models import Titulo, StatusTitulo, Notificacao
         from datetime import datetime, timedelta
 
         hoje = datetime.utcnow().date()
         proximos_dias = hoje + timedelta(days=3)
 
-        notificacoes = Titulo.query.filter(
+        # Notificações de Títulos (Urgentes)
+        notificacoes_financeiras = Titulo.query.filter(
             Titulo.status == StatusTitulo.ABERTO.value,
             Titulo.data_vencimento <= proximos_dias,
             Titulo.data_vencimento >= hoje
         ).order_by(Titulo.data_vencimento.asc()).all()
 
-        return dict(notificacoes_alert=notificacoes)
+        # Notificações de Sistema (Não lidas)
+        notificacoes_sistema = []
+        if current_user.is_authenticated:
+            notificacoes_sistema = Notificacao.query.filter(
+                (Notificacao.user_id == current_user.id) | (Notificacao.user_id == None)
+            ).filter_by(lida=False).order_by(Notificacao.criada_em.desc()).all()
+
+        return dict(
+            notificacoes_alert=notificacoes_financeiras,
+            notificacoes_sistema=notificacoes_sistema,
+            app_version=app.config.get('__version__', '1.4.0'),
+            app_build=app.config.get('__build__', '')
+        )
+
 
     return app

@@ -2,9 +2,15 @@
 
 {% block content %}
 <div class="header" style="display: flex; align-items: center; margin-bottom: 2rem;">
+    {% if redirect_to == 'bancos' %}
+    <a href="{{ url_for('financeiro.bancos') }}" class="btn"
+        style="background-color: var(--bg-muted); color: var(--text-muted); padding: 0.5rem 1rem; margin-right: 1rem; border: 1px solid var(--border-color);"
+        title="Voltar para Bancos">←</a>
+    {% else %}
     <a href="{{ url_for('main.dashboard') }}" class="btn"
         style="background-color: var(--bg-muted); color: var(--text-muted); padding: 0.5rem 1rem; margin-right: 1rem; border: 1px solid var(--border-color);"
         title="Voltar para Dashboard">←</a>
+    {% endif %}
     <div>
         <h1 style="margin: 0;">Nova Transferência</h1>
         <p class="text-muted" style="margin: 0.25rem 0 0 0;">Movimentação de fundos entre contas do Ativo ou para
@@ -14,16 +20,28 @@
 
 <div class="card" style="max-width: 650px; margin: 0 auto; padding: 2.5rem;">
     <form action="{{ url_for('financeiro.transferencia') }}" method="POST">
+        <!-- Manter o contexto de redirecionamento no POST -->
+        <input type="hidden" name="redirect_to" value="{{ redirect_to }}">
+
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
             <div>
-                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--text-main);">Conta
-                    Origem
-                    (Saída)</label>
-                <select name="conta_origem" required
-                    style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; background-color: var(--input-bg); color: var(--text-main); font-size: 0.95rem;">
+                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--text-main);">
+                    Conta Origem (Saída)
+                    {% if origem_pre_selecionada %}
+                    <span title="Conta Travada por Segurança" style="cursor: help;">🔒</span>
+                    {% endif %}
+                </label>
+
+                {% if origem_pre_selecionada %}
+                <input type="hidden" name="conta_origem" value="{{ origem_pre_selecionada }}">
+                {% endif %}
+
+                <select name="conta_origem" required {{ 'disabled' if origem_pre_selecionada else '' }}
+                    style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; background-color: {{ 'var(--bg-muted)' if origem_pre_selecionada else 'var(--input-bg)' }}; color: var(--text-main); font-size: 0.95rem; cursor: {{ 'not-allowed' if origem_pre_selecionada else 'default' }};">
                     <option value="">Selecione a conta...</option>
                     {% for c in contas %}
-                    <option value="{{ c.id }}">{{ c.nome }} ({{ c.codigo }})</option>
+                    <option value="{{ c.id }}" {{ 'selected' if c.id|string==origem_pre_selecionada|string }}>{{ c.nome
+                        }} ({{ c.codigo }})</option>
                     {% endfor %}
                 </select>
                 <small style="color: var(--text-muted); margin-top: 0.25rem; display: block;">A conta de onde o dinheiro
@@ -77,8 +95,13 @@
             style="display: flex; gap: 1rem; align-items: center; border-top: 1px solid var(--border-color); padding-top: 2rem;">
             <button type="submit" class="btn btn-primary" style="padding: 0.75rem 2rem; font-size: 1rem;">Confirmar
                 Transferência</button>
+            {% if redirect_to == 'bancos' %}
+            <a href="{{ url_for('financeiro.bancos') }}" class="btn"
+                style="background-color: var(--bg-muted); color: var(--text-muted); padding: 0.75rem 1.5rem;">Cancelar</a>
+            {% else %}
             <a href="{{ url_for('main.dashboard') }}" class="btn"
                 style="background-color: var(--bg-muted); color: var(--text-muted); padding: 0.75rem 1.5rem;">Cancelar</a>
+            {% endif %}
         </div>
     </form>
 </div>

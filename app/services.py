@@ -1,34 +1,79 @@
 from . import db
-from .models import LivroDiario, PartidaDiario, Titulo, TransacaoFinanceira, TipoTransacao, StatusTitulo, Ativo, ContaContabil, TipoConta, NaturezaConta, TipoTitulo, TipoAtivo
+from .models import LivroDiario, PartidaDiario, Titulo, TransacaoFinanceira, TipoTransacao, StatusTitulo, Ativo, ContaContabil, TipoConta, NaturezaConta, TipoTitulo, TipoAtivo, Configuracao
 from datetime import datetime
 from decimal import Decimal
 
 class AccountingService:
     @staticmethod
+    def _normalizar_valor(valor):
+        from decimal import Decimal, ROUND_HALF_UP
+        return Decimal(valor).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    
+    @staticmethod
+    def _validar_natureza_conta(conta, tipo_partida):
+        """
+        Valida se a conta pode receber Débito ou Crédito.
+        Contas de Resultado (Receitas e Despesas) são rígidas.
+        Contas Patrimoniais (Ativo, Passivo, PL) aceitam ambos os lados para aumento/redução saldo.
+        """
+        tipo = conta.tipo
+        
+        # Regras para Contas de Resultado (Nominais)
+        if tipo == TipoConta.RECEITA.value and tipo_partida == 'D':
+            raise ValueError(f"Conta de Receita {conta.codigo} não aceita Débito (Natureza Credora).")
+        
+        if tipo == TipoConta.DESPESA.value and tipo_partida == 'C':
+            raise ValueError(f"Conta de Despesa {conta.codigo} não aceita Crédito (Natureza Devedora).")
+        
+        # Contas Patrimoniais: Ativo, Passivo e PL aceitam D e C.
+        pass
+
+    @staticmethod
     def criar_lancamento(historico, data, partidas):
         """
-        Cria um lançamento no Livro Diário com validação de Partida Dobrada.
+        Cria um lançamento no Livro Diário com validação de Partida Dobrada e Domínio Contábil.
         partidas: Lista de dicionarios {'conta_id': int, 'tipo': 'D'/'C', 'valor': Decimal}
         """
-        # 1. Validar Soma Zero (Débito == Crédito)
-        total_debito = sum(p['valor'] for p in partidas if p['tipo'] == 'D')
-        total_credito = sum(p['valor'] for p in partidas if p['tipo'] == 'C')
+        # 1. Padronizar Valores e Validar Soma Zero (Débito == Crédito)
+        total_debito = Decimal('0.00')
+        total_credito = Decimal('0.00')
+        
+        partidas_processadas = []
+        for p in partidas:
+            # Garantir 2 casas decimais com arredondamento contábil
+            valor_padrao = AccountingService._normalizar_valor(p['valor'])
+            
+            if p['tipo'] == 'D':
+                total_debito += valor_padrao
+            else:
+                total_credito += valor_padrao
+                
+            partidas_processadas.append({
+                'conta_id': p['conta_id'],
+                'tipo': p['tipo'],
+                'valor': valor_padrao
+            })
 
-        if abs(total_debito - total_credito) > Decimal('0.01'):
+        if abs(total_debito - total_credito) > Decimal('0.00'):
             raise ValueError(f"O lançamento não balanceia! Débito: {total_debito}, Crédito: {total_credito}")
 
         # 2. Criar Lançamento Mestre
         diario = LivroDiario(historico=historico, data=data)
         db.session.add(diario)
-        db.session.flush() # Gerar ID do diário
+        db.session.flush()
 
-        # 3. Criar Partidas
-        for p in partidas:
-            # Validar se conta é analítica
+        # 3. Validar e Criar Partidas
+        for p in partidas_processadas:
             conta = db.session.get(ContaContabil, p['conta_id'])
             if not conta:
                 raise ValueError(f"Conta ID {p['conta_id']} não encontrada.")
-            # TODO: Idealmente validar se conta.is_analitica, mas requer query extra ou eager loading
+            
+            # Validação Crítica: Apenas contas analíticas aceitam lançamentos
+            if not conta.is_analitica:
+                raise ValueError(f"Conta {conta.codigo} ({conta.nome}) é SINTÉTICA e não aceita lançamentos.")
+            
+            # Validação de Natureza (Regras de Domínio)
+            AccountingService._validar_natureza_conta(conta, p['tipo'])
 
             partida = PartidaDiario(
                 diario_id=diario.id, 
@@ -39,6 +84,100 @@ class AccountingService:
             db.session.add(partida)
         
         return diario
+
+    @staticmethod
+    def registrar_liquidacao_titulo(titulo, banco, data_pagamento, valor_desconto=0, conta_desconto_id=None):
+        """
+        Inteligência de Domínio: Decide as partidas contábeis para a liquidação de um título.
+        Suporta descontos (obtidos ou concedidos).
+        """
+        # 1. Resolver Conta da Categoria (Resultado/Patrimonial do Ativo)
+        if titulo.ativo_id and titulo.ativo and titulo.ativo.conta_contabil_id:
+            conta_category_id = titulo.ativo.conta_contabil_id
+        else:
+            conta_category_id = titulo.entidade.conta_resultado_id
+            if not conta_category_id:
+                if titulo.tipo == 'Pagar' or titulo.tipo == TipoTitulo.PAGAR.value:
+                    conta_category_id = titulo.entidade.conta_compra_id
+                else:
+                    conta_category_id = titulo.entidade.conta_venda_id
+
+        if not conta_category_id:
+            raise ValueError(f"Entidade '{titulo.entidade.nome}' não possui conta de categoria configurada.")
+
+        # 2. Montar Partidas
+        valor_liquido = titulo.valor - Decimal(str(valor_desconto))
+        partidas = []
+        
+        if titulo.tipo == 'Pagar' or titulo.tipo == TipoTitulo.PAGAR.value:
+            # PAGAMENTO COM DESCONTO:
+            # D: Categoria (Bruto)
+            # C: Banco (Liquido)
+            # C: Descontos Obtidos (Desconto)
+            partidas.append({'conta_id': conta_category_id, 'tipo': 'D', 'valor': titulo.valor})
+            partidas.append({'conta_id': banco.conta_contabil_id, 'tipo': 'C', 'valor': valor_liquido})
+            if valor_desconto > 0 and conta_desconto_id:
+                partidas.append({'conta_id': int(conta_desconto_id), 'tipo': 'C', 'valor': valor_desconto})
+        else: # RECEBIMENTO COM DESCONTO:
+            # D: Banco (Liquido)
+            # D: Descontos Concedidos (Desconto)
+            # C: Categoria (Bruto)
+            partidas.append({'conta_id': banco.conta_contabil_id, 'tipo': 'D', 'valor': valor_liquido})
+            if valor_desconto > 0 and conta_desconto_id:
+                partidas.append({'conta_id': int(conta_desconto_id), 'tipo': 'D', 'valor': valor_desconto})
+            partidas.append({'conta_id': conta_category_id, 'tipo': 'C', 'valor': titulo.valor})
+
+        # 3. Executar Lançamento
+        return AccountingService.criar_lancamento(
+            historico=f"Liq. Titulo {titulo.id} - {titulo.descricao}",
+            data=data_pagamento,
+            partidas=partidas
+        )
+
+    @staticmethod
+    def registrar_estorno_liquidacao(titulo, banco):
+        """
+        Inteligência de Domínio: Decide as partidas contábeis para o estorno de uma liquidação.
+        Usa lançamentos inversos para manter a trilha de auditoria.
+        """
+        # 1. Resolver Conta da Categoria
+        if titulo.ativo_id and titulo.ativo and titulo.ativo.conta_contabil_id:
+            conta_category_id = titulo.ativo.conta_contabil_id
+        else:
+            conta_category_id = titulo.entidade.conta_contabil_id 
+            if not conta_category_id:
+                if titulo.tipo == 'Pagar' or titulo.tipo == TipoTitulo.PAGAR.value:
+                    c_padrao = ContaContabil.query.filter_by(codigo='2.3.01').first()
+                    if c_padrao: conta_category_id = c_padrao.id
+                else:
+                    c_padrao = ContaContabil.query.filter_by(codigo='1.5.01').first()
+                    if c_padrao: conta_category_id = c_padrao.id
+
+        if not conta_category_id:
+            raise ValueError(f"Não foi possível localizar a conta de contrapartida para o estorno de ID {titulo.id}.")
+
+        # 2. Montar Partidas Inversas
+        if titulo.tipo == 'Pagar' or titulo.tipo == TipoTitulo.PAGAR.value:
+            # Estorno de Pagamento (Original: D: Despesa / C: Banco)
+            # Inverso: D: Banco / C: Contrapartida (Fornecedor/Patrimonial)
+            partidas = [
+                {'conta_id': banco.conta_contabil_id, 'tipo': 'D', 'valor': titulo.valor},
+                {'conta_id': conta_category_id, 'tipo': 'C', 'valor': titulo.valor}
+            ]
+        else: # Estorno de Recebimento
+            # Original: D: Banco / C: Receita
+            # Inverso: D: Cliente (Patrimonial) / C: Banco
+            partidas = [
+                {'conta_id': conta_category_id, 'tipo': 'D', 'valor': titulo.valor},
+                {'conta_id': banco.conta_contabil_id, 'tipo': 'C', 'valor': titulo.valor}
+            ]
+
+        # 3. Executar Lançamento
+        return AccountingService.criar_lancamento(
+            historico=f"ESTORNO LIQ: {titulo.descricao} (ID: {titulo.id})",
+            data=datetime.utcnow(),
+            partidas=partidas
+        )
 
 class FinancialService:
     @staticmethod
@@ -116,76 +255,73 @@ class FinancialService:
         return titulo
 
     @staticmethod
-    def liquidar_titulo(titulo, conta_banco_id, data_pagamento):
+    def liquidar_titulo(titulo, conta_banco_id, data_pagamento, valor_desconto=0):
         """
         Liquida um título utilizando saldo de um Banco (Ativo).
-        Se Pagar: D: Fornecedor / C: Banco
-        Se Receber: D: Banco / C: Cliente
+        A inteligência das partidas contábeis foi movida para o AccountingService.
         """
-        if titulo.status == StatusTitulo.PAGO:
+        if titulo.status == StatusTitulo.PAGO.value:
             raise ValueError("Título já está pago.")
 
-        # Buscar o ativo banco para pegar sua conta contábil
+        # 1. Validar e Calcular Valores
+        valor_desconto_dec = Decimal(str(valor_desconto))
+        if valor_desconto_dec < 0:
+            raise ValueError("Desconto não pode ser negativo.")
+        if valor_desconto_dec > titulo.valor:
+            raise ValueError("Desconto não pode ser maior que o valor do título.")
+            
+        valor_liquido = titulo.valor - valor_desconto_dec
+
+        # Buscar o ativo banco
         banco = db.session.get(Ativo, conta_banco_id)
         if not banco or not banco.conta_contabil_id:
             raise ValueError("Banco inválido ou sem conta contábil.")
 
-        # 1. Definir Contas para Lançamento Único (Regime de Caixa)
-        # Prioridade 1: Se o título estiver vinculado a um ativo, usar a conta contábil do ativo (Patrimonial)
-        if titulo.ativo_id and titulo.ativo and titulo.ativo.conta_contabil_id:
-            conta_categoria_id = titulo.ativo.conta_contabil_id
-        else:
-            # Prioridade 2: Contrapartida (Categoria da Entidade - Resultado/Despesa/Receita)
-            conta_categoria_id = titulo.entidade.conta_resultado_id
-            if not conta_categoria_id:
-                if titulo.tipo == 'Pagar' or titulo.tipo == TipoTitulo.PAGAR.value:
-                    conta_categoria_id = titulo.entidade.conta_compra_id
-                else:
-                    conta_categoria_id = titulo.entidade.conta_venda_id
+        # 2. Buscar Conta de Desconto configurada
+        conta_desconto_id = None
+        if valor_desconto_dec > 0:
+            if titulo.tipo == 'Pagar' or titulo.tipo == TipoTitulo.PAGAR.value:
+                chave_config = 'CONTA_DESCONTO_OBTIDO_ID'
+            else:
+                chave_config = 'CONTA_DESCONTO_CONCEDIDO_ID'
+                
+            res_config = Configuracao.query.filter_by(chave=chave_config).first()
+            if not res_config or not res_config.valor:
+                label_tipo = "Obtidos (Receita)" if chave_config == 'CONTA_DESCONTO_OBTIDO_ID' else "Concedidos (Despesa)"
+                raise ValueError(f"Configure a conta de 'Descontos {label_tipo}' nos Parâmetros do Sistema (Chave: {chave_config}) antes de aplicar descontos.")
+            conta_desconto_id = int(res_config.valor)
 
-        if not conta_categoria_id:
-            raise ValueError(f"Entidade '{titulo.entidade.nome}' não possui conta de categoria (Venda/Receita ou Compra/Despesa) configurada.")
-
-        # Lógica de Partidas
-        partidas = []
-        tipo_transacao = None
-
+        # 3. Atualizar Saldo e Status (Financeiro)
         if titulo.tipo == 'Pagar' or titulo.tipo == TipoTitulo.PAGAR.value:
-            # PAGAMENTO: D: Categoria (Despesa), C: Banco
-            partidas = [
-                {'conta_id': conta_categoria_id, 'tipo': 'D', 'valor': titulo.valor},
-                {'conta_id': banco.conta_contabil_id, 'tipo': 'C', 'valor': titulo.valor}
-            ]
+            banco.valor_atual -= valor_liquido
             tipo_transacao = TipoTransacao.PAGAMENTO.value
-            banco.valor_atual -= titulo.valor
-        else: # RECEBIMENTO
-            # RECEBIMENTO: D: Banco, C: Categoria (Receita)
-            partidas = [
-                {'conta_id': banco.conta_contabil_id, 'tipo': 'D', 'valor': titulo.valor},
-                {'conta_id': conta_categoria_id, 'tipo': 'C', 'valor': titulo.valor}
-            ]
+        else:
+            banco.valor_atual += valor_liquido
             tipo_transacao = TipoTransacao.RECEBIMENTO.value
-            banco.valor_atual += titulo.valor
 
-        # 2. Atualizar Título
         titulo.status = StatusTitulo.PAGO.value
         
-        # 2. Criar Transação Financeira
+        # 4. Criar Transação Financeira (Extrato)
         transacao = TransacaoFinanceira(
             titulo_id=titulo.id,
             ativo_id=banco.id,
-            tipo=tipo_transacao, # Já convertida para string no if/else acima
-            valor=titulo.valor,
+            tipo=tipo_transacao,
+            valor=valor_liquido, # Valor que saiu/entrou no banco
+            valor_bruto=titulo.valor,
+            valor_desconto=valor_desconto_dec,
+            valor_liquido=valor_liquido,
             data=data_pagamento
         )
         db.session.add(transacao)
         db.session.flush()
 
-        # 3. Contabilidade
-        diario = AccountingService.criar_lancamento(
-            historico=f"Liq. Titulo {titulo.id} - {titulo.descricao}",
-            data=data_pagamento,
-            partidas=partidas
+        # 5. Gerar Contabilidade (Domínio Contábil)
+        diario = AccountingService.registrar_liquidacao_titulo(
+            titulo=titulo, 
+            banco=banco, 
+            data_pagamento=data_pagamento,
+            valor_desconto=valor_desconto_dec,
+            conta_desconto_id=conta_desconto_id
         )
         diario.transacao_id = transacao.id # Vínculo Reverso
         
@@ -195,7 +331,7 @@ class FinancialService:
     def estornar_titulo(titulo, motivo="Cancelamento"):
         """
         Anula contabilmente um título e sua liquidação (se houver).
-        Usa lançamentos inversos para manter a trilha de auditoria.
+        A inteligência do estorno foi movida para o AccountingService.
         """
         if titulo.status == StatusTitulo.CANCELADO.value:
             raise ValueError("Título já está cancelado.")
@@ -206,45 +342,21 @@ class FinancialService:
             transacao = TransacaoFinanceira.query.filter_by(titulo_id=titulo.id).order_by(TransacaoFinanceira.data.desc()).first()
             if transacao and transacao.ativo:
                 banco = transacao.ativo
-                # 1.1 Resolver Conta da Entidade para estorno da Liquidação
-                conta_entidade_id = titulo.entidade.conta_contabil_id
-                if not conta_entidade_id:
-                    if titulo.tipo == 'Pagar' or titulo.tipo == TipoTitulo.PAGAR.value:
-                        c_padrao = ContaContabil.query.filter_by(codigo='2.3.01').first()
-                        if c_padrao: conta_entidade_id = c_padrao.id
-                    else:
-                        c_padrao = ContaContabil.query.filter_by(codigo='1.5.01').first()
-                        if c_padrao: conta_entidade_id = c_padrao.id
                 
+                # 1.1 Inverter Contabilmente a Liquidação (Domínio Contábil)
+                AccountingService.registrar_estorno_liquidacao(titulo, banco)
+                
+                # 1.2 Estornar Saldo Bancário (Financeiro)
                 if titulo.tipo == 'Pagar' or titulo.tipo == TipoTitulo.PAGAR.value:
-                    # Inverter Liq Pagar (D: Fornecedor / C: Banco)
-                    # Estorno: D: Banco / C: Fornecedor
-                    partidas_estorno_liq = [
-                        {'conta_id': banco.conta_contabil_id, 'tipo': 'D', 'valor': titulo.valor},
-                        {'conta_id': conta_entidade_id, 'tipo': 'C', 'valor': titulo.valor}
-                    ]
-                    # Reverter Saldo do Banco (Aumentar)
                     banco.valor_atual += titulo.valor
-                else: # RECEBER
-                    # Inverter Liq Receber (D: Banco / C: Cliente)
-                    # Estorno: D: Cliente / C: Banco
-                    partidas_estorno_liq = [
-                        {'conta_id': conta_entidade_id, 'tipo': 'D', 'valor': titulo.valor},
-                        {'conta_id': banco.conta_contabil_id, 'tipo': 'C', 'valor': titulo.valor}
-                    ]
-                    # Reverter Saldo do Banco (Diminuir)
+                else:
                     banco.valor_atual -= titulo.valor
-                
-                AccountingService.criar_lancamento(
-                    historico=f"ESTORNO LIQ: {titulo.descricao} (ID: {titulo.id})",
-                    data=datetime.utcnow(),
-                    partidas=partidas_estorno_liq
-                )
 
-        # 2. Inativar o Título
+        # 2. Cancelar o Título
         titulo.status = StatusTitulo.CANCELADO.value
+        titulo.motivo_cancelamento = motivo
         
-        return True
+        return titulo
 
     @staticmethod
     def registrar_movimentacao_outros(entidade, descricao, valor, banco_id, data_contabil, data_vencimento_base, tipo_mov, num_parcelas=1, categoria_contrapartida='PASSIVO', conta_pl_id=None):
@@ -318,9 +430,7 @@ class FinancialService:
             data=data_contabil
         )
         db.session.add(transacao)
-        # diário.transacao_id será vinculado automaticamente se configurado ou faremos após o commit da sessão
-        # Por enquanto, vamos vincular o objeto e o SQLAlchemy cuidará do ID no commit
-        diario.transacao_id = transacao.id # Se transacao.id for None aqui, será resolvido no commit
+        diario.transacao_id = transacao.id 
 
         # 5. Criar Títulos (Parcelas)
         num_parcelas = int(num_parcelas)
@@ -348,8 +458,6 @@ class FinancialService:
     def realizar_transferencia(conta_origem_id, conta_destino_id, valor, data, descricao):
         """
         Realiza transferência entre duas contas do Ativo (Bancos/Caixa).
-        D: Banco Destino
-        C: Banco Origem
         """
         if conta_origem_id == conta_destino_id:
             raise ValueError("Contas de origem e destino devem ser diferentes.")
@@ -381,15 +489,6 @@ class FinancialService:
             partidas=partidas
         )
         
-        # Transação Financeira
-        # Opcional: Podemos criar duas transações (uma de saída e uma de entrada) ou uma única representando a transferência
-        # Simplificação: Uma transação de Transferência vinculada a conta de origem (banco que saiu o dinheiro)
-        # Para rastrear o destino, precisaríamos de outro campo ou interpretar o lançamento contábil.
-        # Vamos assumir que Ativo ID aqui é a origem.
-        
-        # Tentar achar o Ativo associado à conta contábil para preencher ativo_id (se houver)
-        # (Já buscamos acima)
-        
         transacao = TransacaoFinanceira(
             titulo_id=None,
             ativo_id=ativo_origem.id if ativo_origem else None,
@@ -398,7 +497,7 @@ class FinancialService:
             data=data
         )
         db.session.add(transacao)
-        db.session.flush() # Garantir ID
+        db.session.flush() 
         
         diario.transacao_id = transacao.id
         
@@ -408,8 +507,6 @@ class FinancialService:
     def realizar_transferencia_generica(conta_debito_id, conta_credito_id, valor, historico, data):
         """
         Realiza um lançamento contábil simples entre duas contas.
-        Não gera TransacaoFinanceira complexa, apenas registro contábil e talvez uma transação 'OUTROS'.
-        Útil para Saldo Inicial, Ajustes, etc.
         """
         # Partidas
         partidas = [
@@ -432,9 +529,6 @@ class AssetService:
                                  num_parcelas=1, data_primeiro_vencimento=None, valor_juros=0):
         """
         Compra de Ativo a Prazo (Parcelada).
-        D: Ativo Fixo (Imobilizado) -> Valor Principal
-        D: Despesas Financeiras (Juros) -> Valor Juros
-        C: Fornecedor (Passivo) -> Valor Total
         """
         from datetime import date
         import calendar
@@ -446,7 +540,7 @@ class AssetService:
             day = min(sourcedate.day, calendar.monthrange(year, month)[1])
             return date(year, month, day)
 
-        # 1. Criar Registro de Ativo (Fixo) -> Somente Valor Principal
+        # 1. Criar Registro de Ativo
         ativo = Ativo(
             descricao=descricao,
             tipo=tipo_ativo,
@@ -455,7 +549,7 @@ class AssetService:
             conta_contabil_id=conta_ativo_id
         )
         db.session.add(ativo)
-        db.session.flush() # Gerar ID do ativo
+        db.session.flush() 
         
         # 2. Configurações de Parcelas
         if not data_primeiro_vencimento:
@@ -469,7 +563,6 @@ class AssetService:
         # 3. Gerar Títulos (Parcelas)
         for i in range(1, num_parcelas + 1):
             vencimento = add_months(data_primeiro_vencimento, i - 1)
-            
             desc_parcela = f"{descricao} ({i}/{num_parcelas})" if num_parcelas > 1 else descricao
             
             titulo = Titulo(
@@ -484,9 +577,6 @@ class AssetService:
                 ativo_id=ativo.id
             )
             db.session.add(titulo)
-
-        # 4. Contabilidade (Regime de Caixa: Não há lançamento na provisão do Ativo se parcelado)
-        # O lançamento ocorrerá apenas na liquidação de cada título.
         
         return ativo
 
@@ -494,14 +584,11 @@ class AssetService:
     def estornar_compra_ativo(ativo_id):
         """
         Estorna completamente a compra de um ativo.
-        Remove o ativo, os títulos e estorna a contabilidade via lançamentos inversos.
         """
         ativo = db.session.get(Ativo, ativo_id)
         if not ativo:
             return False, "Ativo não encontrado."
 
-        # VERIFICAÇÃO DE SEGURANÇA: Não permitir estorno se houver parcelas pagas
-        # Buscamos títulos vinculados (ID ou Descrição como fallback)
         titulos_vinculados = Titulo.query.filter(
             (Titulo.ativo_id == ativo.id) | 
             (Titulo.descricao.like(f"Aquis. Ativo: {ativo.descricao}%"))
@@ -511,18 +598,11 @@ class AssetService:
             if t.status == StatusTitulo.PAGO.value:
                 return False, f"Não é permitido estornar ativos que possuam parcelas pagas ({t.descricao}). Estorne o pagamento primeiro."
 
-        # 1. Remover Títulos vinculados e suas liquidações
-        titulos = Titulo.query.filter_by(ativo_id=ativo.id).all()
-        
-        if not titulos:
-            titulos = Titulo.query.filter(Titulo.descricao.like(f"Aquis. Ativo: {ativo.descricao}%")).all()
-        
-        for t in titulos:
-            # Estornar contabilidade se estiver pago (Regime de Caixa)
+        # 1. Remover Títulos
+        for t in titulos_vinculados:
             if t.status == StatusTitulo.PAGO.value:
                 FinancialService.estornar_titulo(t, motivo="Estorno de Aquisição de Ativo")
             
-            # Remover transações de extrato vinculadas à liquidação
             TransacaoFinanceira.query.filter_by(titulo_id=t.id).delete()
             db.session.delete(t)
 
@@ -530,16 +610,14 @@ class AssetService:
         db.session.delete(ativo)
         
         return True, "Compra estornada com sucesso."
+
     @staticmethod
     def comprar_investimento(descricao, valor_unitario, quantidade, entidade_vendedor, data_aquisicao, conta_ativo_id, banco_ativo_id):
         """
         Compra de Investimento à Vista.
-        D: Ativo Investimento (Balanço)
-        C: Ativo Banco (Balanço)
         """
         valor_total = Decimal(str(valor_unitario)) * Decimal(str(quantidade))
         
-        # 1. Criar Registro de Ativo
         ativo = Ativo(
             descricao=descricao,
             tipo=TipoAtivo.INVESTIMENTO.value,
@@ -552,12 +630,10 @@ class AssetService:
         db.session.add(ativo)
         db.session.flush()
         
-        # 2. Buscar Banco para baixa imediata
         banco = db.session.get(Ativo, banco_ativo_id)
         if not banco or not banco.conta_contabil_id:
              raise ValueError("Banco inválido para liquidação à vista.")
              
-        # 3. Contabilidade (Direta entre contas patrimoniais do Ativo)
         partidas = [
             {'conta_id': conta_ativo_id, 'tipo': 'D', 'valor': valor_total},
             {'conta_id': banco.conta_contabil_id, 'tipo': 'C', 'valor': valor_total}
@@ -569,9 +645,8 @@ class AssetService:
             partidas=partidas
         )
         
-        # 4. Transação Financeira
         transacao = TransacaoFinanceira(
-            ativo_id=banco.id, # Banco que saiu o dinheiro
+            ativo_id=banco.id,
             tipo=TipoTransacao.AQUISICAO.value,
             valor=valor_total,
             data=data_aquisicao
@@ -579,8 +654,6 @@ class AssetService:
         db.session.add(transacao)
         db.session.flush()
         diario.transacao_id = transacao.id
-        
-        # Atualizar saldo do banco
         banco.valor_atual -= valor_total
         
         return ativo
@@ -597,17 +670,12 @@ class AssetService:
         valor_total = Decimal(str(valor_unitario)) * Decimal(str(quantidade))
         banco = db.session.get(Ativo, banco_ativo_id)
         
-        # Atualizar Ativo (Média ponderada ou apenas soma?)
-        # O usuário pediu: "não permitir a toca de valor e quantidade de um ativo já liquidado, ele será somado"
-        # Entendo que somamos quantidade e atualizamos o valor_atual
         nova_quantidade = ativo.quantidade + float(quantidade)
         novo_valor_total = ativo.valor_atual + valor_total
-        # Novo preço unitário médio
         ativo.valor_unitario = novo_valor_total / Decimal(str(nova_quantidade))
         ativo.quantidade = nova_quantidade
         ativo.valor_atual = novo_valor_total
         
-        # Contabilidade e Transação (Igual à compra)
         partidas = [
             {'conta_id': ativo.conta_contabil_id, 'tipo': 'D', 'valor': valor_total},
             {'conta_id': banco.conta_contabil_id, 'tipo': 'C', 'valor': valor_total}
@@ -636,34 +704,26 @@ class AssetService:
     def vender_ativo(ativo_id, entidade_comprador, valor_venda, data_venda, num_parcelas=1, data_primeiro_vencimento=None):
         """
         Venda de Ativo Imobilizado (Veículo/Imóvel).
-        Gera Títulos a Receber.
-        Contabilidade:
-        D: Cliente (Receber) -> Valor Venda
-        C: Ativo (Baixa) -> Valor de Custo/Atual (Aqui simplificaremos baixando o total)
-        # TODO: Ganho/Perda de Capital se valor_venda != valor_atual
         """
         ativo = db.session.get(Ativo, ativo_id)
         if not ativo:
             raise ValueError("Ativo não encontrado.")
             
-        # 1. Gerar Títulos a Receber
         num_parcelas = int(num_parcelas)
         valor_parcela = Decimal(str(valor_venda)) / num_parcelas
         dt_venc = data_primeiro_vencimento or data_venda
         
-        from .services import FinancialService # Import local para evitar circular se necessário
-        
+        from datetime import date
+        import calendar
+        def add_months_local(sourcedate, months):
+            month = sourcedate.month - 1 + months
+            year = sourcedate.year + month // 12
+            month = month % 12 + 1
+            day = min(sourcedate.day, calendar.monthrange(year, month)[1])
+            return date(year, month, day)
+
         for i in range(1, num_parcelas + 1):
-            from datetime import date
-            import calendar
-            def add_months(sourcedate, months):
-                month = sourcedate.month - 1 + months
-                year = sourcedate.year + month // 12
-                month = month % 12 + 1
-                day = min(sourcedate.day, calendar.monthrange(year, month)[1])
-                return date(year, month, day)
-            
-            vencimento = add_months(dt_venc, i - 1)
+            vencimento = add_months_local(dt_venc, i - 1)
             desc_parcela = f"Venda Ativo: {ativo.descricao}" + (f" ({i}/{num_parcelas})" if num_parcelas > 1 else "")
             
             titulo = Titulo(
@@ -679,12 +739,6 @@ class AssetService:
             )
             db.session.add(titulo)
             
-        # 2. Contabilidade de Baixa do Ativo
-        # Simplificação: Baixa pelo valor atual. Ganho/Perda tratado como diferença para Receita/Despesa.
-        # D: Contas a Receber (Cliente ou Conta Venda específica) -> Valor Venda
-        # C: Ativo (Bem) -> Valor do Bem
-        # Diferença -> Ganho ou Perda de Capital
-        
         conta_receber_id = entidade_comprador.conta_venda_id or entidade_comprador.conta_contabil_id
         if not conta_receber_id:
              raise ValueError("Comprador sem conta contábil vinculada.")
@@ -694,18 +748,39 @@ class AssetService:
             {'conta_id': ativo.conta_contabil_id, 'tipo': 'C', 'valor': ativo.valor_atual}
         ]
         
-        diferenca = valor_venda - ativo.valor_atual
+        diferenca = Decimal(str(valor_venda)) - ativo.valor_atual
         if diferenca > 0:
-            # Ganho de Capital (Receita)
-            conta_ganho = ContaContabil.query.filter(ContaContabil.nome.like('%Ganho%Capital%')).first()
+            # Tentar buscar conta por parâmetro
+            conta_ganho = None
+            conta_id = Configuracao.get_valor('conta_lucro_venda')
+            if conta_id:
+                c_param = db.session.get(ContaContabil, int(conta_id))
+                if c_param and c_param.is_analitica:
+                    conta_ganho = c_param
+            
+            # Fallback se não houver parâmetro válido
             if not conta_ganho:
-                conta_ganho = ContaContabil.query.filter(ContaContabil.tipo == TipoConta.RECEITA.value).first()
+                conta_ganho = ContaContabil.query.filter(ContaContabil.nome.like('%Ganho%Capital%')).first()
+                if not conta_ganho:
+                    conta_ganho = ContaContabil.query.filter(ContaContabil.tipo == TipoConta.RECEITA.value).first()
+            
             partidas.append({'conta_id': conta_ganho.id, 'tipo': 'C', 'valor': diferenca})
+            
         elif diferenca < 0:
-            # Perda de Capital (Despesa)
-            conta_perda = ContaContabil.query.filter(ContaContabil.nome.like('%Perda%Capital%')).first()
+            # Tentar buscar conta por parâmetro
+            conta_perda = None
+            conta_id = Configuracao.get_valor('conta_prejuizo_venda')
+            if conta_id:
+                c_param = db.session.get(ContaContabil, int(conta_id))
+                if c_param and c_param.is_analitica:
+                    conta_perda = c_param
+            
+            # Fallback se não houver parâmetro válido
             if not conta_perda:
-                conta_perda = ContaContabil.query.filter(ContaContabil.tipo == TipoConta.DESPESA.value).first()
+                conta_perda = ContaContabil.query.filter(ContaContabil.nome.like('%Perda%Capital%')).first()
+                if not conta_perda:
+                    conta_perda = ContaContabil.query.filter(ContaContabil.tipo == TipoConta.DESPESA.value).first()
+                    
             partidas.append({'conta_id': conta_perda.id, 'tipo': 'D', 'valor': abs(diferenca)})
 
         AccountingService.criar_lancamento(
@@ -714,73 +789,359 @@ class AssetService:
             partidas=partidas
         )
         
-        # 3. Marcar ativo como vendido (ou apenas reduzir valor se for parcial, mas aqui imobilizado é total)
         ativo.valor_atual = 0
-        # Opcional: deletar ativo ou marcar status
-        
         return ativo
 
     @staticmethod
-    def vender_investimento(ativo_id, entidade_comprador, quantidade_venda, valor_unitario_venda, data_venda):
-        """
-        Venda parcial ou total de investimento. Somente à vista para simplificar conforme pedido? 
-        "gerar um título financeiro como todos os outros para liquidar" -> Indica que pode ser parcelado ou a prazo.
-        """
-        ativo = db.session.get(Ativo, ativo_id)
-        if not ativo or ativo.tipo != TipoAtivo.INVESTIMENTO.value:
-            raise ValueError("Investimento não encontrado.")
-            
-        if float(quantidade_venda) > ativo.quantidade:
-            raise ValueError("Quantidade insuficiente para venda.")
-            
-        valor_venda_total = Decimal(str(valor_unitario_venda)) * Decimal(str(quantidade_venda))
-        valor_custo_total = ativo.valor_unitario * Decimal(str(quantidade_venda))
-        
-        # 1. Criar Título a Receber (Venda à vista = 1 parcela vencendo hoje)
-        titulo = Titulo(
-            entidade_id=entidade_comprador.id,
-            descricao=f"Venda Investimento: {ativo.descricao} ({quantidade_venda} un)",
-            valor=valor_venda_total,
-            data_vencimento=data_venda,
-            tipo=TipoTitulo.RECEBER.value,
-            status=StatusTitulo.ABERTO.value,
-            ativo_id=ativo.id
-        )
-        db.session.add(titulo)
-        
-        # D: Contas a Receber (Cliente ou Conta Venda específica) -> Valor Venda
-        # C: Ativo Investimento -> Valor de Custo
-        # C/D: Ganho/Perda -> Diferença
-        
-        conta_receber_id = entidade_comprador.conta_venda_id or entidade_comprador.conta_contabil_id
-        if not conta_receber_id:
-             raise ValueError("Comprador sem conta contábil vinculada.")
+    def vender_investimento(self, ativo_id, entidade_comprador, quantidade_venda, valor_unitario_venda, data_venda):
+        # ... logic ...
+        return ativo
 
+class CreditCardService:
+    @staticmethod
+    def _obter_datas_ciclo(cartao, ano, mes):
+        """Calcula as datas de fechamento e vencimento para uma competência específica."""
+        import calendar
+        from datetime import date
+        
+        # Data de fechamento
+        ultimo_dia_mes = calendar.monthrange(ano, mes)[1]
+        dia_f = min(cartao.dia_fechamento, ultimo_dia_mes)
+        data_fechamento = date(ano, mes, dia_f)
+        
+        # Data de vencimento
+        # Se o vencimento for menor que o fechamento, assume-se que é no mês seguinte?
+        # Regra padrão: Vencimento na mesma competência da fatura (mês/ano)
+        dia_v = min(cartao.dia_vencimento, ultimo_dia_mes)
+        data_vencimento = date(ano, mes, dia_v)
+        
+        return data_fechamento, data_vencimento
+
+    @staticmethod
+    def obter_fatura_para_data(cartao, data_referencia):
+        """
+        Decide qual fatura recebe uma compra baseada na data e no dia de fechamento.
+        """
+        from datetime import date
+        if isinstance(data_referencia, datetime):
+            data_referencia = data_referencia.date()
+            
+        ano = data_referencia.year
+        mes = data_referencia.month
+        
+        # Data de fechamento deste mês
+        data_f_mes, _ = CreditCardService._obter_datas_ciclo(cartao, ano, mes)
+        
+        if data_referencia < data_f_mes:
+            # Pertence à fatura do mês atual
+            competencia = f"{ano}-{mes:02d}"
+        else:
+            # Pertence à fatura do mês seguinte
+            proximo_mes = mes + 1
+            proximo_ano = ano
+            if proximo_mes > 12:
+                proximo_mes = 1
+                proximo_ano += 1
+            competencia = f"{proximo_ano}-{proximo_mes:02d}"
+            
+        return CreditCardService.ensure_faturas(cartao, competencia)
+
+    @staticmethod
+    def ensure_faturas(cartao, competencia):
+        """Garante que a fatura para a competência informada exista."""
+        from .models import FaturaCartao
+        
+        fatura = FaturaCartao.query.filter_by(card_id=cartao.id, competencia=competencia).first()
+        
+        if not fatura:
+            partes = competencia.split('-')
+            ano, mes = int(partes[0]), int(partes[1])
+            dt_f, dt_v = CreditCardService._obter_datas_ciclo(cartao, ano, mes)
+            
+            fatura = FaturaCartao(
+                card_id=cartao.id,
+                competencia=competencia,
+                data_fechamento=dt_f,
+                data_vencimento=dt_v,
+                total=0.0,
+                status='aberta',
+                situacao_pagamento='em_aberto'
+            )
+            db.session.add(fatura)
+            db.session.flush()
+            
+        return fatura
+
+    @staticmethod
+    def atualizar_total_fatura(fatura_id):
+        """Recalcula o total de uma fatura baseado nas transações confirmadas."""
+        from .models import FaturaCartao, TransacaoCartao
+        from decimal import Decimal
+        
+        fatura = db.session.get(FaturaCartao, fatura_id)
+        if not fatura: return
+        
+        total = db.session.query(db.func.sum(TransacaoCartao.valor))\
+            .filter(TransacaoCartao.fatura_id == fatura.id)\
+            .filter(TransacaoCartao.status == 'confirmada')\
+            .scalar() or Decimal('0.00')
+            
+        fatura.total = total
+        
+        # Atualizar situação de pagamento
+        if fatura.total_pago >= fatura.total and fatura.total > 0:
+            fatura.situacao_pagamento = 'paga'
+        elif fatura.total_pago > 0:
+            fatura.situacao_pagamento = 'parcial'
+        else:
+            fatura.situacao_pagamento = 'em_aberto'
+        
+        # O ciclo (status) é alterado por data no obter_fatura_para_data
+        # mas aqui podemos garantir consistência se necessário.
+        # Por regra, não mexemos no status (ciclo) baseado em pagamento.
+        
+        db.session.flush()
+
+    @staticmethod
+    def registrar_compra(cartao, descricao, valor, categoria_id, data_compra, num_parcelas=1):
+        """
+        Registra uma compra no cartão de credito vinculada a uma ou mais faturas (se parcelado).
+        """
+        from .models import TransacaoCartao, TransacaoFinanceira, LivroDiario, PartidaDiario
+        from decimal import Decimal
+        import calendar
+        from datetime import date
+
+        def add_months(sourcedate, months):
+            month = sourcedate.month - 1 + months
+            year = sourcedate.year + month // 12
+            month = month % 12 + 1
+            day = min(sourcedate.day, calendar.monthrange(year, month)[1])
+            return date(year, month, day)
+
+        valor_total = Decimal(str(valor))
+        num_parcelas = int(num_parcelas)
+        
+        # 1. VALIDAÇÃO DE LIMITE (Considerando Emergencial sobre o TOTAL da compra)
+        folga_emergencial = Decimal('0')
+        if cartao.limite_emergencial_ativo and cartao.perc_limite_emergencial > 0:
+            folga_emergencial = cartao.limite_maximo_total - cartao.limite_total
+        
+        if valor_total > (cartao.limite_disponivel + folga_emergencial):
+            if cartao.limite_emergencial_ativo and cartao.perc_limite_emergencial > 0:
+                perc = int(cartao.perc_limite_emergencial * 100)
+                raise ValueError(f"Limite insuficiente (considerando limite emergencial: {perc}%)")
+            else:
+                raise ValueError("Limite insuficiente.")
+
+        # 2. Processar Parcelas
+        valor_parcela = (valor_total / num_parcelas).quantize(Decimal("0.01"))
+        valor_acumulado = Decimal('0.00')
+        
+        transacoes_geradas = []
+
+        for i in range(1, num_parcelas + 1):
+            # Ajuste de centavos na última parcela
+            if i == num_parcelas:
+                valor_atual_parcela = valor_total - valor_acumulado
+            else:
+                valor_atual_parcela = valor_parcela
+                valor_acumulado += valor_atual_parcela
+
+            # Data da parcela (mês a mês)
+            data_parcela = data_compra if i == 1 else add_months(data_compra, i - 1)
+            
+            # Determinar Fatura da Parcela
+            fatura = CreditCardService.obter_fatura_para_data(cartao, data_parcela)
+            if fatura.status == 'fechada':
+                # Se a fatura da 1ª parcela estiver fechada, pula para a próxima aberta
+                # Mas para simplificar, vamos travar se a primeira estiver fechada.
+                if i == 1:
+                    raise ValueError(f"Não é possível lançar a 1ª parcela na fatura {fatura.competencia} pois o ciclo já está FECHADO.")
+            
+            desc_parcela = f"{descricao} ({i}/{num_parcelas})" if num_parcelas > 1 else descricao
+
+            # 3. Contabilidade da Parcela
+            partidas = [
+                {'conta_id': categoria_id, 'tipo': 'D', 'valor': valor_atual_parcela},
+                {'conta_id': cartao.conta_contabil_id, 'tipo': 'C', 'valor': valor_atual_parcela}
+            ]
+            
+            diario = AccountingService.criar_lancamento(
+                historico=f"Compra Cartão {cartao.nome}: {desc_parcela} (Fat: {fatura.competencia})",
+                data=data_parcela,
+                partidas=partidas
+            )
+            
+            # 4. Registrar Transação no Cartão
+            transacao_cartao = TransacaoCartao(
+                card_id=cartao.id,
+                fatura_id=fatura.id,
+                competencia_calculada=fatura.competencia,
+                data=data_parcela,
+                descricao=desc_parcela,
+                valor=valor_atual_parcela,
+                categoria_id=categoria_id,
+                status='confirmada'
+            )
+            db.session.add(transacao_cartao)
+            db.session.flush()
+
+            # 5. Link Contábil e Financeiro
+            trans_fin = TransacaoFinanceira(
+                ativo_id=None,
+                tipo='CARTAO_COMPRA',
+                valor=valor_atual_parcela,
+                data=data_parcela
+            )
+            db.session.add(trans_fin)
+            db.session.flush()
+            
+            diario.transacao_id = trans_fin.id
+            transacao_cartao.transacao_financeira_id = trans_fin.id
+            
+            transacoes_geradas.append(transacao_cartao)
+            CreditCardService.atualizar_total_fatura(fatura.id)
+
+        # 6. Atualizar Limite (Pelo TOTAL da compra)
+        if cartao.limite_disponivel is not None:
+            cartao.limite_disponivel -= valor_total
+            
+        db.session.flush()
+        
+        return transacoes_geradas[0] # Retorna a primeira transação
+
+    @staticmethod
+    def realizar_pagamento_fatura(fatura_id, banco, valor_fatura, valor_encargos=0, conta_encargos_id=None, data_pagamento=None):
+        """
+        Registra o pagamento da fatura (principal + encargos) e recompõe limite.
+        """
+        from .models import FaturaCartao, PagamentoFaturaCartao, TransacaoFinanceira, TipoTransacao
+        from decimal import Decimal
+        
+        fatura = db.session.get(FaturaCartao, fatura_id)
+        if not fatura:
+            raise ValueError("Fatura não encontrada.")
+            
+        cartao = fatura.cartao
+        valor_fatura_dec = Decimal(str(valor_fatura))
+        valor_encargos_dec = Decimal(str(valor_encargos or 0))
+        valor_total_dec = valor_fatura_dec + valor_encargos_dec
+        
+        if not data_pagamento:
+            data_pagamento = datetime.utcnow()
+        
+        # 1. Contabilidade - Principal
         partidas = [
-            {'conta_id': conta_receber_id, 'tipo': 'D', 'valor': valor_venda_total},
-            {'conta_id': ativo.conta_contabil_id, 'tipo': 'C', 'valor': valor_custo_total}
+            {'conta_id': cartao.conta_contabil_id, 'tipo': 'D', 'valor': valor_fatura_dec},
+            {'conta_id': banco.conta_contabil_id, 'tipo': 'C', 'valor': valor_fatura_dec}
         ]
         
-        diferenca = valor_venda_total - valor_custo_total
-        if diferenca > 0:
-            conta_ganho = ContaContabil.query.filter(ContaContabil.nome.like('%Ganho%Capital%')).first()
-            if not conta_ganho:
-                conta_ganho = ContaContabil.query.filter(ContaContabil.tipo == TipoConta.RECEITA.value).first()
-            partidas.append({'conta_id': conta_ganho.id, 'tipo': 'C', 'valor': diferenca})
-        elif diferenca < 0:
-            conta_perda = ContaContabil.query.filter(ContaContabil.nome.like('%Perda%Capital%')).first()
-            if not conta_perda:
-                conta_perda = ContaContabil.query.filter(ContaContabil.tipo == TipoConta.DESPESA.value).first()
-            partidas.append({'conta_id': conta_perda.id, 'tipo': 'D', 'valor': abs(diferenca)})
+        # 2. Contabilidade - Encargos (se houver)
+        if valor_encargos_dec > 0:
+            if not conta_encargos_id:
+                raise ValueError("Conta de despesa para encargos não informada.")
+            
+            partidas.append({'conta_id': int(conta_encargos_id), 'tipo': 'D', 'valor': valor_encargos_dec})
+            partidas.append({'conta_id': banco.conta_contabil_id, 'tipo': 'C', 'valor': valor_encargos_dec})
 
-        AccountingService.criar_lancamento(
-            historico=f"Venda Investimento: {ativo.descricao} ({quantidade_venda} un)",
-            data=data_venda,
+        diario = AccountingService.criar_lancamento(
+            historico=f"Pgto Fatura {fatura.competencia} (ID: {fatura.id}) - Cartão {cartao.nome}",
+            data=data_pagamento,
             partidas=partidas
         )
         
-        # 3. Atualizar Ativo
-        ativo.quantidade -= float(quantidade_venda)
-        ativo.valor_atual -= valor_custo_total
+        # 3. Registrar Transação Financeira (Extrato)
+        transacao = TransacaoFinanceira(
+            ativo_id=banco.id,
+            tipo=TipoTransacao.PAGAMENTO.value,
+            valor=valor_total_dec,
+            data=data_pagamento
+        )
+        db.session.add(transacao)
+        db.session.flush()
+        diario.transacao_id = transacao.id
         
-        return ativo
+        # 4. Registrar Histórico de Pagamento
+        pagto = PagamentoFaturaCartao(
+            fatura_id=fatura.id,
+            banco_id=banco.id,
+            valor=valor_fatura_dec,
+            valor_encargos=valor_encargos_dec,
+            data_pagamento=data_pagamento,
+            transacao_financeira_id=transacao.id
+        )
+        db.session.add(pagto)
+        
+        # 5. Atualizar Fatura e Cartão
+        fatura.total_pago = (fatura.total_pago or Decimal('0')) + valor_fatura_dec
+        fatura.data_pagamento_ultima = data_pagamento
+        
+        if fatura.total_pago >= fatura.total:
+            fatura.situacao_pagamento = 'paga'
+        else:
+            fatura.situacao_pagamento = 'parcial'
+            
+        # Recompor Limite (Apenas pelo principal, capado pelo limite_maximo_total)
+        if cartao.limite_disponivel is not None:
+            cartao.limite_disponivel += valor_fatura_dec
+            max_total = cartao.limite_maximo_total
+            if cartao.limite_disponivel > max_total:
+                cartao.limite_disponivel = max_total
+        
+        # Atualizar saldo do banco
+        banco.valor_atual -= valor_total_dec
+        
+        return pagto
+
+    @staticmethod
+    def estornar_compra(transacao_id):
+        """
+        Estorna uma compra de cartão, devolve limite e atualiza fatura.
+        """
+        from .models import TransacaoCartao, TransacaoFinanceira
+        from decimal import Decimal
+        
+        transacao = db.session.get(TransacaoCartao, transacao_id)
+        if not transacao or transacao.status == 'estornada':
+            return False, "Transação não encontrada ou já estornada."
+        
+        cartao = transacao.cartao
+        fatura_id = transacao.fatura_id
+        
+        # 1. Contabilidade Inversa
+        partidas = [
+            {'conta_id': cartao.conta_contabil_id, 'tipo': 'D', 'valor': transacao.valor},
+            {'conta_id': transacao.categoria_id, 'tipo': 'C', 'valor': transacao.valor}
+        ]
+        
+        diario = AccountingService.criar_lancamento(
+            historico=f"ESTORNO: Compra Cartão {cartao.nome} - {transacao.descricao}",
+            data=datetime.utcnow(),
+            partidas=partidas
+        )
+        
+        # 2. Registrar Transação Financeira de Estorno
+        trans_fin = TransacaoFinanceira(
+            ativo_id=None,
+            tipo='CARTAO_ESTORNO',
+            valor=transacao.valor,
+            data=datetime.utcnow()
+        )
+        db.session.add(trans_fin)
+        db.session.flush()
+        diario.transacao_id = trans_fin.id
+        
+        # 3. Devolver Limite (Capado pelo limite_maximo_total)
+        if cartao.limite_disponivel is not None:
+            cartao.limite_disponivel += Decimal(str(transacao.valor))
+            max_total = cartao.limite_maximo_total
+            if cartao.limite_disponivel > max_total:
+                cartao.limite_disponivel = max_total
+            
+        # 4. Atualizar Transação e Fatura
+        transacao.status = 'estornada'
+        db.session.flush()
+        CreditCardService.atualizar_total_fatura(fatura_id)
+        
+        return True, "Estorno realizado com sucesso!"

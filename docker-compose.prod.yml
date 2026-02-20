@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  prp-financeiro-prod:
+    image: ${PRP_IMAGE_PROD:-ghcr.io/ademirapsantos/prp_financeiro:prod-latest}
+    container_name: prp-financeiro-prod
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./data/prod/prp_financeiro.db:/app/prp_financeiro.db
+      - ./instance:/app/instance
+    environment:
+      - DATABASE_PATH=/app/prp_financeiro.db
+      - SECRET_KEY=${SECRET_KEY}
+      - MAINTENANCE_MODE=false
+      - UPDATE_TOKEN=${UPDATE_TOKEN}
+      - GITHUB_REPO=ademirapsantos/prp_financeiro
+      - ENVIRONMENT=prod
+    restart: always
+
+  prp-updater-prod:
+    build:
+      context: .
+      dockerfile: Dockerfile.updater
+    container_name: prp-updater-prod
+    ports:
+      - "5025:5005"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - .:/app
+    environment:
+      - UPDATE_TOKEN=${UPDATE_TOKEN}
+      - COMPOSE_FILE=docker-compose.prod.yml
+      - SERVICE_NAME=prp-financeiro-prod
+    restart: always

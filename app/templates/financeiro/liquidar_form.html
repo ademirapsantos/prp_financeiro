@@ -33,11 +33,41 @@
         </div>
 
         <div style="margin-bottom: 1.5rem;">
-            <label style="display: block; font-weight: 600; margin-bottom: 0.5rem;">Data do Pagamento /
-                Recebimento</label>
+            <label style="display: block; font-weight: 600; margin-bottom: 0.5rem;">Data do Pagamento / Recebimento</label>
             <input type="date" name="data_pagamento" value="{{ hoje }}" required
                 style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; background-color: var(--input-bg); color: var(--text-main);">
         </div>
+
+        <div style="margin-bottom: 1.5rem; display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+            <div>
+                <label style="display: block; font-weight: 600; margin-bottom: 0.5rem;">Desconto (R$)</label>
+                <input type="text" name="valor_desconto" id="valor_desconto" value="0,00" placeholder="0,00"
+                    style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; background-color: var(--input-bg); color: var(--text-main);">
+            </div>
+            <div>
+                <label style="display: block; font-weight: 600; margin-bottom: 0.5rem;">Valor Líquido</label>
+                <div id="valor_liquido_display"
+                    style="padding: 0.75rem; background: var(--bg-muted); border-radius: 6px; border: 1px solid var(--border-color); font-weight: bold; color: var(--text-main);">
+                    R$ {{ "{:,.2f}".format(titulo.valor).replace(",", "X").replace(".", ",").replace("X", ".") }}
+                </div>
+            </div>
+        </div>
+
+        <script>
+            document.getElementById('valor_desconto').addEventListener('input', function (e) {
+                let v = e.target.value.replace(/\D/g, '');
+                v = (v / 100).toFixed(2).replace('.', ',');
+                v = v.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+                e.target.value = v;
+
+                // Calcular líquido
+                const valorTitulo = {{ titulo.valor }};
+                const desconto = parseFloat(e.target.value.replace(/\./g, '').replace(',', '.')) || 0;
+                const liquido = valorTitulo - desconto;
+
+                document.getElementById('valor_liquido_display').innerText = 'R$ ' + liquido.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+            });
+        </script>
 
         <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1.5rem;">
             Ao liquidar, o sistema criará uma transação financeira na conta selecionada e o respectivo lançamento

@@ -2,9 +2,9 @@ name: Docker Build Check
 
 on:
   push:
-    branches: [ "main", "master", "develop" ]
+    branches: [ "main", "release", "dev" ]
   pull_request:
-    branches: [ "main", "master", "develop" ]
+    branches: [ "main", "release", "dev" ]
 
 jobs:
   build:
@@ -19,7 +19,7 @@ jobs:
 
     - name: Build Docker image
       run: |
-        docker build . --file Dockerfile --tag prp-financeiro:test
+        docker build . --file Dockerfile --tag prp-financeiro
 
     - name: Docker Compose Check
       run: |

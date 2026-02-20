@@ -1,0 +1,31 @@
+name: Validate Merge Logic
+
+on:
+  pull_request:
+    branches:
+      - main
+      - release
+
+jobs:
+  check-source:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate branch source
+        run: |
+          TARGET="${{ github.base_ref }}"
+          SOURCE="${{ github.head_ref }}"
+          
+          echo "Target branch: $TARGET"
+          echo "Source branch: $SOURCE"
+          
+          if [[ "$TARGET" == "main" && "$SOURCE" != "release" ]]; then
+            echo "::error::Merged into 'main' is only allowed from 'release' branch!"
+            exit 1
+          fi
+          
+          if [[ "$TARGET" == "release" && "$SOURCE" != "dev" ]]; then
+            echo "::error::Merged into 'release' is only allowed from 'dev' branch!"
+            exit 1
+          fi
+          
+          echo "Merge logic validated successfully."

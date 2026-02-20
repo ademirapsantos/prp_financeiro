@@ -3,9 +3,11 @@
     --primary-color: #0f172a;
     --primary-light: #1e293b;
     --accent-color: #10b981;
+    --accent-rgb: 16, 185, 129;
     --danger-color: #f43f5e;
     --success-color: #10b981;
     --warning-color: #f59e0b;
+    --primary-rgb: 15, 23, 42;
 
     /* Colors - Theme Light (Default) */
     --bg-color: #f8fafc;
@@ -44,6 +46,10 @@
     --bg-muted: #1e293b;
     --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
     --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
+    --primary-rgb: 241, 245, 249;
+    /* Cor clara para transparências no modo escuro */
+    --accent-rgb: 52, 211, 153;
+    /* Accent levemente mais claro */
 }
 
 [data-theme='dark'] input[type="date"]::-webkit-calendar-picker-indicator {
@@ -54,6 +60,11 @@
     box-sizing: border-box;
     margin: 0;
     padding: 0;
+}
+
+button {
+    font-family: inherit;
+    color: inherit;
 }
 
 body {

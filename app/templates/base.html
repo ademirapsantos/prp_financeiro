@@ -33,6 +33,13 @@
             <li><a href="{{ url_for('ativos.lista') }}"
                     class="{{ 'active' if 'ativos' in request.endpoint else '' }}">Ativos</a></li>
         </ul>
+        <div class="sidebar-footer"
+            style="padding: 1.5rem; border-top: 1px solid var(--border-color); margin-top: auto;">
+            <p class="text-muted" style="font-size: 0.75rem; margin: 0; opacity: 0.8;">
+                PRP Financeiro &copy; 2026<br>
+                Versão: <strong>{{ app_version }}</strong>
+            </p>
+        </div>
     </nav>
 
     <main class="main-content">
@@ -44,26 +51,49 @@
                 <div class="notification-wrapper">
                     <button class="icon-btn" id="notif-btn">
                         <span class="icon">🔔</span>
-                        {% if notificacoes_alert %}
-                        <span class="notification-badge">{{ notificacoes_alert|length }}</span>
+                        {% set total_notifs = notificacoes_alert|length + notificacoes_sistema|length %}
+                        {% if total_notifs > 0 %}
+                        <span class="notification-badge">{{ total_notifs }}</span>
                         {% endif %}
                     </button>
                     <div class="notification-dropdown" id="notif-dropdown">
                         <div class="dropdown-header">Notificações</div>
                         <ul class="notification-list">
+                            {% for n in notificacoes_sistema %}
+                            <li onclick="handleSystemNotif('{{ n.id }}', '{{ n.tipo }}')" style="cursor: pointer;">
+                                <div class="notif-item">
+                                    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                                        <strong>{{ n.titulo }}</strong>
+                                        <small>{{ n.criada_em.strftime('%d/%m %H:%M') }}</small>
+                                    </div>
+                                    <small>{{ n.mensagem }}</small>
+                                </div>
+                            </li>
+                            {% endfor %}
+                            
+                            {% if notificacoes_sistema and notificacoes_alert %}
+                            <div class="dropdown-divider"></div>
+                            {% endif %}
+
                             {% for n in notificacoes_alert %}
                             <li onclick="openTituloActionModal('{{ n.id }}')" style="cursor: pointer;">
                                 <div class="notif-item">
                                     <strong>{{ n.descricao }}</strong><br>
-                                    <small>Vencimento: {{ n.data_vencimento.strftime('%d/%m/%Y') }}</small>
-                                    <span class="notif-valor"
-                                        style="color: {{ '#16a34a' if n.tipo == 'Receber' or n.tipo == 1 else '#dc2626' }};">
-                                        R$ {{ n.valor }}
-                                    </span>
+                                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                                        <small>Vencimento: {{ n.data_vencimento.strftime('%d/%m/%Y') }}</small>
+                                        <span class="notif-valor"
+                                            style="color: {{ '#16a34a' if n.tipo == 'Receber' or n.tipo == 1 else '#dc2626' }};">
+                                            R$ {{ n.valor }}
+                                        </span>
+                                    </div>
                                 </div>
                             </li>
                             {% else %}
-                            <li class="empty-notif">Nenhuma notificação urgente.</li>
+                                {% if not notificacoes_sistema %}
+                                <li class="empty-notif" style="padding: 1rem; text-align: center; color: var(--text-muted); font-size: 0.9rem;">
+                                    Nenhuma notificação nova.
+                                </li>
+                                {% endif %}
                             {% endfor %}
                         </ul>
                     </div>
@@ -456,6 +486,27 @@
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal de Atualização -->
+        <div id="update-modal" class="modal">
+            <div class="modal-content" style="max-width: 450px; text-align: center; padding: 2rem;">
+                <div style="font-size: 3rem; color: var(--accent-color); margin-bottom: 1rem;">🚀</div>
+                <h2 style="margin-bottom: 0.5rem;">Nova Versão Disponível!</h2>
+                <p style="color: var(--text-muted); margin-bottom: 1.5rem;">
+                    Uma nova atualização do <strong>PRP Financeiro</strong> está pronta para ser instalada.
+                    <br><span class="badge badge-primary" id="new-version-tag"
+                        style="font-size: 1rem; margin-top: 0.5rem;">v0.0.0</span>
+                </p>
+                <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                    <button class="btn btn-primary btn-block py-2 font-weight-bold" onclick="requestUpdate()">
+                        <i class="fas fa-download mr-2"></i>Atualizar Agora
+                    </button>
+                    <button class="btn btn-link py-2" onclick="ignoreUpdate()" style="color: var(--text-muted);">
+                        Lembrar mais tarde
+                    </button>
                 </div>
             </div>
         </div>
@@ -919,6 +970,101 @@
                 })
                 .catch(err => console.error('Erro ao chamar API de tema:', err));
         }
+    </script>
+    <!-- Lógica de Atualização -->
+    <script>
+        async function checkUpdate() {
+            const currentVersion = "{{ app_version }}";
+            const ignoredVersion = localStorage.getItem('ignored_version');
+
+            try {
+                const response = await fetch('/api/system/latest');
+                const data = await response.json();
+
+                if (data.is_new && data.latest_version !== ignoredVersion) {
+                    document.getElementById('new-version-tag').innerText = 'v' + data.latest_version;
+                    document.getElementById('update-modal').classList.add('show');
+                    
+                    // Guardar payload globalmente para "Mais Tarde"
+                    window.latestUpdate = data;
+                }
+            } catch (e) { 
+                console.error('Falha ao checar atualização', e); 
+            }
+        }
+
+        async function ignoreUpdate() {
+            const version = document.getElementById('new-version-tag').innerText.replace('v', '');
+            
+            // Persistir no DB como notificação se clicar em "Mais Tarde"
+            if (window.latestUpdate) {
+                try {
+                    await fetch('/api/notifications', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            tipo: 'UPDATE_AVAILABLE',
+                            titulo: 'Atualização Disponível',
+                            mensagem: `A versão v${window.latestUpdate.latest_version} está disponível. Clique para atualizar.`,
+                            payload: window.latestUpdate
+                        })
+                    });
+                } catch(e) { console.error('Erro ao salvar notificação', e); }
+            }
+            
+            localStorage.setItem('ignored_version', version);
+            document.getElementById('update-modal').classList.remove('show');
+            showToast('Lembrete salvo nas notificações.', 'info');
+        }
+
+        async function requestUpdate() {
+            if (!confirm('O sistema entrará em modo manutenção e será reiniciado. Deseja continuar?')) return;
+
+            const btn = event.target.closest('button');
+            const originalHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="status-dot warning" style="display:inline-block; vertical-align:middle; margin-right:8px;"></span> Atualizando...';
+
+            try {
+                // Chama o backend (Admin) em vez de chamar o sidecar diretamente
+                const res = await fetch('/api/system/update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const result = await res.json();
+
+                if (result.status === 'success') {
+                    showToast('Atualização iniciada! O sistema irá reiniciar em breve.', 'success');
+                    document.getElementById('update-modal').classList.remove('show');
+                    
+                    // Aguardar alguns segundos e tentar recarregar (cairá na tela de manutenção ou voltará atualizado)
+                    setTimeout(() => window.location.reload(), 5000);
+                } else {
+                    showToast('Erro na atualização: ' + (result.error || result.message), 'error');
+                    btn.disabled = false;
+                    btn.innerHTML = originalHtml;
+                }
+            } catch (e) {
+                showToast('Erro de conexão com o servidor de atualização.', 'error');
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+            }
+        }
+
+        function handleSystemNotif(id, tipo) {
+            if (tipo === 'UPDATE_AVAILABLE') {
+                // Reabrir modal de update
+                checkUpdate();
+            }
+            // Marcar como lida
+            fetch(`/api/notifications/${id}/read`, { method: 'POST' })
+                .then(() => {
+                    // Opcional: remover da UI ou recarregar
+                });
+        }
+
+        // Check no load
+        checkUpdate();
     </script>
 </body>
 
