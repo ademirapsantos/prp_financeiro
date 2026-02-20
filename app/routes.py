@@ -920,37 +920,96 @@ def api_contabilidade_parametros():
 @main_bp.route('/api/system/latest')
 @login_required
 def system_latest():
+    """
+    Retorna a versão mais recente do sistema disponível para o ambiente atual.
+    Prioridade:
+    1. MANIFEST_FILE (Arquivo local montado via volume)
+    2. MANIFEST_BASE_URL (URL remota baseada em GITHUB_REPO ou variável explícita)
+    """
     repo = os.getenv('GITHUB_REPO', 'ademirapsantos/prp_financeiro')
     env = os.getenv('ENVIRONMENT', 'dev')
-    base_url = os.getenv('MANIFEST_BASE_URL', f'https://{repo.split("/")[0]}.github.io/{repo.split("/")[1]}')
+    flask_env = os.getenv('FLASK_ENV', 'production')
     
+    manifest_file = os.getenv('MANIFEST_FILE')
+    manifest_base_url = os.getenv('MANIFEST_BASE_URL')
+    
+    # Fallback automático para URL se repositório for conhecido
+    if not manifest_base_url and repo:
+        parts = repo.split("/")
+        if len(parts) == 2:
+            manifest_base_url = f"https://{parts[0]}.github.io/{parts[1]}"
+
     try:
-        if env == 'dev':
-            return jsonify({"version": __version__, "build": __build__, "is_new": False})
-            
-        manifest_url = f"{base_url}/{env}.json"
-        response = requests.get(manifest_url, timeout=5)
-        
-        if response.status_code == 200:
-            data = response.json()
-            latest_version = data.get('version')
-            
-            # Simple version comparison
-            is_new = latest_version > __version__
-            
+        # Se for ambiente de desenvolvimento puro, retorna a própria versão como latest
+        if env == 'dev' and not manifest_file and not os.getenv('MANIFEST_BASE_URL'):
             return jsonify({
-                "latest_version": latest_version,
+                "latest_version": __version__,
                 "current_version": __version__,
-                "is_new": is_new,
-                "tag": data.get('tag'),
-                "date": data.get('date'),
-                "commit": data.get('commit')
+                "is_new": False,
+                "environment": env
             })
-        else:
-            return jsonify({"error": f"Manifest not found for {env}"}), 404
+
+        data = None
+        source = None
+
+        # 1. Tentar ler do arquivo local (Prioridade Máxima)
+        if manifest_file:
+            if os.path.exists(manifest_file):
+                try:
+                    with open(manifest_file, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                        source = f"file:{manifest_file}"
+                except Exception as e:
+                    current_app.logger.error(f"Erro ao ler MANIFEST_FILE {manifest_file}: {str(e)}")
+            else:
+                current_app.logger.warning(f"MANIFEST_FILE configurado mas não encontrado: {manifest_file}")
+
+        # 2. Tentar baixar da URL remota (Fallback)
+        if not data and manifest_base_url:
+            manifest_url = f"{manifest_base_url}/{env}.json"
+            source = f"url:{manifest_url}"
+            try:
+                response = requests.get(manifest_url, timeout=5)
+                if response.status_code == 200:
+                    data = response.json()
+                else:
+                    current_app.logger.error(f"Manifest não encontrado na URL {manifest_url}. Status: {response.status_code}")
+            except Exception as e:
+                current_app.logger.error(f"Erro ao baixar manifest de {manifest_url}: {str(e)}")
+
+        # Se não encontrou de nenhuma forma
+        if not data:
+            msg = "Missing MANIFEST_FILE or MANIFEST_BASE_URL configuration, or resources unavailable."
+            current_app.logger.error(msg)
+            error_resp = {"error": msg}
+            if flask_env == 'development':
+                error_resp["details"] = "Verifique se o arquivo local existe ou se a URL é válida e acessível."
+            return jsonify(error_resp), 500
+
+        latest_version = data.get('version')
+        if not latest_version:
+            return jsonify({"error": "Invalid manifest format: 'version' key missing"}), 500
+
+        # Comparação básica de versão (SemVer simples ou string literal)
+        is_new = latest_version > __version__
+        
+        return jsonify({
+            "latest_version": latest_version,
+            "current_version": __version__,
+            "is_new": is_new,
+            "tag": data.get('tag'),
+            "date": data.get('date'),
+            "commit": data.get('commit'),
+            "environment": env,
+            "source": source if flask_env == 'development' else None
+        })
             
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        current_app.logger.exception("Erro fatal ao processar /api/system/latest")
+        resp = {"error": "Internal server error processing version check"}
+        if flask_env == 'development':
+            resp["details"] = repr(e)
+        return jsonify(resp), 500
 
 @main_bp.route('/api/system/update', methods=['POST'])
 @login_required
