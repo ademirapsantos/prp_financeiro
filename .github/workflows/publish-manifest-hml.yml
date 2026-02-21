@@ -25,6 +25,7 @@ jobs:
           mkdir -p public
           cat <<EOF > public/hml.json
           {
+            "version": "${{ steps.version.outputs.VERSION }}",
             "latest_version": "${{ steps.version.outputs.VERSION }}",
             "tag": "hml-v${{ steps.version.outputs.VERSION }}",
             "commit": "${{ github.sha }}",

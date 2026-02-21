@@ -35,9 +35,36 @@ Exemplo de entrada de log:
 {"timestamp": "2026-02-20T22:01:30", "event": "health_failed", "details": {"action": "auto_rollback"}}
 ```
 
-## Configuração de Ambiente (Variáveis)
-- `UPDATER_BASE_URL`: URL do serviço updater.
-- `UPDATE_TOKEN`: Token de segurança para comunicação inter-service.
-- `MANIFEST_BASE_URL`: URL base onde os arquivos `.json` de versão estão hospedados.
-- `ENVIRONMENT`: `hml` ou `prod`.
-- `GHCR_IMAGE`: Nome base da imagem no GitHub Container Registry.
+## Pipeline de CI/CD (GitHub Actions)
+A aplicação utiliza uma estrutura de automação simplificada e consistente:
+
+### Workflows Oficiais
+1.  **Build and Push (GHCR)** (`publish-ghcr.yml`):
+    - Gatilho: Push nas branches `release` (HML) ou `main` (PROD).
+    - Função: Constrói a imagem Docker (com Buildx e Cache) e publica no GitHub Container Registry.
+    - Tags: `hml-latest`/`hml-vX.Y.Z` ou `prod-latest`/`prod-vX.Y.Z`.
+2.  **Publish Manifest** (`publish-manifest-hml.yml` / `publish-manifest-prod.yml`):
+    - Gatilho: Sucesso do push nas branches respectivas.
+    - Função: Gera o `hml.json` ou `prod.json` e publica no GitHub Pages.
+    - URLs:
+      - `https://ademirapsantos.github.io/prp_financeiro/hml.json`
+      - `https://ademirapsantos.github.io/prp_financeiro/prod.json`
+3.  **Validate Merge Logic** (`validate-merge.yml`):
+    - Gatilho: PR para `main` ou `release`.
+    - Regras: `main` só aceita PR de `release`. `release` só aceita PR de `dev`.
+4.  **Docker Build Check** (`docker-build.yml`):
+    - Gatilho: PR para `release` ou `dev`.
+    - Função: Valida se a imagem constrói corretamente sem publicar.
+
+### Formato do Manifest
+Os arquivos JSON de manifest seguem este padrão para compatibilidade com o updater:
+```json
+{
+  "version": "1.4.2",
+  "latest_version": "1.4.2",
+  "tag": "hml-v1.4.2",
+  "commit": "<sha-do-commit>",
+  "date": "<data-iso-utc>",
+  "environment": "hml"
+}
+```
