@@ -7,8 +7,7 @@ services:
     ports:
       - "5000:5000"
     volumes:
-      - ./data/prod:/app/data
-      - ./instance:/app/instance
+      - /srv/prp_financeiro/data:/app/data
       - ./manifests:/app/manifests:ro
     environment:
       - FLASK_ENV=production
@@ -36,6 +35,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - .:/app
+      - /srv/prp_financeiro/data:/app/data
     networks:
       default:
         aliases:

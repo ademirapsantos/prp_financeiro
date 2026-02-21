@@ -88,7 +88,8 @@
         setInterval(async () => {
             try {
                 const res = await fetch('/health');
-                if (res.ok) window.location.reload();
+                // Se o status for 200 (ok), voltamos para a home
+                if (res.ok) window.location.href = '/';
             } catch (e) { }
         }, 5000);
     </script>

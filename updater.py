@@ -35,8 +35,45 @@ def log_event(event_type, details=None):
         "event": event_type,
         "details": details or {}
     }
-    with open(LOG_FILE, 'a') as f:
-        f.write(json.dumps(log_entry) + '\n')
+    try:
+        with open(LOG_FILE, 'a') as f:
+            f.write(json.dumps(log_entry) + '\n')
+    except:
+        pass
+
+def create_backup():
+    """Cria um backup do banco de dados SQLite."""
+    backup_dir = os.path.join(DATA_DIR, 'backups')
+    os.makedirs(backup_dir, exist_ok=True)
+    
+    # Tenta descobrir o caminho do banco através do ambiente ou padrão
+    db_path = os.path.join(DATA_DIR, 'prp_financeiro.db')
+    
+    if os.path.exists(db_path):
+        timestamp = datetime.now().strftime('%Y%mm%dd_%HH%MM%SS')
+        backup_file = os.path.join(backup_dir, f'prp_financeiro_{timestamp}.db')
+        
+        try:
+            import shutil
+            shutil.copy2(db_path, backup_file)
+            log_event("backup_created", {"path": backup_file})
+            return backup_file
+        except Exception as e:
+            log_event("backup_failed", {"error": str(e)})
+            # Não interrompe o update se o backup falhar, mas loga
+    return None
+
+def save_state(state):
+    """Salva o estado atual para rollback."""
+    with open(STATE_FILE, 'w') as f:
+        json.dump(state, f)
+
+def load_state():
+    """Carrega o estado salvo."""
+    if os.path.exists(STATE_FILE):
+        with open(STATE_FILE, 'r') as f:
+            return json.load(f)
+    return {}
 
 def get_current_tag():
     """Lê a tag atual do arquivo .env."""
@@ -144,6 +181,12 @@ def perform_update():
             
         previous_tag = get_current_tag()
         log_event("target_version", {"tag": target_tag, "previous_tag": previous_tag})
+        
+        # 2.5 Backup preventivo
+        create_backup()
+        
+        # Salva estado antes de alterar
+        save_state({"previous_tag": previous_tag, "target_tag": target_tag, "timestamp": datetime.now().isoformat()})
         
         # 3. Pull and Deploy
         set_env_tag(target_tag)

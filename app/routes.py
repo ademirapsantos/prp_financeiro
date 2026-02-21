@@ -25,6 +25,8 @@ def check_maintenance():
 
 @main_bp.route('/health')
 def health():
+    if Configuracao.is_maintenance():
+        return {"status": "maintenance", "version": __version__}, 503
     return {"status": "healthy", "version": __version__}
 
 @main_bp.route('/api/version')
@@ -1014,6 +1016,7 @@ def system_latest():
             "current_version": __version__,
             "latest_version": latest_version,
             "is_new": is_new,
+            "maintenance": Configuracao.is_maintenance(),
             "tag": data.get('tag'),
             "commit": data.get('commit'),
             "date": data.get('date'),
@@ -1028,9 +1031,9 @@ def system_latest():
             "details": "Ocorreu um erro interno ao processar a verificação de versão."
         }), 500
 
-@main_bp.route('/api/system/update', methods=['POST'])
+@main_bp.route('/api/system/update/start', methods=['POST'])
 @login_required
-def system_update():
+def system_update_start():
     if not current_user.is_admin:
         return jsonify({"error": "Unauthorized"}), 403
         

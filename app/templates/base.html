@@ -985,6 +985,11 @@
                 const response = await fetch('/api/system/latest');
                 const data = await response.json();
 
+                if (data.maintenance) {
+                    window.location.reload();
+                    return;
+                }
+
                 if (data.is_new && data.latest_version !== ignoredVersion) {
                     document.getElementById('new-version-tag').innerText = 'v' + data.latest_version;
                     document.getElementById('update-modal').classList.add('show');
@@ -1073,7 +1078,7 @@
             btn.innerHTML = '<span class="status-dot warning" style="display:inline-block; vertical-align:middle; margin-right:8px;"></span> Atualizando...';
 
             try {
-                const res = await fetch('/api/system/update', {
+                const res = await fetch('/api/system/update/start', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' }
                 });

@@ -11,12 +11,24 @@ O sistema é composto por:
 ## Fluxo de Atualização Silenciosa e Segura
 Quando uma atualização é iniciada:
 1.  O app entra em **Modo Manutenção**.
-2.  O Updater baixa a nova imagem baseada na tag do manifest (`hml.json` ou `prod.json`).
-3.  O Updater atualiza o arquivo `.env` do projeto com a nova tag da imagem.
-4.  O serviço é recriado (`docker compose up -d`).
-5.  **Health Check**: O Updater monitora o status do container por até 200 segundos.
+2.  **Backup Preventivo**: O Updater faz uma cópia do banco de dados SQLite para `backups/prp_financeiro_timestamp.db`.
+3.  O Updater baixa a nova imagem baseada na tag do manifest (`hml.json` ou `prod.json`).
+4.  O Updater atualiza o arquivo `.env` do projeto com a nova tag da imagem.
+5.  O serviço é recriado (`docker compose up -d`).
+6.  **Migrações Automáticas**: No primeiro boot, a nova imagem executa `run_migrations()` para atualizar o esquema de forma segura.
+7.  **Health Check**: O Updater monitora o status do container por até 200 segundos.
     - Se o container responder `healthy` no endpoint `/health`, a atualização é concluída.
     - Se o container ficar `unhealthy` ou falhar ao subir, o **Rollback Automático** é acionado.
+
+## Persistência de Dados
+O sistema utiliza volumes Docker para garantir que os dados não sejam perdidos entre atualizações:
+- **HML**: `./data/hml` no host mapeado para `/app/data` no container.
+- **PROD**: `/srv/prp_financeiro/data` no host mapeado para `/app/data` no container.
+- **Database**: O arquivo oficial é `/app/data/prp_financeiro.db`.
+
+## Backups e Migrações
+- **Localização**: Backups são salvos em `data/backups/`. Eles nunca são apagados automaticamente.
+- **Migrações**: O módulo `app/migrations.py` contém lógica defensiva para adicionar colunas e tabelas faltantes sem risco de `DROP` ou perda de dados.
 
 ## Rollback Automático
 Se a nova versão estiver quebrada (erro de código, falha de conexão com banco, etc.):

@@ -16,7 +16,10 @@ class Config:
     def get_sqlalchemy_uri():
         db_uri = os.getenv('DATABASE_URL')
         if not db_uri:
+            # Prioriza DATABASE_PATH vindo do ambiente (Docker)
             db_path = os.getenv('DATABASE_PATH', Config.DEFAULT_DB_PATH)
+            # Garante que o diretório pai existe
+            os.makedirs(os.path.dirname(db_path), exist_ok=True)
             db_uri = f'sqlite:///{db_path}'
         return db_uri
 
