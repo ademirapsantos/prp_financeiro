@@ -1,32 +1,58 @@
 import os
 
+
 class Config:
     ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-    DATA_DIR = os.path.join(ROOT_DIR, 'data')
     BACKUP_DIR = os.path.join(ROOT_DIR, 'backup')
-    
-    # Criar pastas se não existirem
-    for directory in [DATA_DIR, BACKUP_DIR]:
+
+    for directory in [BACKUP_DIR]:
         if not os.path.exists(directory):
             os.makedirs(directory)
-            
-    DEFAULT_DB_PATH = os.path.join(DATA_DIR, 'prp_financeiro.db')
-    
-    @staticmethod
-    def get_sqlalchemy_uri():
-        db_uri = os.getenv('DATABASE_URL')
-        if not db_uri:
-            # Prioriza DATABASE_PATH vindo do ambiente (Docker)
-            db_path = os.getenv('DATABASE_PATH', Config.DEFAULT_DB_PATH)
-            # Garante que o diretório pai existe
-            os.makedirs(os.path.dirname(db_path), exist_ok=True)
-            db_uri = f'sqlite:///{db_path}'
-        return db_uri
 
     @staticmethod
-    def get_db_path():
-        # Extrai o caminho do arquivo da URI do SQLite
-        uri = Config.get_sqlalchemy_uri()
-        if uri.startswith('sqlite:///'):
-            return uri.replace('sqlite:///', '')
-        return Config.DEFAULT_DB_PATH
+    def _read_env_file_value(key):
+        env_file = os.path.join(Config.ROOT_DIR, '.env')
+        if not os.path.exists(env_file):
+            return None
+
+        try:
+            with open(env_file, 'r', encoding='utf-8') as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith('#') or '=' not in line:
+                        continue
+                    k, v = line.split('=', 1)
+                    if k.strip() == key:
+                        return v.strip()
+        except Exception:
+            return None
+        return None
+
+    @staticmethod
+    def get_sqlalchemy_uri():
+        env_name = os.getenv('ENVIRONMENT', 'dev').upper()
+        db_uri = os.getenv('DATABASE_URL')
+
+        if not db_uri:
+            db_uri = os.getenv(f'DATABASE_URL_{env_name}')
+
+        if not db_uri:
+            db_uri = Config._read_env_file_value('DATABASE_URL')
+
+        if not db_uri:
+            db_uri = Config._read_env_file_value(f'DATABASE_URL_{env_name}')
+
+        if not db_uri:
+            raise RuntimeError(
+                'DATABASE_URL nao configurada. Defina DATABASE_URL ou DATABASE_URL_DEV no .env/ambiente.'
+            )
+
+        if db_uri.startswith('postgres://'):
+            db_uri = db_uri.replace('postgres://', 'postgresql+psycopg://', 1)
+        elif db_uri.startswith('postgresql://') and '+psycopg' not in db_uri:
+            db_uri = db_uri.replace('postgresql://', 'postgresql+psycopg://', 1)
+
+        if not db_uri.startswith('postgresql+psycopg://'):
+            raise RuntimeError('DATABASE_URL invalida para PostgreSQL.')
+
+        return db_uri

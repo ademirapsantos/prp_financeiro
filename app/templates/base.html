@@ -584,57 +584,63 @@
         const notifBtn = document.getElementById('notif-btn');
         const notifDropdown = document.getElementById('notif-dropdown');
 
-        userBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            userDropdown.classList.toggle('show');
-            notifDropdown.classList.remove('show');
-        });
+        if (userBtn && userDropdown && notifBtn && notifDropdown) {
+            userBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                userDropdown.classList.toggle('show');
+                notifDropdown.classList.remove('show');
+            });
 
-        notifBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            notifDropdown.classList.toggle('show');
-            userDropdown.classList.remove('show');
-        });
+            notifBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                notifDropdown.classList.toggle('show');
+                userDropdown.classList.remove('show');
+            });
 
-        document.addEventListener('click', () => {
-            userDropdown.classList.remove('show');
-            notifDropdown.classList.remove('show');
-        });
+            document.addEventListener('click', () => {
+                userDropdown.classList.remove('show');
+                notifDropdown.classList.remove('show');
+            });
 
-        [userDropdown, notifDropdown].forEach(d => {
-            d.addEventListener('click', (e) => e.stopPropagation());
-        });
+            [userDropdown, notifDropdown].forEach(d => {
+                d.addEventListener('click', (e) => e.stopPropagation());
+            });
+        }
 
         // Profile Modal Logic
         const profileModal = document.getElementById('profile-modal');
         const openProfileBtn = document.getElementById('open-profile-btn');
         const closeProfileBtn = document.getElementById('close-profile-btn');
 
-        openProfileBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            profileModal.classList.add('show');
-            userDropdown.classList.remove('show');
-        });
+        if (openProfileBtn && closeProfileBtn && profileModal) {
+            openProfileBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                profileModal.classList.add('show');
+                if (userDropdown) userDropdown.classList.remove('show');
+            });
 
-        closeProfileBtn.addEventListener('click', () => {
-            profileModal.classList.remove('show');
-        });
+            closeProfileBtn.addEventListener('click', () => {
+                profileModal.classList.remove('show');
+            });
+        }
 
         // Settings Modal Logic
         const settingsModal = document.getElementById('settings-modal');
         const openSettingsBtn = document.getElementById('open-settings-btn');
         const closeSettingsBtn = document.getElementById('close-settings-btn');
 
-        openSettingsBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            loadSettings();
-            settingsModal.classList.add('show');
-            userDropdown.classList.remove('show');
-        });
+        if (openSettingsBtn && closeSettingsBtn && settingsModal) {
+            openSettingsBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                loadSettings();
+                settingsModal.classList.add('show');
+                if (userDropdown) userDropdown.classList.remove('show');
+            });
 
-        closeSettingsBtn.addEventListener('click', () => {
-            settingsModal.classList.remove('show');
-        });
+            closeSettingsBtn.addEventListener('click', () => {
+                settingsModal.classList.remove('show');
+            });
+        }
 
         window.addEventListener('click', (e) => {
             if (e.target === profileModal) {
@@ -687,8 +693,8 @@
                 .then(res => res.json())
                 .then(data => {
                     tbody.innerHTML = '';
-                    const currentUserId = {% print current_user.id or 'null' %};
-            const isAdmin = {% print 'true' if current_user.is_admin else 'false' %};
+                    const currentUserId = {{ (current_user.id if current_user.is_authenticated else none) | tojson }};
+            const isAdmin = {{ (current_user.is_admin if current_user.is_authenticated else false) | tojson }};
 
         data.users.forEach(user => {
             const tr = document.createElement('tr');
@@ -696,7 +702,7 @@
 
             let actionsHtml = '';
             if (isAdmin && user.id !== currentUserId) {
-                actionsHtml = `<button class="btn-resend" onclick="resendPassword(${user.id}, '${user.nome}')" title="Reenviar Senha">Reenviar Senha</button> <button class="btn-delete" onclick="deleteUser(${user.id}, '${user.nome}')" title="Excluir Usuário">Excluir</button>`;
+                actionsHtml = `<button class="btn-resend" onclick='resendPassword(${JSON.stringify(user.id)}, ${JSON.stringify(user.nome)})' title="Reenviar Senha">Reenviar Senha</button> <button class="btn-delete" onclick='deleteUser(${JSON.stringify(user.id)}, ${JSON.stringify(user.nome)})' title="Excluir Usuário">Excluir</button>`;
             } else if (user.id === currentUserId) {
                 actionsHtml = '<small class="text-muted">Você</small>';
             }

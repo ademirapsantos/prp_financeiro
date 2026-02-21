@@ -41,7 +41,7 @@ def nova():
             nome=nome,
             tipo=tipo,
             natureza=natureza,
-            parent_id=int(parent_id) if parent_id else None
+            parent_id=parent_id if parent_id else None
         )
         try:
             db.session.add(nova_conta)
@@ -64,7 +64,7 @@ def nova():
                          tipos=TipoConta, 
                          naturezas=NaturezaConta)
 
-@contas_bp.route('/editar/<int:id>', methods=['GET', 'POST'])
+@contas_bp.route('/editar/<id>', methods=['GET', 'POST'])
 def editar(id):
     conta = db.session.get(ContaContabil, id)
     if not conta:
@@ -78,7 +78,7 @@ def editar(id):
         conta.natureza = request.form.get('natureza')
         
         parent_id = request.form.get('parent_id')
-        conta.parent_id = int(parent_id) if parent_id else None
+        conta.parent_id = parent_id if parent_id else None
 
         try:
             db.session.commit()
@@ -100,7 +100,7 @@ def editar(id):
                          contas_pai=contas_pai, 
                          tipos=TipoConta, 
                          naturezas=NaturezaConta)
-@contas_bp.route('/api/<int:id>')
+@contas_bp.route('/api/<id>')
 def get_conta_api(id):
     conta = db.session.get(ContaContabil, id)
     if not conta:

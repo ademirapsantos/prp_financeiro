@@ -49,7 +49,7 @@ def titulos():
         query = query.filter(Titulo.tipo == tipo_filtro)
         total_query = total_query.filter(Titulo.tipo == tipo_filtro)
     if entidade_id:
-        ent_id = int(entidade_id)
+        ent_id = entidade_id
         query = query.filter(Titulo.entidade_id == ent_id)
         total_query = total_query.filter(Titulo.entidade_id == ent_id)
     
@@ -95,7 +95,7 @@ def titulos():
                          data_limite_estorno_20=data_limite_estorno_20,
                          active_tab=active_tab)
 
-@financeiro_bp.route('/bancos/<int:banco_id>')
+@financeiro_bp.route('/bancos/<banco_id>')
 @login_required
 def detalhes_banco(banco_id):
     banco = Ativo.query.get_or_404(banco_id)
@@ -105,7 +105,7 @@ def detalhes_banco(banco_id):
     card_ids = [c.id for c in cartoes]
     faturas = FaturaCartao.query.filter(FaturaCartao.card_id.in_(card_ids)).order_by(FaturaCartao.competencia.desc()).all()
     
-    fatura_id = request.args.get('fatura_id', type=int)
+    fatura_id = request.args.get('fatura_id')
     fatura_selecionada = None
     
     if fatura_id:
@@ -190,7 +190,7 @@ def cadastrar_cartao():
         db.session.rollback()
         flash(f'Erro ao cadastrar cartão: {str(e)}', 'error')
         
-@financeiro_bp.route('/editar_cartao/<int:cartao_id>', methods=['POST'])
+@financeiro_bp.route('/editar_cartao/<cartao_id>', methods=['POST'])
 @login_required
 def editar_cartao(cartao_id):
     cartao = CartaoCredito.query.get_or_404(cartao_id)
@@ -205,7 +205,7 @@ def editar_cartao(cartao_id):
         cartao.limite_total = Decimal(limite_processado)
         cartao.dia_fechamento = int(fechamento)
         cartao.dia_vencimento = int(vencimento)
-        cartao.conta_contabil_id = int(conta_contabil_id)
+        cartao.conta_contabil_id = conta_contabil_id
         cartao.perc_limite_emergencial = Decimal(request.form.get('perc_emergencial', '0').replace(',', '.'))
         cartao.limite_emergencial_ativo = bool(request.form.get('emergencial_ativo'))
         
@@ -241,7 +241,7 @@ def lancar_compra_cartao():
             cartao=cartao,
             descricao=descricao,
             valor=valor_decimal,
-            categoria_id=int(categoria_id),
+            categoria_id=categoria_id,
             data_compra=data_compra,
             num_parcelas=int(num_parcelas)
         )
@@ -253,7 +253,7 @@ def lancar_compra_cartao():
         
     return redirect(url_for('financeiro.detalhes_banco', banco_id=cartao.banco_id))
 
-@financeiro_bp.route('/estornar_cartao/<int:transacao_id>', methods=['POST'])
+@financeiro_bp.route('/estornar_cartao/<transacao_id>', methods=['POST'])
 @login_required
 def estornar_transacao_cartao(transacao_id):
     from .services import CreditCardService
@@ -311,7 +311,7 @@ def pagar_fatura_cartao():
         
     return redirect(url_for('financeiro.detalhes_banco', banco_id=cartao.banco_id))
 
-@financeiro_bp.route('/liquidar/<int:titulo_id>', methods=['GET', 'POST'])
+@financeiro_bp.route('/liquidar/<titulo_id>', methods=['GET', 'POST'])
 def liquidar_titulo_route(titulo_id):
     titulo = db.session.get(Titulo, titulo_id)
     if not titulo:
@@ -320,7 +320,7 @@ def liquidar_titulo_route(titulo_id):
 
     if request.method == 'POST':
         try:
-            banco_id = int(request.form.get('banco_id'))
+            banco_id = request.form.get('banco_id')
             data_pagamento = datetime.strptime(request.form.get('data_pagamento'), '%Y-%m-%d')
             valor_desconto = request.form.get('valor_desconto', '0')
             valor_desconto_dec = Decimal(valor_desconto.replace('.', '').replace(',', '.'))
@@ -346,8 +346,8 @@ def liquidar_titulo_route(titulo_id):
 def transferencia():
     if request.method == 'POST':
         try:
-            conta_origem_id = int(request.form.get('conta_origem'))
-            conta_destino_id = int(request.form.get('conta_destino'))
+            conta_origem_id = request.form.get('conta_origem')
+            conta_destino_id = request.form.get('conta_destino')
             valor = Decimal(request.form.get('valor'))
             data_str = request.form.get('data')
             data = datetime.strptime(data_str, '%Y-%m-%d')
@@ -478,7 +478,7 @@ def novo_banco():
         try:
             if conta_id:
                 # Caso o usuário tenha selecionado uma conta existente
-                nova_conta = db.session.get(ContaContabil, int(conta_id))
+                nova_conta = db.session.get(ContaContabil, conta_id)
             else:
                 # Lógica atual de criação automática
                 # 1. Encontrar conta pai (Bancos - 1.1)
@@ -532,7 +532,7 @@ def novo_banco():
                 conta_capital = None
                 
                 if conta_pl_id:
-                    conta_capital = db.session.get(ContaContabil, int(conta_pl_id))
+                    conta_capital = db.session.get(ContaContabil, conta_pl_id)
                 
                 # Fallback se não estiver configurado (manter busca por texto mas validar analítica)
                 if not conta_capital:
@@ -569,7 +569,7 @@ def novo_banco():
             
     return render_template('financeiro/banco_form.html')
 
-@financeiro_bp.route('/bancos/editar/<int:banco_id>', methods=['GET', 'POST'])
+@financeiro_bp.route('/bancos/editar/<banco_id>', methods=['GET', 'POST'])
 def editar_banco(banco_id):
     banco = db.session.get(Ativo, banco_id)
     if not banco:
@@ -600,7 +600,7 @@ def editar_banco(banco_id):
             banco.descricao = nome
             banco.numero_conta = num_conta
             if conta_id:
-                banco.conta_contabil_id = int(conta_id)
+                banco.conta_contabil_id = conta_id
             
             if banco.conta_contabil:
                 banco.conta_contabil.nome = nome
@@ -614,7 +614,7 @@ def editar_banco(banco_id):
                 conta_ajustes = None
                 
                 if conta_pl_id:
-                    conta_ajustes = db.session.get(ContaContabil, int(conta_pl_id))
+                    conta_ajustes = db.session.get(ContaContabil, conta_pl_id)
 
                 if not conta_ajustes:
                     conta_ajustes = ContaContabil.query.filter(
@@ -667,7 +667,7 @@ def editar_banco(banco_id):
                           saldo_atual=saldo_atual,
                           contas_contabeis=contas_analiticas)
 
-@financeiro_bp.route('/bancos/extrato/<int:banco_id>')
+@financeiro_bp.route('/bancos/extrato/<banco_id>')
 def extrato_banco(banco_id):
     banco = db.session.get(Ativo, banco_id)
     if not banco or not banco.conta_contabil:
@@ -743,7 +743,7 @@ def nova_venda():
     
     if request.method == 'POST':
         try:
-            entidade_id = int(request.form.get('entidade_id'))
+            entidade_id = request.form.get('entidade_id')
             descricao = request.form.get('descricao')
             valor = Decimal(request.form.get('valor'))
             vencimento = datetime.strptime(request.form.get('data_vencimento'), '%Y-%m-%d')
@@ -771,7 +771,7 @@ def novo_pagamento():
 
     if request.method == 'POST':
         try:
-            entidade_id = int(request.form.get('entidade_id'))
+            entidade_id = request.form.get('entidade_id')
             descricao = request.form.get('descricao')
             valor = Decimal(request.form.get('valor'))
             vencimento = datetime.strptime(request.form.get('data_vencimento'), '%Y-%m-%d')
@@ -801,14 +801,14 @@ def movimentacao_outros():
     if request.method == 'POST':
         try:
             entidade_id_raw = request.form.get('entidade_id')
-            entidade_id = int(entidade_id_raw) if entidade_id_raw else None
+            entidade_id = entidade_id_raw if entidade_id_raw else None
             
             descricao = request.form.get('descricao')
             valor = Decimal(request.form.get('valor'))
             data_contabil = datetime.strptime(request.form.get('data_contabil'), '%Y-%m-%d')
             data_vencimento = datetime.strptime(request.form.get('data_vencimento'), '%Y-%m-%d')
             tipo_mov = request.form.get('tipo_movimentacao') # 'Receber' (Vem $ p/ Banco) ou 'Pagar' (Sai $ do Banco)
-            banco_id = int(request.form.get('banco_id'))
+            banco_id = request.form.get('banco_id')
             num_parcelas = int(request.form.get('num_parcelas', 1))
             
             categoria_contrapartida = request.form.get('categoria_contrapartida', 'PASSIVO')
@@ -848,7 +848,7 @@ def movimentacao_outros():
                            hoje=hoje, 
                            next_url=next_url)
 
-@financeiro_bp.route('/estornar/<int:titulo_id>')
+@financeiro_bp.route('/estornar/<titulo_id>')
 def estornar_titulo_route(titulo_id):
     # ... (manter original para compatibilidade com a lista de títulos)
     try:
@@ -882,7 +882,7 @@ def estornar_titulo_route(titulo_id):
 
 # --- API ROUTES PARA AJAX ---
 
-@financeiro_bp.route('/api/titulo/<int:titulo_id>')
+@financeiro_bp.route('/api/titulo/<titulo_id>')
 def get_titulo_api(titulo_id):
     titulo = db.session.get(Titulo, titulo_id)
     if not titulo:
@@ -902,7 +902,7 @@ def get_titulo_api(titulo_id):
         "bancos": [{"id": b.id, "nome": b.descricao} for b in bancos]
     }
 
-@financeiro_bp.route('/api/liquidar/<int:titulo_id>', methods=['POST'])
+@financeiro_bp.route('/api/liquidar/<titulo_id>', methods=['POST'])
 def liquidar_titulo_api(titulo_id):
     titulo = db.session.get(Titulo, titulo_id)
     if not titulo:
@@ -910,7 +910,7 @@ def liquidar_titulo_api(titulo_id):
         
     try:
         data = request.get_json()
-        banco_id = int(data.get('banco_id'))
+        banco_id = data.get('banco_id')
         data_pagamento = datetime.strptime(data.get('data_pagamento'), '%Y-%m-%d')
         
         FinancialService.liquidar_titulo(titulo, banco_id, data_pagamento)
@@ -920,7 +920,7 @@ def liquidar_titulo_api(titulo_id):
         db.session.rollback()
         return {"success": False, "message": str(e)}, 400
 
-@financeiro_bp.route('/api/estornar/<int:titulo_id>', methods=['POST'])
+@financeiro_bp.route('/api/estornar/<titulo_id>', methods=['POST'])
 def estornar_titulo_api(titulo_id):
     titulo = db.session.get(Titulo, titulo_id)
     if not titulo:

@@ -51,10 +51,10 @@ def nova():
             nome=nome,
             tipo=tipo,
             documento=doc,
-            conta_contabil_id=int(c_id) if c_id else None,
-            conta_resultado_id=int(r_id) if r_id else None,
-            conta_venda_id=int(v_id) if v_id else None,
-            conta_compra_id=int(p_id) if p_id else None
+            conta_contabil_id=c_id if c_id else None,
+            conta_resultado_id=r_id if r_id else None,
+            conta_venda_id=v_id if v_id else None,
+            conta_compra_id=p_id if p_id else None
         )
         db.session.add(nova_entidade)
         db.session.commit()
@@ -64,7 +64,7 @@ def nova():
     contas = ContaContabil.query.order_by(ContaContabil.codigo).all()
     return render_template('entidades/form.html', contas=contas)
 
-@entidades_bp.route('/editar/<int:id>', methods=['GET', 'POST'])
+@entidades_bp.route('/editar/<id>', methods=['GET', 'POST'])
 def editar(id):
     entidade = db.session.get(Entidade, id)
     if not entidade:

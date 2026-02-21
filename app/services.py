@@ -117,14 +117,14 @@ class AccountingService:
             partidas.append({'conta_id': conta_category_id, 'tipo': 'D', 'valor': titulo.valor})
             partidas.append({'conta_id': banco.conta_contabil_id, 'tipo': 'C', 'valor': valor_liquido})
             if valor_desconto > 0 and conta_desconto_id:
-                partidas.append({'conta_id': int(conta_desconto_id), 'tipo': 'C', 'valor': valor_desconto})
+                partidas.append({'conta_id': conta_desconto_id, 'tipo': 'C', 'valor': valor_desconto})
         else: # RECEBIMENTO COM DESCONTO:
             # D: Banco (Liquido)
             # D: Descontos Concedidos (Desconto)
             # C: Categoria (Bruto)
             partidas.append({'conta_id': banco.conta_contabil_id, 'tipo': 'D', 'valor': valor_liquido})
             if valor_desconto > 0 and conta_desconto_id:
-                partidas.append({'conta_id': int(conta_desconto_id), 'tipo': 'D', 'valor': valor_desconto})
+                partidas.append({'conta_id': conta_desconto_id, 'tipo': 'D', 'valor': valor_desconto})
             partidas.append({'conta_id': conta_category_id, 'tipo': 'C', 'valor': titulo.valor})
 
         # 3. Executar Lançamento
@@ -385,7 +385,7 @@ class FinancialService:
         # 2. Definir Conta de Contrapartida baseada no fluxo e tipo
         if categoria_contrapartida == 'PL':
             if not conta_pl_id: raise ValueError("Selecione a conta de PL.")
-            final_conta_contra_id = int(conta_pl_id)
+            final_conta_contra_id = conta_pl_id
         else:
             # DINHEIRO ENTRA (Tomar Emprestado) -> Contrapartida é a conta de 'Dívida/Compra'
             if tipo_mov == 'Receber':
@@ -754,7 +754,7 @@ class AssetService:
             conta_ganho = None
             conta_id = Configuracao.get_valor('conta_lucro_venda')
             if conta_id:
-                c_param = db.session.get(ContaContabil, int(conta_id))
+                c_param = db.session.get(ContaContabil, conta_id)
                 if c_param and c_param.is_analitica:
                     conta_ganho = c_param
             
@@ -771,7 +771,7 @@ class AssetService:
             conta_perda = None
             conta_id = Configuracao.get_valor('conta_prejuizo_venda')
             if conta_id:
-                c_param = db.session.get(ContaContabil, int(conta_id))
+                c_param = db.session.get(ContaContabil, conta_id)
                 if c_param and c_param.is_analitica:
                     conta_perda = c_param
             
@@ -1042,7 +1042,7 @@ class CreditCardService:
             if not conta_encargos_id:
                 raise ValueError("Conta de despesa para encargos não informada.")
             
-            partidas.append({'conta_id': int(conta_encargos_id), 'tipo': 'D', 'valor': valor_encargos_dec})
+            partidas.append({'conta_id': conta_encargos_id, 'tipo': 'D', 'valor': valor_encargos_dec})
             partidas.append({'conta_id': banco.conta_contabil_id, 'tipo': 'C', 'valor': valor_encargos_dec})
 
         diario = AccountingService.criar_lancamento(

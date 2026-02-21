@@ -20,7 +20,7 @@ def lista():
         query = query.filter(Ativo.descricao.ilike(f"%{descricao}%"))
     
     if conta_contabil_id:
-        query = query.filter(Ativo.conta_contabil_id == int(conta_contabil_id))
+        query = query.filter(Ativo.conta_contabil_id == conta_contabil_id)
     
     pagination = query.order_by(Ativo.data_aquisicao.desc(), Ativo.id.desc()).paginate(page=page, per_page=per_page, error_out=False)
     ativos_raw = pagination.items
@@ -97,8 +97,8 @@ def novo():
                     quantidade=quantidade,
                     entidade_vendedor=fornecedor,
                     data_aquisicao=dt_aquisicao,
-                    conta_ativo_id=int(conta_ativo_id),
-                    banco_ativo_id=int(banco_ativo_id)
+                    conta_ativo_id=conta_ativo_id,
+                    banco_ativo_id=banco_ativo_id
                 )
             else:
                 valor = Decimal(request.form.get('valor', '0.00'))
@@ -112,7 +112,7 @@ def novo():
                     valor=valor,
                     entidade_fornecedor=fornecedor,
                     data_aquisicao=dt_aquisicao,
-                    conta_ativo_id=int(conta_ativo_id),
+                    conta_ativo_id=conta_ativo_id,
                     tipo_ativo=tipo,
                     num_parcelas=num_parcelas,
                     data_primeiro_vencimento=dt_primeira_parcela,
@@ -139,7 +139,7 @@ def novo():
                          tipos_ativo=TipoAtivo,
                          bancos=bancos)
 
-@ativos_bp.route('/venda/<int:ativo_id>', methods=['GET', 'POST'])
+@ativos_bp.route('/venda/<ativo_id>', methods=['GET', 'POST'])
 def venda(ativo_id):
     ativo = db.session.get(Ativo, ativo_id)
     if request.method == 'POST':
@@ -170,7 +170,7 @@ def venda(ativo_id):
     from datetime import date
     return render_template('ativos/venda_form.html', ativo=ativo, compradores=compradores, today=date.today())
 
-@ativos_bp.route('/recompra/<int:ativo_id>', methods=['GET', 'POST'])
+@ativos_bp.route('/recompra/<ativo_id>', methods=['GET', 'POST'])
 def recompra(ativo_id):
     ativo = db.session.get(Ativo, ativo_id)
     if request.method == 'POST':
@@ -180,7 +180,7 @@ def recompra(ativo_id):
             banco_id = request.form.get('banco_ativo_id')
             data_acq = datetime.strptime(request.form.get('data_aquisicao'), '%Y-%m-%d').date()
             
-            AssetService.recomprar_investimento(ativo.id, valor_unitario, quantidade, data_acq, int(banco_id))
+            AssetService.recomprar_investimento(ativo.id, valor_unitario, quantidade, data_acq, banco_id)
             db.session.commit()
             flash('Aporte/Recompra realizado com sucesso!', 'success')
             return redirect(url_for('ativos.lista'))
@@ -192,7 +192,7 @@ def recompra(ativo_id):
     from datetime import date
     return render_template('ativos/recompra_form.html', ativo=ativo, bancos=bancos, today=date.today())
 
-@ativos_bp.route('/estornar/<int:ativo_id>')
+@ativos_bp.route('/estornar/<ativo_id>')
 def estornar(ativo_id):
     success, message = AssetService.estornar_compra_ativo(ativo_id)
     if success:

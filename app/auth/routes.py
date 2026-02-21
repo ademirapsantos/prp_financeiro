@@ -1,12 +1,12 @@
 from flask import render_template, redirect, url_for, flash, request, session, current_app, send_file
 import os
-import shutil
+import subprocess
+import tempfile
 from flask_login import login_user, logout_user, login_required, current_user
 from . import auth_bp
 from ..models import User, db, Configuracao, ContaContabil, LivroDiario, PartidaDiario, Entidade, Ativo, Titulo, TransacaoFinanceira, ConfiguracaoSMTP
-import csv
 import io
-from datetime import datetime, date
+from datetime import datetime
 from decimal import Decimal
 import secrets
 import string
@@ -330,7 +330,7 @@ def add_user():
         "message": message
     }
 
-@auth_bp.route('/api/users/<int:user_id>/delete', methods=['POST', 'DELETE'])
+@auth_bp.route('/api/users/<user_id>/delete', methods=['POST', 'DELETE'])
 @login_required
 def delete_user(user_id):
     if not current_user.is_admin:
@@ -349,7 +349,7 @@ def delete_user(user_id):
         db.session.rollback()
         return {"success": False, "message": f"Erro ao excluir usuário: {str(e)}"}, 400
 
-@auth_bp.route('/api/users/<int:user_id>/resend-password', methods=['POST'])
+@auth_bp.route('/api/users/<user_id>/resend-password', methods=['POST'])
 @login_required
 def resend_user_password(user_id):
     if not current_user.is_admin:
@@ -388,107 +388,92 @@ def export_backup():
     if not current_user.is_admin:
         return {"success": False, "message": "Acesso negado."}, 403
 
-    import zipfile
     from ..config import Config
-    
-    # 1. Obter caminho do banco
-    db_path = Config.get_db_path()
-    if not os.path.exists(db_path):
-        return {"success": False, "message": "Banco de dados não encontrado para backup."}, 404
+    db_url = Config.get_sqlalchemy_uri()
 
-    # 2. Preparar Buffer ZIP
-    memory_file = io.BytesIO()
-    with zipfile.ZipFile(memory_file, 'w', zipfile.ZIP_DEFLATED) as zf:
-        # Adicionar o arquivo .db
-        zf.write(db_path, "prp_financeiro.db")
-        
-        # 3. Exportar tabelas para CSV
-        # Identificar tabelas dinamicamente
-        for table_name, table_obj in db.metadata.tables.items():
-            output_csv = io.StringIO()
-            writer = csv.writer(output_csv, delimiter=';')
-            
-            # Cabeçalho
-            columns = [col.name for col in table_obj.columns]
-            writer.writerow(columns)
-            
-            # Dados
-            # Usar db.session.execute para ser genérico e evitar problemas com classes em rotas circulares
-            result = db.session.execute(table_obj.select())
-            for row in result:
-                processed_row = []
-                for val in row:
-                    if isinstance(val, (datetime, date)):
-                        processed_row.append(val.isoformat())
-                    elif val is None:
-                        processed_row.append('')
-                    else:
-                        processed_row.append(str(val))
-                writer.writerow(processed_row)
-            
-            zf.writestr(f"csv/{table_name}.csv", output_csv.getvalue())
+    temp_file = tempfile.NamedTemporaryFile(suffix='.dump', delete=False)
+    temp_file.close()
+    dump_path = temp_file.name
 
-    memory_file.seek(0)
-    filename = f"backup_prp_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
-    
-    return send_file(
-        memory_file,
-        mimetype='application/zip',
-        as_attachment=True,
-        download_name=filename
-    )
+    try:
+        cmd = [
+            'pg_dump',
+            '--dbname', db_url,
+            '--format=custom',
+            '--no-owner',
+            '--no-privileges',
+            '--file', dump_path,
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise Exception(result.stderr or result.stdout or 'Falha no pg_dump')
 
+        with open(dump_path, 'rb') as f:
+            memory_file = io.BytesIO(f.read())
+        memory_file.seek(0)
+
+        filename = f"backup_prp_{datetime.now().strftime('%Y%m%d_%H%M%S')}.dump"
+        return send_file(
+            memory_file,
+            mimetype='application/octet-stream',
+            as_attachment=True,
+            download_name=filename
+        )
+    except Exception as e:
+        return {"success": False, "message": f"Erro ao exportar backup Postgres: {str(e)}"}, 500
+    finally:
+        if os.path.exists(dump_path):
+            os.remove(dump_path)
 @auth_bp.route('/api/backup/restore', methods=['POST'])
 @login_required
 def restore_backup():
     if not current_user.is_admin:
         return {"success": False, "message": "Acesso negado."}, 403
 
-    import zipfile
     from ..config import Config
-    from ..models import db, Configuracao
-    
+
     file = request.files.get('file')
     if not file:
         return {"success": False, "message": "Nenhum arquivo enviado."}, 400
 
-    # 1. Ativar modo de manutenção
-    Configuracao.set_valor('MAINTENANCE_MODE', 'true', 'Sistema em restauração de backup')
-    
-    try:
-        if file.filename.endswith('.db'):
-            # Restauração direta de arquivo .db
-            db_path = Config.get_db_path()
-            # Criar backup temporário do atual
-            shutil.copy2(db_path, db_path + ".old")
-            file.save(db_path)
-            
-        elif file.filename.endswith('.zip'):
-            # Restauração via ZIP
-            with zipfile.ZipFile(file) as zf:
-                if "prp_financeiro.db" in zf.namelist():
-                    db_path = Config.get_db_path()
-                    # Backup temporário
-                    if os.path.exists(db_path):
-                        shutil.copy2(db_path, db_path + ".old")
-                    
-                    # Extrair apenas o .db
-                    with zf.open("prp_financeiro.db") as source, open(db_path, "wb") as target:
-                        shutil.copyfileobj(source, target)
-                else:
-                    raise Exception("Arquivo 'prp_financeiro.db' não encontrado dentro do ZIP.")
-        else:
-            raise Exception("Formato de arquivo não suportado. Use .db ou .zip")
+    Configuracao.set_valor('MAINTENANCE_MODE', 'true', 'Sistema em restauracao de backup')
 
-        # 2. Desativar modo de manutenção
+    temp_file = tempfile.NamedTemporaryFile(suffix='.dump', delete=False)
+    temp_file.close()
+
+    try:
+        if not file.filename or not (file.filename.endswith('.dump') or file.filename.endswith('.backup')):
+            raise Exception('Formato nao suportado. Envie um backup Postgres (.dump ou .backup).')
+
+        file.save(temp_file.name)
+        db_url = Config.get_sqlalchemy_uri()
+
+        db.session.remove()
+        db.engine.dispose()
+
+        cmd = [
+            'pg_restore',
+            '--dbname', db_url,
+            '--clean',
+            '--if-exists',
+            '--no-owner',
+            '--no-privileges',
+            temp_file.name,
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise Exception(result.stderr or result.stdout or 'Falha no pg_restore')
+
         Configuracao.set_valor('MAINTENANCE_MODE', 'false')
-        return {"success": True, "message": "Dados restaurados com sucesso! O sistema sairá do modo de manutenção."}
-        
+        return {"success": True, "message": "Backup Postgres restaurado com sucesso."}
+
     except Exception as e:
         db.session.rollback()
         Configuracao.set_valor('MAINTENANCE_MODE', 'false')
         return {"success": False, "message": f"Erro no restore: {str(e)}"}, 500
-
+    finally:
+        if os.path.exists(temp_file.name):
+            os.remove(temp_file.name)
 @auth_bp.route('/api/perfil/tema', methods=['POST'])
 @login_required
 def update_theme():
@@ -501,3 +486,5 @@ def update_theme():
     current_user.tema = tema
     db.session.commit()
     return {"success": True, "tema": tema}
+
+
