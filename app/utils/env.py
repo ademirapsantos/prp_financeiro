@@ -1,20 +1,20 @@
 import os
 
-def env_bool(name, default=False):
+def env_bool(name: str, default: bool=False) -> bool:
     """
-    Lê uma variável de ambiente e retorna um booleano.
+    Lê uma variável de ambiente e retorna um booleano de forma robusta.
     - True se: 1, true, yes, y, on
-    - False se: 0, false, no, n, off, '' ou None
-    - Caso valor desconhecido -> default
+    - False se: 0, false, no, n, off ou string vazia
+    - Caso contrário retorna o default.
     """
-    value = os.getenv(name)
-    if value is None or value.strip() == '':
+    val = os.getenv(name)
+    if val is None:
         return default
     
-    normalized = value.strip().lower()
-    if normalized in ('1', 'true', 'yes', 'y', 'on'):
+    val = val.strip().lower()
+    if val in ("1", "true", "yes", "y", "on"):
         return True
-    if normalized in ('0', 'false', 'no', 'n', 'off'):
+    if val in ("0", "false", "no", "n", "off", ""):
         return False
     
     return default
