@@ -1102,14 +1102,14 @@
 
         function handleSystemNotif(id, tipo, payload) {
             if (tipo === 'UPDATE_AVAILABLE') {
-                // Se recebemos payload (item real-time), usamos ele
+                // Se recebemos payload (item real-time ou do DB), usamos ele
                 if (payload) {
                     localStorage.removeItem('ignored_version');
-                    document.getElementById('new-version-tag').innerText = 'v' + payload.latest_version;
+                    document.getElementById('new-version-tag').innerText = 'v' + (payload.version || payload.latest_version);
                     document.getElementById('update-modal').classList.add('show');
                     window.latestUpdate = payload;
                 } else {
-                    // Fallback para comportamento antigo
+                    // Fallback para comportamento de force-check
                     localStorage.removeItem('ignored_version');
                     checkUpdate();
                 }

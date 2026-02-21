@@ -80,17 +80,50 @@
         <h1>Sistema em Atualização</h1>
         <p>Estamos aplicando melhorias e migrações de banco de dados para garantir o melhor desempenho. O sistema
             voltará em instantes.</p>
+        <p id="update-status-text">Aguardando resposta do servidor...</p>
         <div class="loader"></div>
-        <p style="font-size: 0.9rem;">Por favor, não recarregue a página febrilmente.</p>
+        <div id="error-container"
+            style="display: none; margin-top: 2rem; padding: 1rem; background: rgba(220, 38, 38, 0.1); border: 1px solid #dc2626; border-radius: 8px;">
+            <p style="color: #dc2626; font-weight: bold; margin-bottom: 0.5rem;">Ocorreu um problema:</p>
+            <p id="error-message" style="font-family: monospace; font-size: 0.85rem; opacity: 1;"></p>
+            <button onclick="window.location.reload()"
+                style="margin-top: 1rem; padding: 0.5rem 1rem; background: var(--primary); color: white; border: none; border-radius: 4px; cursor: pointer;">Tentar
+                Novamente</button>
+        </div>
+        <p style="font-size: 0.9rem; margin-top: 2rem;">Por favor, não recarregue a página febrilmente.</p>
     </div>
     <script>
+        const statusEl = document.getElementById('update-status-text');
+        const errorEl = document.getElementById('error-container');
+        const errorMsgEl = document.getElementById('error-message');
+
         // Check cada 5 segundos se saiu da manutenção
-        setInterval(async () => {
+        const poll = setInterval(async () => {
             try {
-                const res = await fetch('/health');
-                // Se o status for 200 (ok), voltamos para a home
-                if (res.ok) window.location.href = '/';
-            } catch (e) { }
+                const res = await fetch('/api/system/update/status');
+                if (!res.ok) {
+                    // Se der erro 503 aqui, pode ser que o app ainda esteja subindo
+                    return;
+                }
+                const data = await res.json();
+
+                // Se saiu da manutenção, redireciona
+                if (!data.maintenance) {
+                    clearInterval(poll);
+                    window.location.href = '/login';
+                    return;
+                }
+
+                // Se tem erro, mostra na tela
+                if (data.last_error) {
+                    if (errorEl) {
+                        errorEl.style.display = 'block';
+                        errorMsgEl.innerText = data.last_error;
+                    }
+                }
+            } catch (e) {
+                console.error("Erro no polling de status:", e);
+            }
         }, 5000);
     </script>
 </body>

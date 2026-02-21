@@ -18,16 +18,36 @@ main_bp = Blueprint('main', __name__)
 @main_bp.before_app_request
 def check_maintenance():
     if Configuracao.is_maintenance():
-        # Permitir apenas rotas críticas e estáticos
-        allowed_paths = ['/api/version', '/api/system/latest', '/health', '/static/', '/login', '/logout']
+        # Permitir apenas rotas críticas, estáticos e endpoints de controle de update
+        allowed_paths = [
+            '/api/version', 
+            '/api/system/latest', 
+            '/api/system/update/status',
+            '/api/system/maintenance/off',
+            '/api/system/maintenance/off-token', # Emergência
+            '/health', 
+            '/static/', 
+            '/login', 
+            '/logout'
+        ]
         if not any(request.path.startswith(p) for p in allowed_paths):
+            if request.path.startswith('/api/'):
+                return jsonify({"status": "maintenance", "message": "Sistema em manutenção"}), 503
             return render_template('manutencao.html'), 503
 
 @main_bp.route('/health')
 def health():
     if Configuracao.is_maintenance():
-        return {"status": "maintenance", "version": __version__}, 503
-    return {"status": "healthy", "version": __version__}
+        return jsonify({
+            "status": "maintenance", 
+            "version": __version__,
+            "update_in_progress": Configuracao.get_valor('UPDATE_IN_PROGRESS') == 'true'
+        }), 503
+    return jsonify({
+        "status": "healthy", 
+        "version": __version__,
+        "build": __build__
+    })
 
 @main_bp.route('/api/version')
 def api_version():
@@ -1041,14 +1061,34 @@ def system_update_start():
         return jsonify({"error": "Update already in progress"}), 400
         
     try:
+        # Pega a tag alvo do manifest antes de começar
+        env = os.getenv('ENVIRONMENT', 'dev')
+        repo = os.getenv('GITHUB_REPO', 'ademirapsantos/prp_financeiro')
+        manifest_base_url = os.getenv('MANIFEST_BASE_URL')
+        if not manifest_base_url and repo:
+            parts = repo.split("/")
+            if len(parts) == 2:
+                manifest_base_url = f"https://{parts[0]}.github.io/{parts[1]}"
+        
+        manifest_url = f"{manifest_base_url}/{env}.json"
+        res_m = requests.get(manifest_url, timeout=10)
+        target_tag = 'latest'
+        if res_m.status_code == 200:
+            target_tag = res_m.json().get('tag', 'latest')
+
+        # Configura estado inicial do update
         Configuracao.set_valor('UPDATE_IN_PROGRESS', 'true')
         Configuracao.set_valor('MAINTENANCE_MODE', 'true')
+        Configuracao.set_valor('UPDATE_STARTED_AT', datetime.utcnow().isoformat())
+        Configuracao.set_valor('UPDATE_LAST_ERROR', '')
+        Configuracao.set_valor('UPDATE_TARGET_TAG', target_tag)
+        # Tenta descobrir a tag atual (simplificado para o log)
+        prev_tag = os.getenv(f'PRP_IMAGE_{env.upper()}', '').split(':')[-1] or 'v' + __version__
+        Configuracao.set_valor('UPDATE_PREV_TAG', prev_tag)
         
         # Updater interaction is backend-only
-        # Prioritize UPDATER_BASE_URL, fallback based on ENVIRONMENT
         updater_base_url = os.getenv('UPDATER_BASE_URL')
         if not updater_base_url:
-            env = os.getenv('ENVIRONMENT', 'dev')
             if env == 'hml':
                 updater_base_url = "http://prp-updater-hml:5005"
             elif env == 'prod':
@@ -1056,32 +1096,71 @@ def system_update_start():
             else:
                 updater_base_url = "http://prp-updater:5005"
         
+        # O updater.py do sidecar ouve em /api/update
         updater_url = f"{updater_base_url.rstrip('/')}/api/update"
         token = os.getenv('UPDATE_TOKEN', 'change_me_token')
         
         headers = {"Authorization": f"Bearer {token}"}
         
-        # Call the sidecar
+        # Call the sidecar (assíncrono para não prender o gunicorn por 300s)
+        # Mas o updater atual é síncrono. Vamos tentar com timeout maior ou disparar em thread.
+        # Como o objetivo é ser robusto, vamos aguardar um pouco.
         try:
-            response = requests.post(updater_url, headers=headers, timeout=60)
+            # Aumentamos o timeout pois o updater faz pull e recreate
+            response = requests.post(updater_url, headers=headers, timeout=300)
             
             if response.status_code == 200:
-                return jsonify({"status": "success", "message": "Update initiated successfully"})
-            else:
-                # Rollback flags if failed
+                # Se for síncrono e retornar 200, já concluiu com sucesso
                 Configuracao.set_valor('UPDATE_IN_PROGRESS', 'false')
                 Configuracao.set_valor('MAINTENANCE_MODE', 'false')
-                return jsonify({"error": "updater_failed", "details": response.text}), response.status_code
+                return jsonify({"status": "success", "message": "Update concluído com sucesso"})
+            else:
+                # Falhou
+                error_details = response.text
+                Configuracao.set_valor('UPDATE_IN_PROGRESS', 'false')
+                Configuracao.set_valor('MAINTENANCE_MODE', 'false') # Mesmo falhando, sai da manutenção se der erro no updater
+                Configuracao.set_valor('UPDATE_LAST_ERROR', error_details)
+                return jsonify({"error": "updater_failed", "details": error_details}), response.status_code
+        except requests.exceptions.Timeout:
+            # Se der timeout, talvez ainda esteja processando. Mantemos as flags e tela de manutenção cuida.
+            return jsonify({"status": "pending", "message": "Update em processamento (timeout na resposta)"})
         except requests.exceptions.ConnectionError:
             Configuracao.set_valor('UPDATE_IN_PROGRESS', 'false')
             Configuracao.set_valor('MAINTENANCE_MODE', 'false')
+            Configuracao.set_valor('UPDATE_LAST_ERROR', 'Falha ao conectar ao serviço updater')
             return jsonify({"error": "updater_unreachable", "details": "Falha ao conectar ao serviço updater (DNS/Rede)"}), 502
             
     except Exception as e:
         Configuracao.set_valor('UPDATE_IN_PROGRESS', 'false')
         Configuracao.set_valor('MAINTENANCE_MODE', 'false')
+        Configuracao.set_valor('UPDATE_LAST_ERROR', str(e))
         current_app.logger.exception("Erro ao acionar updater")
         return jsonify({"error": str(e)}), 500
+
+@main_bp.route('/api/system/update/status')
+def api_system_update_status():
+    """Retorna o progresso e estado do update."""
+    return jsonify({
+        "in_progress": Configuracao.get_valor('UPDATE_IN_PROGRESS') == 'true',
+        "maintenance": Configuracao.get_valor('MAINTENANCE_MODE') == 'true',
+        "started_at": Configuracao.get_valor('UPDATE_STARTED_AT'),
+        "last_error": Configuracao.get_valor('UPDATE_LAST_ERROR'),
+        "target_tag": Configuracao.get_valor('UPDATE_TARGET_TAG'),
+        "prev_tag": Configuracao.get_valor('UPDATE_PREV_TAG'),
+        "current_version": __version__
+    })
+
+@main_bp.route('/api/system/maintenance/off-token', methods=['POST'])
+def maintenance_off_token():
+    """Desliga manutenção via token (Emergency/Updater usage)."""
+    token = request.headers.get('Authorization')
+    expected = f"Bearer {os.getenv('UPDATE_TOKEN', 'change_me_token')}"
+    if token != expected:
+        return jsonify({"error": "Unauthorized"}), 401
+    
+    Configuracao.set_valor('MAINTENANCE_MODE', 'false')
+    Configuracao.set_valor('UPDATE_IN_PROGRESS', 'false')
+    return jsonify({"status": "success", "message": "Manutenção desligada via token"})
 
 @main_bp.route('/api/notifications')
 @login_required

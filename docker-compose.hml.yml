@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   prp-financeiro-hml:
-    image: ${PRP_IMAGE_HML:-ghcr.io/ademirapsantos/prp_financeiro:hml-v1.4.7}
+    image: ${PRP_IMAGE_HML:-ghcr.io/ademirapsantos/prp_financeiro:hml-latest}
     container_name: prp-financeiro-hml
     ports:
       - "5001:5000"

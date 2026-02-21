@@ -18,6 +18,9 @@ ENVIRONMENT = os.getenv('ENVIRONMENT', 'dev')
 MANIFEST_BASE_URL = os.getenv('MANIFEST_BASE_URL', 'https://ademirapsantos.github.io/prp_financeiro')
 GHCR_IMAGE = os.getenv('GHCR_IMAGE', 'ghcr.io/ademirapsantos/prp_financeiro')
 PROJECT_NAME = os.getenv('COMPOSE_PROJECT_NAME', 'prp_financeiro')
+APP_HOST = os.getenv('APP_HOST', 'prp-financeiro-hml' if ENVIRONMENT == 'hml' else 'prp-financeiro-prod' if ENVIRONMENT == 'prod' else 'prp-financeiro')
+APP_PORT = os.getenv('APP_PORT', '5000')
+KEEP_IMAGES = int(os.getenv('KEEP_IMAGES', '3'))
 
 # Caminhos de Arquivos
 DATA_DIR = os.path.join(PROJECT_DIR, 'data')
@@ -119,34 +122,56 @@ def run_docker_command(cmd_args):
     return result.stdout
 
 def check_container_health():
-    """Verifica se o container do serviço está pronto (healthy)."""
-    # Aguarda o container subir (up -d é assíncrono pro estado interno)
-    for _ in range(20): # 20 tentativas (200s total com sleep 10)
-        time.sleep(10)
+    """Verifica se o app está respondendo /health via HTTP dentro da rede do docker."""
+    health_url = f"http://{APP_HOST}:{APP_PORT}/health"
+    log_event("health_check_start", {"url": health_url})
+    
+    for i in range(15): # 15 tentativas
         try:
-            # Pega o ID do container do serviço específico usando o nome do projeto
-            container_id = subprocess.check_output(
-                ["docker", "compose", "-p", PROJECT_NAME, "-f", COMPOSE_FILE, "ps", "-q", SERVICE_NAME],
-                cwd=PROJECT_DIR, text=True
-            ).strip()
-            
-            if not container_id:
-                continue
-                
-            # Inspeciona o status do healthcheck
-            health_status = subprocess.check_output(
-                ["docker", "inspect", "--format", "{{.State.Health.Status}}", container_id],
-                text=True
-            ).strip()
-            
-            if health_status == "healthy":
-                return True
-            if health_status == "unhealthy":
-                return False
+            time.sleep(10)
+            res = requests.get(health_url, timeout=5)
+            if res.status_code == 200 or res.status_code == 503:
+                data = res.json()
+                # 503 com status maintenance é considerado "vivo" para o updater
+                if data.get('status') in ['healthy', 'maintenance']:
+                    log_event("health_check_success", {"attempt": i+1, "status": data.get('status')})
+                    return True
         except Exception as e:
-            log_event("health_check_error", {"error": str(e)})
+            log_event("health_check_attempt_failed", {"attempt": i+1, "error": str(e)})
             
     return False
+
+def cleanup_images():
+    """Remove imagens antigas do ambiente, mantendo apenas as N mais recentes."""
+    try:
+        log_event("cleanup_started")
+        # Listar imagens do repositório ghcr filtrando pelo ambiente
+        cmd = ["docker", "images", "--format", "{{.Repository}}:{{.Tag}}|{{.CreatedAt}}", GHCR_IMAGE]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            return
+            
+        lines = result.stdout.strip().split('\n')
+        # Formato: ghcr.io/repo:tag|2026-02-20 ...
+        images = []
+        for line in lines:
+            if '|' in line:
+                name_tag, created = line.split('|')
+                images.append({"name": name_tag, "created": created})
+        
+        # Ordenar por data (mais recente primeiro)
+        images.sort(key=lambda x: x['created'], reverse=True)
+        
+        if len(images) > KEEP_IMAGES:
+            to_remove = images[KEEP_IMAGES:]
+            for img in to_remove:
+                # Tenta remover, ignora erro se estiver em uso
+                subprocess.run(["docker", "rmi", img['name']], capture_output=True)
+                log_event("image_removed", {"tag": img['name']})
+                
+        log_event("cleanup_finished")
+    except Exception as e:
+        log_event("cleanup_failed", {"error": str(e)})
 
 @app.route('/health')
 def health():
@@ -190,6 +215,7 @@ def perform_update():
         
         # 3. Pull and Deploy
         set_env_tag(target_tag)
+        run_docker_command(["rm", "-sf", SERVICE_NAME])
         run_docker_command(["pull", SERVICE_NAME])
         run_docker_command(["up", "-d", "--no-deps", "--force-recreate", SERVICE_NAME])
         log_event("deploy_started")
@@ -199,6 +225,8 @@ def perform_update():
         
         if is_healthy:
             log_event("update_success", {"new_tag": target_tag})
+            # Limpeza de imagens pós-sucesso
+            cleanup_images()
             os.remove(LOCK_FILE)
             return jsonify({"status": "success", "update_id": update_id})
         else:

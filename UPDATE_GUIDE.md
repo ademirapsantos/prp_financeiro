@@ -1,82 +1,46 @@
-# Guia do Sistema de Atualização PRP Financeiro
+# Guia Técnico: Sistema de Atualização Robusto (Enterprise Ready)
 
-Este documento descreve o funcionamento do sistema de atualização profissional (Enterprise Grade) implementado no projeto.
+O PRP Financeiro agora utiliza um sistema de atualização nível enterprise, garantindo alta disponibilidade e segurança durante o processo de update.
 
-## Arquitetura
-O sistema é composto por:
-1.  **Frontend (App)**: Detecta atualizações via manifest remoto e exibe notificações.
-2.  **Backend (App)**: Gerencia sinalizações de manutenção e solicita a atualização ao Updater.
-3.  **Updater Service**: Um container isolado que gerencia Docker Compose, Pull de imagens, Healthchecks e Rollbacks.
+## Arquitetura de Update
 
-## Fluxo de Atualização Silenciosa e Segura
-Quando uma atualização é iniciada:
-1.  O app entra em **Modo Manutenção**.
-2.  **Backup Preventivo**: O Updater faz uma cópia do banco de dados SQLite para `backups/prp_financeiro_timestamp.db`.
-3.  O Updater baixa a nova imagem baseada na tag do manifest (`hml.json` ou `prod.json`).
-4.  O Updater atualiza o arquivo `.env` do projeto com a nova tag da imagem.
-5.  O serviço é recriado (`docker compose up -d`).
-6.  **Migrações Automáticas**: No primeiro boot, a nova imagem executa `run_migrations()` para atualizar o esquema de forma segura.
-7.  **Health Check**: O Updater monitora o status do container por até 200 segundos.
-    - Se o container responder `healthy` no endpoint `/health`, a atualização é concluída.
-    - Se o container ficar `unhealthy` ou falhar ao subir, o **Rollback Automático** é acionado.
+O processo envolve três componentes principais:
+1. **App Flask (Backend)**: Gerencia o estado no banco de dados, expõe o status e aciona o Sidecar.
+2. **Updater (Sidecar)**: Script isolado em container responsável por operações Docker, Healthchecks e Rollbacks.
+3. **Frontend (Dashboard)**: Notifica o usuário e monitora a conclusão via polling de status.
 
-## Persistência de Dados
-O sistema utiliza volumes Docker para garantir que os dados não sejam perdidos entre atualizações:
-- **HML**: `./data/hml` no host mapeado para `/app/data` no container.
-- **PROD**: `/srv/prp_financeiro/data` no host mapeado para `/app/data` no container.
-- **Database**: O arquivo oficial é `/app/data/prp_financeiro.db`.
+## Fluxo de Operação
 
-## Backups e Migrações
-- **Localização**: Backups são salvos em `data/backups/`. Eles nunca são apagados automaticamente.
-- **Migrações**: O módulo `app/migrations.py` contém lógica defensiva para adicionar colunas e tabelas faltantes sem risco de `DROP` ou perda de dados.
+1. **Início**: O usuário admin clica em "Atualizar Agora". O Backend registra o início no DB e chama o Sidecar.
+2. **Manutenção**: O app entra em `MAINTENANCE_MODE`, bloqueando rotas normais mas permitindo status e emergência.
+3. **Deployment**:
+   - O Sidecar faz pull da nova imagem.
+   - Remove o container antigo (`rm -sf`) para evitar locks.
+   - Sobe o novo com `--force-recreate`.
+4. **Healthcheck**: 
+   - O Sidecar aguarda e verifica `http://app:5000/health`.
+   - Considera sucesso se retornar 200 (OK) ou 503 (Manutenção).
+5. **Rollback**: Se o Healthcheck falhar após 15 tentativas (150s), o Sidecar restaura a tag anterior no `.env` e sobe a versão estável.
+6. **Limpeza**: Após sucesso, o sistema remove imagens GHCR antigas, mantendo as últimas 3.
 
-## Rollback Automático
-Se a nova versão estiver quebrada (erro de código, falha de conexão com banco, etc.):
-1.  O Updater detecta a falha de saúde (Health Check).
-2.  Ele restaura a tag da imagem anterior no arquivo `.env`.
-3.  O serviço é reiniciado com a versão estável anterior.
-4.  Um log de erro é registrado em `data/update_logs.jsonl`.
+## Configuração de Ambiente
 
-## Logs e Monitoramento
-Os logs de todas as tentativas de atualização são salvos em formato JSONL em:
-`prp_financeiro/data/update_logs.jsonl`
+Crie ou edite os arquivos `.env.hml` e `.env.prod` na raiz do projeto:
 
-Exemplo de entrada de log:
-```json
-{"timestamp": "2026-02-20T22:00:00", "event": "update_start", "details": {"update_id": "uuid...", "env": "hml"}}
-{"timestamp": "2026-02-20T22:01:30", "event": "health_failed", "details": {"action": "auto_rollback"}}
+```bash
+# Exemplo .env.hml
+ENVIRONMENT=hml
+PRP_IMAGE_HML=ghcr.io/ademirapsantos/prp_financeiro:tag
+COMPOSE_PROJECT_NAME=prp_financeiro_hml
+KEEP_IMAGES=3
 ```
 
-## Pipeline de CI/CD (GitHub Actions)
-A aplicação utiliza uma estrutura de automação simplificada e consistente:
+## Recuperação de Emergência
 
-### Workflows Oficiais
-1.  **Build and Push (GHCR)** (`publish-ghcr.yml`):
-    - Gatilho: Push nas branches `release` (HML) ou `main` (PROD).
-    - Função: Constrói a imagem Docker (com Buildx e Cache) e publica no GitHub Container Registry.
-    - Tags: `hml-latest`/`hml-vX.Y.Z` ou `prod-latest`/`prod-vX.Y.Z`.
-2.  **Publish Manifest** (`publish-manifest-hml.yml` / `publish-manifest-prod.yml`):
-    - Gatilho: Sucesso do push nas branches respectivas.
-    - Função: Gera o `hml.json` ou `prod.json` e publica no GitHub Pages.
-    - URLs:
-      - `https://ademirapsantos.github.io/prp_financeiro/hml.json`
-      - `https://ademirapsantos.github.io/prp_financeiro/prod.json`
-3.  **Validate Merge Logic** (`validate-merge.yml`):
-    - Gatilho: PR para `main` ou `release`.
-    - Regras: `main` só aceita PR de `release`. `release` só aceita PR de `dev`.
-4.  **Docker Build Check** (`docker-build.yml`):
-    - Gatilho: PR para `release` ou `dev`.
-    - Função: Valida se a imagem constrói corretamente sem publicar.
+Caso o sistema trave em manutenção, você pode usar o comando de emergência via terminal ou API:
 
-### Formato do Manifest
-Os arquivos JSON de manifest seguem este padrão para compatibilidade com o updater:
-```json
-{
-  "version": "1.4.2",
-  "latest_version": "1.4.2",
-  "tag": "hml-v1.4.2",
-  "commit": "<sha-do-commit>",
-  "date": "<data-iso-utc>",
-  "environment": "hml"
-}
-```
+**Via API (Token necessário no Header):**
+`POST /api/system/maintenance/off-token`
+
+**Via Sidecar (Logs):**
+Os logs detalhados ficam em `data/update_logs.jsonl`.
