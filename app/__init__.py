@@ -9,6 +9,14 @@ from .version import __version__, __build__
 db = SQLAlchemy()
 mail = Mail()
 
+def _resolve_env_badge():
+    env_raw = (os.getenv('ENVIRONMENT', 'dev') or 'dev').strip().lower()
+    if env_raw in ('prod', 'prd', 'production'):
+        return {'code': 'prod', 'label': 'PRD'}
+    if env_raw in ('hml', 'hmg', 'homolog', 'homologacao'):
+        return {'code': 'hmg', 'label': 'HMG'}
+    return {'code': 'dev', 'label': 'DEV'}
+
 def create_app():
     app = Flask(__name__)
     app.config['SECRET_KEY'] = 'dev_key_prp_system'
@@ -46,6 +54,9 @@ def create_app():
 
     app.jinja_env.globals["APP_VERSION"] = __version__
     app.jinja_env.globals["APP_BUILD"] = __build__
+    env_badge = _resolve_env_badge()
+    app.jinja_env.globals["APP_ENV_CODE"] = env_badge['code']
+    app.jinja_env.globals["APP_ENV_LABEL"] = env_badge['label']
 
     @login_manager.unauthorized_handler
     def unauthorized():
