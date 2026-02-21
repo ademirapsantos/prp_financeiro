@@ -50,6 +50,39 @@
             opacity: 0.9;
         }
 
+        .env-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 44px;
+            padding: 0.2rem 0.55rem;
+            border-radius: 999px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            line-height: 1.2;
+            margin-top: 0.3rem;
+            border: 1px solid transparent;
+        }
+
+        .env-dev {
+            background: #eef2ff;
+            color: #3730a3;
+            border-color: #c7d2fe;
+        }
+
+        .env-hmg {
+            background: #fffbeb;
+            color: #92400e;
+            border-color: #fde68a;
+        }
+
+        .env-prod {
+            background: #ecfdf5;
+            color: #065f46;
+            border-color: #a7f3d0;
+        }
+
         .form-group {
             margin-bottom: var(--spacing-md);
         }
@@ -92,6 +125,7 @@
         <div class="login-header">
             <h1>PRP Financeiro</h1>
             <p class="text-muted">Acesse sua conta</p>
+            <span class="env-badge env-{{ APP_ENV_CODE }}">{{ APP_ENV_LABEL }}</span>
         </div>
 
         <form id="login-form" method="POST">
