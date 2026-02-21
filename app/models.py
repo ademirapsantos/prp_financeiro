@@ -216,6 +216,11 @@ class Configuracao(db.Model):
 
     @staticmethod
     def is_maintenance():
+        from .utils.env import env_bool
+        # Prioridade 1: Variável de Ambiente
+        if env_bool('MAINTENANCE_MODE', False):
+            return True
+        # Prioridade 2: Banco de Dados
         return Configuracao.get_valor('MAINTENANCE_MODE') == 'true'
 
     @staticmethod

@@ -61,6 +61,14 @@ def create_app():
     with app.app_context():
         from . import models
         db.create_all()
+        
+        # Migrações defensivas (Schema update)
+        from .migrations import run_migrations
+        try:
+            run_migrations()
+        except Exception as e:
+            app.logger.error(f"Falha crítica nas migrações: {e}")
+
         # Importante: Criar plano de contas inicial se não existir
         from .utils import seed_db
         seed_db()

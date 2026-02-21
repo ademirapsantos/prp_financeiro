@@ -8,13 +8,12 @@ services:
       - "5001:5000"
     volumes:
       - ./data/hml:/app/data
-      - ./instance:/app/instance
       - ./manifests:/app/manifests:ro
     environment:
       - FLASK_ENV=production
       - SECRET_KEY=prod_key_change_me
       - DATABASE_PATH=/app/data/prp_financeiro.db
-      - MAINTENANCE_MODE=false
+
       - UPDATE_TOKEN=${UPDATE_TOKEN:-prp_secure_token_2026}
       - ENVIRONMENT=hml
       - MANIFEST_BASE_URL=https://ademirapsantos.github.io/prp_financeiro
@@ -36,6 +35,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - .:/app
+      - ./data/hml:/app/data
     networks:
       default:
         aliases:

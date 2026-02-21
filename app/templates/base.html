@@ -985,6 +985,11 @@
                 const response = await fetch('/api/system/latest');
                 const data = await response.json();
 
+                if (data.maintenance) {
+                    window.location.reload();
+                    return;
+                }
+
                 if (data.is_new && data.latest_version !== ignoredVersion) {
                     document.getElementById('new-version-tag').innerText = 'v' + data.latest_version;
                     document.getElementById('update-modal').classList.add('show');
@@ -1073,7 +1078,7 @@
             btn.innerHTML = '<span class="status-dot warning" style="display:inline-block; vertical-align:middle; margin-right:8px;"></span> Atualizando...';
 
             try {
-                const res = await fetch('/api/system/update', {
+                const res = await fetch('/api/system/update/start', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' }
                 });
@@ -1097,14 +1102,14 @@
 
         function handleSystemNotif(id, tipo, payload) {
             if (tipo === 'UPDATE_AVAILABLE') {
-                // Se recebemos payload (item real-time), usamos ele
+                // Se recebemos payload (item real-time ou do DB), usamos ele
                 if (payload) {
                     localStorage.removeItem('ignored_version');
-                    document.getElementById('new-version-tag').innerText = 'v' + payload.latest_version;
+                    document.getElementById('new-version-tag').innerText = 'v' + (payload.version || payload.latest_version);
                     document.getElementById('update-modal').classList.add('show');
                     window.latestUpdate = payload;
                 } else {
-                    // Fallback para comportamento antigo
+                    // Fallback para comportamento de force-check
                     localStorage.removeItem('ignored_version');
                     checkUpdate();
                 }
