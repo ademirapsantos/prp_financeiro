@@ -70,7 +70,7 @@ def create_app():
             app.logger.error(f"Falha crítica nas migrações: {e}")
 
         # Importante: Criar plano de contas inicial se não existir
-        from .utils import seed_db
+        from .seed import seed_db
         seed_db()
 
     from .routes import main_bp
@@ -98,7 +98,7 @@ def create_app():
         from flask import session
         
         # Permitir acesso a rotas estáticas, blueprint de auth e endpoints públicos de sistema
-        public_endpoints = ['main.api_version', 'main.system_latest']
+        public_endpoints = ['main.api_version', 'main.system_latest', 'main.health']
         if request.endpoint and (
             'static' in request.endpoint or 
             'auth' in request.endpoint or
