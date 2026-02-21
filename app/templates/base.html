@@ -515,6 +515,26 @@
             </div>
         </div>
 
+        <!-- Modal de Progresso da Atualização -->
+        <div id="update-progress-modal" class="modal">
+            <div class="modal-content" style="max-width: 520px; text-align: center; padding: 2rem;">
+                <div style="font-size: 2.3rem; margin-bottom: 0.75rem;">⚙️</div>
+                <h2 id="update-progress-title" style="margin-bottom: 0.5rem;">Atualizando Ambiente</h2>
+                <p id="update-progress-text" style="color: var(--text-muted); margin-bottom: 1.25rem;">
+                    Preparando atualização...
+                </p>
+
+                <div style="width: 100%; background: var(--bg-muted); border: 1px solid var(--border-color); border-radius: 10px; overflow: hidden; margin-bottom: 0.5rem;">
+                    <div id="update-progress-bar" style="height: 12px; width: 8%; background: linear-gradient(90deg, #3b82f6, #06b6d4); transition: width 0.5s ease;"></div>
+                </div>
+                <div id="update-progress-percent" style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">8%</div>
+
+                <div id="update-progress-log" style="font-size: 0.85rem; color: var(--text-muted); min-height: 1.2rem;">
+                    Aguardando resposta do servidor...
+                </div>
+            </div>
+        </div>
+
         <div id="toast-container"></div>
         <div class="page-container">
             {% block content %}{% endblock %}
@@ -1069,6 +1089,81 @@
             showToast('Lembrete salvo nas notificações.', 'info');
         }
 
+        let updateProgressValue = 8;
+        let updateProgressPulse = null;
+        let updateProgressPoll = null;
+
+        function setUpdateProgress(value, message) {
+            updateProgressValue = Math.max(0, Math.min(100, value));
+            const bar = document.getElementById('update-progress-bar');
+            const pct = document.getElementById('update-progress-percent');
+            const log = document.getElementById('update-progress-log');
+            if (bar) bar.style.width = `${updateProgressValue}%`;
+            if (pct) pct.innerText = `${Math.round(updateProgressValue)}%`;
+            if (message && log) log.innerText = message;
+        }
+
+        function openUpdateProgressModal(initialMessage = 'Iniciando atualização...') {
+            const modal = document.getElementById('update-progress-modal');
+            setUpdateProgress(8, initialMessage);
+            if (modal) modal.classList.add('show');
+
+            if (updateProgressPulse) clearInterval(updateProgressPulse);
+            updateProgressPulse = setInterval(() => {
+                // Progresso visual até 95% enquanto aguardamos confirmação final.
+                if (updateProgressValue < 95) {
+                    setUpdateProgress(updateProgressValue + 2);
+                }
+            }, 1800);
+        }
+
+        function closeUpdateProgressModal() {
+            const modal = document.getElementById('update-progress-modal');
+            if (modal) modal.classList.remove('show');
+            if (updateProgressPulse) clearInterval(updateProgressPulse);
+            if (updateProgressPoll) clearInterval(updateProgressPoll);
+            updateProgressPulse = null;
+            updateProgressPoll = null;
+        }
+
+        function startUpdatePolling() {
+            if (updateProgressPoll) clearInterval(updateProgressPoll);
+
+            const check = async () => {
+                try {
+                    const res = await fetch('/api/system/update/status', { cache: 'no-store' });
+                    if (!res.ok) return;
+                    const data = await res.json();
+
+                    if (data.last_error && !data.in_progress) {
+                        setUpdateProgress(updateProgressValue, `Falha: ${data.last_error}`);
+                        showToast('A atualização falhou. Verifique os logs.', 'error');
+                        if (updateProgressPulse) clearInterval(updateProgressPulse);
+                        return;
+                    }
+
+                    if (data.in_progress || data.maintenance) {
+                        setUpdateProgress(updateProgressValue, 'Aplicando atualização no ambiente HMG...');
+                        return;
+                    }
+
+                    // Finalizou com sucesso
+                    setUpdateProgress(100, 'Atualização concluída! Redirecionando para o Dashboard...');
+                    if (updateProgressPulse) clearInterval(updateProgressPulse);
+                    if (updateProgressPoll) clearInterval(updateProgressPoll);
+                    setTimeout(() => {
+                        window.location.href = '/';
+                    }, 1200);
+                } catch (e) {
+                    // Durante restart é esperado ter falha intermitente de conexão.
+                    setUpdateProgress(updateProgressValue, 'Reconectando ao servidor...');
+                }
+            };
+
+            check();
+            updateProgressPoll = setInterval(check, 2500);
+        }
+
         async function requestUpdate(event) {
             if (!confirm('O sistema entrará em modo manutenção e será reiniciado. Deseja continuar?')) return;
 
@@ -1076,6 +1171,8 @@
             const originalHtml = btn.innerHTML;
             btn.disabled = true;
             btn.innerHTML = '<span class="status-dot warning" style="display:inline-block; vertical-align:middle; margin-right:8px;"></span> Atualizando...';
+            document.getElementById('update-modal').classList.remove('show');
+            openUpdateProgressModal('Solicitação enviada. Entrando em modo manutenção...');
 
             try {
                 const res = await fetch('/api/system/update/start', {
@@ -1084,19 +1181,20 @@
                 });
                 const result = await res.json();
 
-                if (result.status === 'success') {
-                    showToast('Atualização iniciada! O sistema irá reiniciar em breve.', 'success');
-                    document.getElementById('update-modal').classList.remove('show');
-                    setTimeout(() => window.location.reload(), 8000);
+                if (result.status === 'success' || result.status === 'pending') {
+                    setUpdateProgress(18, 'Atualização em andamento. Aguarde...');
+                    startUpdatePolling();
                 } else {
+                    closeUpdateProgressModal();
                     showToast('Erro na atualização: ' + (result.error || result.message), 'error');
                     btn.disabled = false;
                     btn.innerHTML = originalHtml;
                 }
             } catch (e) {
-                showToast('Erro de conexão com o servidor de atualização.', 'error');
-                btn.disabled = false;
-                btn.innerHTML = originalHtml;
+                // Em restart do serviço a conexão pode cair. Continuamos monitorando status.
+                setUpdateProgress(18, 'Servidor reiniciando... monitorando progresso.');
+                startUpdatePolling();
+                showToast('Atualização iniciada. Aguarde a finalização automática.', 'info');
             }
         }
 
