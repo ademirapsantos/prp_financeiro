@@ -34,6 +34,18 @@ ENV_FILE = os.path.join(PROJECT_DIR, f'.env.{ENVIRONMENT}' if os.path.exists(os.
 
 os.makedirs(DATA_DIR, exist_ok=True)
 
+def _read_env_value(key):
+    if os.path.exists(ENV_FILE):
+        with open(ENV_FILE, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith('#') or '=' not in line:
+                    continue
+                k, v = line.split('=', 1)
+                if k.strip() == key:
+                    return v.strip()
+    return None
+
 def log_event(event_type, details=None):
     """Registra um evento no log JSONL."""
     log_entry = {
@@ -47,26 +59,44 @@ def log_event(event_type, details=None):
     except:
         pass
 
+def get_database_url():
+    """Resolve DATABASE_URL do ambiente atual."""
+    direct = os.getenv('DATABASE_URL')
+    if direct:
+        return direct
+    env_key = f'DATABASE_URL_{ENVIRONMENT.upper()}'
+    from_file = _read_env_value(env_key)
+    if from_file:
+        return from_file
+    return None
+
 def create_backup():
-    """Cria um backup do banco de dados SQLite."""
+    """Cria backup lógico do PostgreSQL usando pg_dump."""
     backup_dir = os.path.join(DATA_DIR, 'backups')
     os.makedirs(backup_dir, exist_ok=True)
-    
-    # Tenta descobrir o caminho do banco através do ambiente ou padrão
-    db_path = os.path.join(DATA_DIR, 'prp_financeiro.db')
-    
-    if os.path.exists(db_path):
-        timestamp = datetime.now().strftime('%Y%mm%dd_%HH%MM%SS')
-        backup_file = os.path.join(backup_dir, f'prp_financeiro_{timestamp}.db')
-        
+
+    db_url = get_database_url()
+    if db_url:
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        backup_file = os.path.join(backup_dir, f'prp_financeiro_{timestamp}.dump')
         try:
-            import shutil
-            shutil.copy2(db_path, backup_file)
+            cmd = [
+                "pg_dump",
+                "--dbname", db_url,
+                "--format=custom",
+                "--no-owner",
+                "--no-privileges",
+                "--file", backup_file,
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            if result.returncode != 0:
+                raise Exception(result.stderr or result.stdout or "pg_dump failed")
             log_event("backup_created", {"path": backup_file})
             return backup_file
         except Exception as e:
             log_event("backup_failed", {"error": str(e)})
-            # Não interrompe o update se o backup falhar, mas loga
+
+    log_event("backup_skipped", {"reason": "DATABASE_URL not configured"})
     return None
 
 def save_state(state):

@@ -7,5 +7,6 @@ gunicorn==22.0.0
 markdown==3.6
 openpyxl==3.1.2
 requests==2.32.3
+psycopg[binary]==3.2.13
 
 

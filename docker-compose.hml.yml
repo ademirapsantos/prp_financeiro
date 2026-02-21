@@ -1,6 +1,24 @@
 version: '3.8'
 
 services:
+  prp-postgres-hml:
+    image: postgres:16-alpine
+    container_name: prp-postgres-hml
+    ports:
+      - "5433:5432"
+    volumes:
+      - ./data/hml/postgres:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB_HML:-prp_financeiro}
+      - POSTGRES_USER=${POSTGRES_USER_HML:-prp_user}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD_HML:-zH23LJGicTj9SR}
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER_HML:-prp_user} -d ${POSTGRES_DB_HML:-prp_financeiro}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: always
+
   prp-financeiro-hml:
     image: ${PRP_IMAGE_HML:-ghcr.io/ademirapsantos/prp_financeiro:hml-latest}
     container_name: prp-financeiro-hml
@@ -12,12 +30,15 @@ services:
     environment:
       - FLASK_ENV=production
       - SECRET_KEY=prod_key_change_me
-      - DATABASE_PATH=/app/data/prp_financeiro.db
+      - DATABASE_URL=${DATABASE_URL_HML:-postgresql://prp_user:zH23LJGicTj9SR@prp-postgres-hml:5432/prp_financeiro}
 
       - UPDATE_TOKEN=${UPDATE_TOKEN:-prp_secure_token_2026}
       - ENVIRONMENT=hml
       - MANIFEST_BASE_URL=https://ademirapsantos.github.io/prp_financeiro
       - UPDATER_BASE_URL=http://prp-updater-hml:5005
+    depends_on:
+      prp-postgres-hml:
+        condition: service_healthy
     healthcheck:
       test: [ "CMD", "curl", "-fsS", "http://localhost:5000/health" ]
       interval: 10s
@@ -49,4 +70,6 @@ services:
       - MANIFEST_BASE_URL=https://ademirapsantos.github.io/prp_financeiro
       - GHCR_IMAGE=ghcr.io/ademirapsantos/prp_financeiro
       - PROJECT_DIR=/app
+      - DATABASE_URL=${DATABASE_URL_HML:-postgresql://prp_user:zH23LJGicTj9SR@prp-postgres-hml:5432/prp_financeiro}
     restart: always
+

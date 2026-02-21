@@ -1,6 +1,24 @@
 version: '3.8'
 
 services:
+  prp-postgres-test:
+    image: postgres:16-alpine
+    container_name: prp-postgres-test
+    ports:
+      - "5435:5432"
+    volumes:
+      - ./data/test/postgres:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB_TEST:-prp_financeiro}
+      - POSTGRES_USER=${POSTGRES_USER_TEST:-prp_user}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD_TEST:-zH23LJGicTj9SR}
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER_TEST:-prp_user} -d ${POSTGRES_DB_TEST:-prp_financeiro}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: always
+
   prp-financeiro-test:
     build: .
     container_name: prp_financeiro_test
@@ -13,7 +31,10 @@ services:
     environment:
       - FLASK_ENV=development
       - SECRET_KEY=prod_key_change_me
-      - DATABASE_PATH=/app/data/prp_financeiro.db
+      - DATABASE_URL=${DATABASE_URL_TEST:-postgresql://prp_user:zH23LJGicTj9SR@prp-postgres-test:5432/prp_financeiro}
+    depends_on:
+      prp-postgres-test:
+        condition: service_healthy
 
   prp-updater:
     build:
@@ -27,4 +48,6 @@ services:
       - .:/app
     environment:
       - UPDATE_TOKEN=prp_secure_token_2026
+      - DATABASE_URL=${DATABASE_URL_TEST:-postgresql://prp_user:zH23LJGicTj9SR@prp-postgres-test:5432/prp_financeiro}
     restart: always
+

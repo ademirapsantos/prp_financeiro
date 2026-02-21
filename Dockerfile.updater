@@ -6,6 +6,7 @@ RUN apt-get update && apt-get install -y \
     curl \
     gnupg \
     lsb-release \
+    postgresql-client \
     docker.io \
     docker-compose \
     && rm -rf /var/lib/apt/lists/*
