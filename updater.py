@@ -17,6 +17,7 @@ PROJECT_DIR = os.getenv('PROJECT_DIR', '/app')
 ENVIRONMENT = os.getenv('ENVIRONMENT', 'dev')
 MANIFEST_BASE_URL = os.getenv('MANIFEST_BASE_URL', 'https://ademirapsantos.github.io/prp_financeiro')
 GHCR_IMAGE = os.getenv('GHCR_IMAGE', 'ghcr.io/ademirapsantos/prp_financeiro')
+PROJECT_NAME = os.getenv('COMPOSE_PROJECT_NAME', 'prp_financeiro')
 
 # Caminhos de Arquivos
 DATA_DIR = os.path.join(PROJECT_DIR, 'data')
@@ -72,11 +73,12 @@ def set_env_tag(tag):
         f.writelines(lines)
 
 def run_docker_command(cmd_args):
-    """Executa comando docker compose."""
-    full_cmd = ["docker", "compose", "-f", COMPOSE_FILE] + cmd_args
+    """Executa comando docker compose com nome do projeto fixo."""
+    full_cmd = ["docker", "compose", "-p", PROJECT_NAME, "-f", COMPOSE_FILE] + cmd_args
     result = subprocess.run(full_cmd, cwd=PROJECT_DIR, capture_output=True, text=True)
     if result.returncode != 0:
-        raise Exception(f"Docker command failed: {result.stderr}")
+        error_msg = result.stderr or result.stdout
+        raise Exception(f"Docker command failed: {error_msg}")
     return result.stdout
 
 def check_container_health():
@@ -85,9 +87,9 @@ def check_container_health():
     for _ in range(20): # 20 tentativas (200s total com sleep 10)
         time.sleep(10)
         try:
-            # Pega o ID do container do serviço específico
+            # Pega o ID do container do serviço específico usando o nome do projeto
             container_id = subprocess.check_output(
-                ["docker", "compose", "-f", COMPOSE_FILE, "ps", "-q", SERVICE_NAME],
+                ["docker", "compose", "-p", PROJECT_NAME, "-f", COMPOSE_FILE, "ps", "-q", SERVICE_NAME],
                 cwd=PROJECT_DIR, text=True
             ).strip()
             
@@ -173,7 +175,7 @@ def perform_update():
         log_event("update_error", {"error": str(e)})
         if os.path.exists(LOCK_FILE):
             os.remove(LOCK_FILE)
-        return jsonify({"error": "unexpected_error", "details": str(e)}), 500
+        return jsonify({"error": "docker_compose_failed", "details": str(e)}), 500
 
 @app.route('/api/rollback', methods=['POST'])
 def manual_rollback():

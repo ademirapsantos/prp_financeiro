@@ -44,6 +44,7 @@ services:
       - UPDATE_TOKEN=${UPDATE_TOKEN}
       - COMPOSE_FILE=docker-compose.prod.yml
       - SERVICE_NAME=prp-financeiro-prod
+      - COMPOSE_PROJECT_NAME=prp_financeiro
       - ENVIRONMENT=prod
       - MANIFEST_BASE_URL=https://ademirapsantos.github.io/prp_financeiro
       - GHCR_IMAGE=ghcr.io/ademirapsantos/prp_financeiro
