@@ -1,0 +1,68 @@
+version: '3.8'
+
+services:
+  prp-postgres-prod:
+    ports: []
+    command:
+      - postgres
+      - -c
+      - shared_buffers=128MB
+      - -c
+      - effective_cache_size=256MB
+      - -c
+      - maintenance_work_mem=32MB
+      - -c
+      - work_mem=4MB
+      - -c
+      - max_connections=40
+    mem_limit: 550m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  prp-financeiro-prod:
+    command:
+      - gunicorn
+      - --bind
+      - 0.0.0.0:5000
+      - --workers
+      - "1"
+      - --threads
+      - "2"
+      - --timeout
+      - "120"
+      - --graceful-timeout
+      - "120"
+      - --keep-alive
+      - "5"
+      - --max-requests
+      - "500"
+      - --max-requests-jitter
+      - "50"
+      - --access-logfile
+      - "-"
+      - --error-logfile
+      - "-"
+      - run:app
+    environment:
+      - DATABASE_URL=${DATABASE_URL_PROD}
+    mem_limit: 350m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  prp-updater-prod:
+    image: ${UPDATER_IMAGE_PROD}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /srv/prp_financeiro/data:/app/data
+    mem_limit: 200m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"

@@ -53,3 +53,15 @@ jobs:
             ghcr.io/${{ github.repository }}:${{ env.TAG_PREFIX }}-v${{ steps.version.outputs.VERSION }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Build and push updater image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.updater
+          push: true
+          tags: |
+            ghcr.io/ademirapsantos/prp_financeiro_updater:${{ env.TAG_PREFIX }}-latest
+            ghcr.io/ademirapsantos/prp_financeiro_updater:${{ env.TAG_PREFIX }}-v${{ steps.version.outputs.VERSION }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
