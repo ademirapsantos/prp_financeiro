@@ -22,6 +22,7 @@ services:
   prp-financeiro-test:
     build: .
     container_name: prp_financeiro_test
+    command: ["gunicorn", "--bind", "0.0.0.0:5000", "--timeout", "120", "--graceful-timeout", "120", "--keep-alive", "5", "--access-logfile", "-", "--error-logfile", "-", "run:app"]
     ports:
       - "5002:5000" # Mapeia porta 5002 (Host) (Base Teste) para 5000 (Container)
     volumes:

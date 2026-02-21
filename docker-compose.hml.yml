@@ -22,6 +22,7 @@ services:
   prp-financeiro-hml:
     image: ${PRP_IMAGE_HML:-ghcr.io/ademirapsantos/prp_financeiro:hml-latest}
     container_name: prp-financeiro-hml
+    command: ["gunicorn", "--bind", "0.0.0.0:5000", "--timeout", "120", "--graceful-timeout", "120", "--keep-alive", "5", "--access-logfile", "-", "--error-logfile", "-", "run:app"]
     ports:
       - "5001:5000"
     volumes:
