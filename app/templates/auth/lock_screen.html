@@ -12,7 +12,9 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            background: linear-gradient(135deg, var(--primary-color) 0%, #1e1b4b 100%);
+            background: linear-gradient(rgba(0, 0, 0, 0.65), rgba(0, 0, 0, 0.65)),
+            url("{{ url_for('static', filename='img/bg_auth.jpg') }}") no-repeat center center fixed;
+            background-size: cover;
             margin: 0;
             height: 100vh;
             color: white;
@@ -20,8 +22,11 @@
         }
 
         .lock-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
             text-align: center;
-            width: 100%;
+            width: 90%;
             max-width: 400px;
             padding: var(--spacing-lg);
             background: rgba(255, 255, 255, 0.1);
@@ -57,6 +62,8 @@
         h2 {
             margin-bottom: 0.5rem;
             font-weight: 700;
+            color: #ffffff;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
         }
 
         p {
@@ -68,43 +75,49 @@
             width: 100%;
             display: flex;
             flex-direction: column;
-            gap: 0;
+            align-items: center;
+            gap: 1.25rem;
         }
 
         .form-control {
-            width: 100%;
-            padding: 1rem;
-            background: rgba(255, 255, 255, 0.9);
-            border: none;
-            border-radius: 10px;
-            font-size: 1.1rem;
+            width: 80%;
+            padding: 0.75rem 1rem;
+            background: #ffffff !important;
+            border: 2px solid transparent;
+            border-radius: 12px;
+            font-size: 1rem;
             text-align: center;
-            margin-bottom: var(--spacing-md);
-            color: var(--primary-color);
+            color: #000000 !important;
             box-sizing: border-box;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            transition: all 0.2s;
         }
 
         .form-control:focus {
-            outline: 3px solid var(--accent-color);
+            outline: none;
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.2);
         }
 
         .btn-unlock {
-            width: 100%;
+            width: 80%;
             padding: 0.75rem;
             font-size: 1rem;
+            font-weight: 600;
             background: var(--accent-color);
             color: white;
-            border-radius: 10px;
-            transition: transform 0.2s;
+            border-radius: 12px;
+            transition: all 0.2s;
             border: none;
             cursor: pointer;
             box-sizing: border-box;
-            margin-top: 0.5rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2);
         }
 
         .btn-unlock:hover {
-            transform: scale(1.02);
-            background: #15803d;
+            transform: translateY(-2px);
+            background: #059669;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
         }
 
         .logout-link {
@@ -150,11 +163,10 @@
             {{ user.nome[:1].upper() }}
         </div>
         <h2>{{ user.nome }}</h2>
-        <p>{{ user.email }}</p>
 
-        <form method="POST">
-            <input type="password" name="password" class="form-control" placeholder="Digite sua senha para desbloquear"
-                required autofocus>
+        <form id="lock-form" method="POST">
+            <input type="password" id="unlock-password" name="password" class="form-control"
+                placeholder="Digite sua senha para desbloquear" required autofocus>
             <button type="submit" class="btn btn-unlock">Desbloquear</button>
         </form>
 
@@ -162,6 +174,14 @@
     </div>
 
     <script>
+        // Enviar formulário ao pressionar Enter
+        document.getElementById('unlock-password').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                document.getElementById('lock-form').submit();
+            }
+        });
+
         function showToast(message, type = 'info') {
             const container = document.getElementById('toast-container');
             const toast = document.createElement('div');

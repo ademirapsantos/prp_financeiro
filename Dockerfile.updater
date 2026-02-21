@@ -1,0 +1,27 @@
+FROM python:3.11-slim
+
+# Instalar Docker CLI e Docker Compose
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    curl \
+    gnupg \
+    lsb-release \
+    postgresql-client \
+    docker.io \
+    docker-compose \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY requirements_updater.txt .
+RUN pip install -r requirements_updater.txt
+
+COPY updater.py .
+COPY docker-compose.prod.yml .
+COPY docker-compose.prod.override.yml .
+COPY alembic.ini .
+COPY migrations ./migrations
+
+EXPOSE 5005
+
+CMD ["python", "updater.py"]

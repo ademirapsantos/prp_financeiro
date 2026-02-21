@@ -1,7 +1,7 @@
 import sqlite3
 import os
 
-db_path = 'prp_financeiro.db'
+db_path = 'data/prp_financeiro.db'
 if not os.path.exists(db_path):
     print(f"Erro: Banco não encontrado em {os.path.abspath(db_path)}")
     exit(1)

@@ -11,6 +11,8 @@ RUN apt-get update && apt-get install -y \
     python3 \
     python3-pip \
     python3-dev \
+    curl \
+    postgresql-client \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
@@ -31,4 +33,5 @@ COPY . .
 EXPOSE 5000
 
 # Comando para iniciar a aplicação com Gunicorn
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "run:app"]
+# Timeout explícito para evitar abortos prematuros de worker em operações lentas.
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--timeout", "120", "--graceful-timeout", "120", "--keep-alive", "5", "--access-logfile", "-", "--error-logfile", "-", "run:app"]

@@ -33,6 +33,14 @@
             <li><a href="{{ url_for('ativos.lista') }}"
                     class="{{ 'active' if 'ativos' in request.endpoint else '' }}">Ativos</a></li>
         </ul>
+        <div class="sidebar-footer"
+            style="padding: 1.5rem; border-top: 1px solid var(--border-color); margin-top: auto;">
+            <p class="text-muted" style="font-size: 0.75rem; margin: 0; opacity: 0.8;">
+                PRP Financeiro &copy; 2026<br>
+                Versão: <strong>{{ APP_VERSION }}</strong>
+                <span class="env-badge env-{{ APP_ENV_CODE }}" style="margin-left: 0.35rem;">{{ APP_ENV_LABEL }}</span>
+            </p>
+        </div>
     </nav>
 
     <main class="main-content">
@@ -44,26 +52,53 @@
                 <div class="notification-wrapper">
                     <button class="icon-btn" id="notif-btn">
                         <span class="icon">🔔</span>
-                        {% if notificacoes_alert %}
-                        <span class="notification-badge">{{ notificacoes_alert|length }}</span>
+                        {% set total_notifs = notificacoes_alert|length + notificacoes_sistema|length %}
+                        {% if total_notifs > 0 %}
+                        <span class="notification-badge">{{ total_notifs }}</span>
                         {% endif %}
                     </button>
                     <div class="notification-dropdown" id="notif-dropdown">
                         <div class="dropdown-header">Notificações</div>
                         <ul class="notification-list">
+                            {% for n in notificacoes_sistema %}
+                            <li id="notif-item-{{ n.id }}"
+                                onclick="handleSystemNotif('{{ n.id }}', '{{ n.tipo }}', {{ n.payload_json or 'null' }})"
+                                style="cursor: pointer;">
+                                <div class="notif-item">
+                                    <div
+                                        style="display: flex; justify-content: space-between; align-items: flex-start;">
+                                        <strong>{{ n.titulo }}</strong>
+                                        <small>{{ n.criada_em.strftime('%d/%m %H:%M') }}</small>
+                                    </div>
+                                    <small>{{ n.mensagem }}</small>
+                                </div>
+                            </li>
+                            {% endfor %}
+
+                            {% if notificacoes_sistema and notificacoes_alert %}
+                            <div class="dropdown-divider"></div>
+                            {% endif %}
+
                             {% for n in notificacoes_alert %}
                             <li onclick="openTituloActionModal('{{ n.id }}')" style="cursor: pointer;">
                                 <div class="notif-item">
                                     <strong>{{ n.descricao }}</strong><br>
-                                    <small>Vencimento: {{ n.data_vencimento.strftime('%d/%m/%Y') }}</small>
-                                    <span class="notif-valor"
-                                        style="color: {{ '#16a34a' if n.tipo == 'Receber' or n.tipo == 1 else '#dc2626' }};">
-                                        R$ {{ n.valor }}
-                                    </span>
+                                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                                        <small>Vencimento: {{ n.data_vencimento.strftime('%d/%m/%Y') }}</small>
+                                        <span class="notif-valor"
+                                            style="color: {{ '#16a34a' if n.tipo == 'Receber' or n.tipo == 1 else '#dc2626' }};">
+                                            R$ {{ n.valor }}
+                                        </span>
+                                    </div>
                                 </div>
                             </li>
                             {% else %}
-                            <li class="empty-notif">Nenhuma notificação urgente.</li>
+                            {% if not notificacoes_sistema %}
+                            <li class="empty-notif"
+                                style="padding: 1rem; text-align: center; color: var(--text-muted); font-size: 0.9rem;">
+                                Nenhuma notificação nova.
+                            </li>
+                            {% endif %}
                             {% endfor %}
                         </ul>
                     </div>
@@ -71,6 +106,7 @@
 
                 <div class="user-menu-wrapper">
                     <button class="user-btn" id="user-menu-btn">
+                        <span class="env-badge env-{{ APP_ENV_CODE }}">{{ APP_ENV_LABEL }}</span>
                         <div class="user-avatar-mini">{{ current_user.nome[0] | upper if current_user.nome else 'U' }}
                         </div>
                         <span class="user-name">{{ current_user.nome if current_user.nome else 'Usuário' }}</span>
@@ -186,6 +222,38 @@
 
         <!-- Configurações Modal -->
         <style>
+            .env-badge {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                min-width: 40px;
+                padding: 0.15rem 0.5rem;
+                border-radius: 999px;
+                font-size: 0.68rem;
+                font-weight: 700;
+                letter-spacing: 0.04em;
+                border: 1px solid transparent;
+                line-height: 1.2;
+            }
+
+            .env-dev {
+                background: #eef2ff;
+                color: #3730a3;
+                border-color: #c7d2fe;
+            }
+
+            .env-hmg {
+                background: #fffbeb;
+                color: #92400e;
+                border-color: #fde68a;
+            }
+
+            .env-prod {
+                background: #ecfdf5;
+                color: #065f46;
+                border-color: #a7f3d0;
+            }
+
             .settings-tabs {
                 display: flex;
                 gap: 1rem;
@@ -323,7 +391,7 @@
                         <button class="tab-btn" data-tab="tab-users"
                             onclick="switchSettingsTab('tab-users')">Usuários</button>
                         <button class="tab-btn" data-tab="tab-backup" onclick="switchSettingsTab('tab-backup')">Backup
-                            de Dados</button>
+                            PostgreSQL</button>
                     </div>
 
                     <!-- Aba SMTP -->
@@ -429,33 +497,76 @@
 
                         <div
                             style="background: #f8fafc; padding: 1.5rem; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 2rem;">
-                            <h4 style="margin-top: 0; color: var(--text-main); margin-bottom: 0.5rem;">Exportar Dados
+                            <h4 style="margin-top: 0; color: var(--text-main); margin-bottom: 0.5rem;">Gerar Backup
+                                PostgreSQL
                             </h4>
                             <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.5rem;">Gera um
-                                arquivo CSV
-                                contendo todos os registros de todas as tabelas do sistema (Usuários, Títulos,
-                                Lançamentos, etc.).</p>
-                            <button class="btn btn-success" onclick="downloadBackup()">Baixar Backup (CSV)</button>
+                                arquivo no formato nativo do PostgreSQL (.backup), contendo estrutura e dados de
+                                todas as tabelas do sistema.</p>
+                            <button type="button" class="btn btn-success" onclick="downloadBackup(event)">Gerar Backup PostgreSQL
+                                (.backup)</button>
                         </div>
 
                         <div
                             style="background: var(--bg-muted); padding: 1.5rem; border-radius: 8px; border: 1px solid var(--danger-color); opacity: 0.9;">
                             <h4 style="margin-top: 0; color: var(--danger-color); margin-bottom: 0.5rem;">Restaurar
-                                Dados</h4>
+                                Backup PostgreSQL</h4>
                             <p style="color: #742a2a; font-size: 0.9rem; margin-bottom: 1.5rem;">
                                 <strong>ATENÇÃO:</strong> O
                                 processo de restauração irá <strong>APAGAR TODOS OS DADOS ATUAIS</strong> e
                                 substituí-los
-                                pelo conteúdo do arquivo de backup.
+                                pelo conteúdo do arquivo de backup PostgreSQL (.backup ou .dump).
                             </p>
 
                             <div style="display: flex; gap: 1rem; align-items: center;">
-                                <input type="file" id="restore-file" accept=".csv" class="form-control"
+                                <input type="file" id="restore-file" accept=".backup,.dump,application/octet-stream"
+                                    class="form-control"
                                     style="flex-grow: 1;">
-                                <button class="btn btn-danger" onclick="performRestore()">Executar Restore</button>
+                                <button type="button" class="btn btn-danger" onclick="performRestore(event)">Restaurar Backup</button>
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal de Atualização -->
+        <div id="update-modal" class="modal">
+            <div class="modal-content" style="max-width: 450px; text-align: center; padding: 2rem;">
+                <div style="font-size: 3rem; color: var(--accent-color); margin-bottom: 1rem;">🚀</div>
+                <h2 style="margin-bottom: 0.5rem;">Nova Versão Disponível!</h2>
+                <p style="color: var(--text-muted); margin-bottom: 1.5rem;">
+                    Uma nova atualização do <strong>PRP Financeiro</strong> está pronta para ser instalada.
+                    <br><span class="badge badge-primary" id="new-version-tag"
+                        style="font-size: 1rem; margin-top: 0.5rem;">v0.0.0</span>
+                </p>
+                <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                    <button class="btn btn-primary btn-block py-2 font-weight-bold" onclick="requestUpdate()">
+                        <i class="fas fa-download mr-2"></i>Atualizar Agora
+                    </button>
+                    <button class="btn btn-link py-2" onclick="ignoreUpdate()" style="color: var(--text-muted);">
+                        Lembrar mais tarde
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal de Progresso da Atualização -->
+        <div id="update-progress-modal" class="modal">
+            <div class="modal-content" style="max-width: 520px; text-align: center; padding: 2rem;">
+                <div style="font-size: 2.3rem; margin-bottom: 0.75rem;">⚙️</div>
+                <h2 id="update-progress-title" style="margin-bottom: 0.5rem;">Atualizando Ambiente</h2>
+                <p id="update-progress-text" style="color: var(--text-muted); margin-bottom: 1.25rem;">
+                    Preparando atualização...
+                </p>
+
+                <div style="width: 100%; background: var(--bg-muted); border: 1px solid var(--border-color); border-radius: 10px; overflow: hidden; margin-bottom: 0.5rem;">
+                    <div id="update-progress-bar" style="height: 12px; width: 8%; background: linear-gradient(90deg, #3b82f6, #06b6d4); transition: width 0.5s ease;"></div>
+                </div>
+                <div id="update-progress-percent" style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">8%</div>
+
+                <div id="update-progress-log" style="font-size: 0.85rem; color: var(--text-muted); min-height: 1.2rem;">
+                    Aguardando resposta do servidor...
                 </div>
             </div>
         </div>
@@ -509,57 +620,63 @@
         const notifBtn = document.getElementById('notif-btn');
         const notifDropdown = document.getElementById('notif-dropdown');
 
-        userBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            userDropdown.classList.toggle('show');
-            notifDropdown.classList.remove('show');
-        });
+        if (userBtn && userDropdown && notifBtn && notifDropdown) {
+            userBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                userDropdown.classList.toggle('show');
+                notifDropdown.classList.remove('show');
+            });
 
-        notifBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            notifDropdown.classList.toggle('show');
-            userDropdown.classList.remove('show');
-        });
+            notifBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                notifDropdown.classList.toggle('show');
+                userDropdown.classList.remove('show');
+            });
 
-        document.addEventListener('click', () => {
-            userDropdown.classList.remove('show');
-            notifDropdown.classList.remove('show');
-        });
+            document.addEventListener('click', () => {
+                userDropdown.classList.remove('show');
+                notifDropdown.classList.remove('show');
+            });
 
-        [userDropdown, notifDropdown].forEach(d => {
-            d.addEventListener('click', (e) => e.stopPropagation());
-        });
+            [userDropdown, notifDropdown].forEach(d => {
+                d.addEventListener('click', (e) => e.stopPropagation());
+            });
+        }
 
         // Profile Modal Logic
         const profileModal = document.getElementById('profile-modal');
         const openProfileBtn = document.getElementById('open-profile-btn');
         const closeProfileBtn = document.getElementById('close-profile-btn');
 
-        openProfileBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            profileModal.classList.add('show');
-            userDropdown.classList.remove('show');
-        });
+        if (openProfileBtn && closeProfileBtn && profileModal) {
+            openProfileBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                profileModal.classList.add('show');
+                if (userDropdown) userDropdown.classList.remove('show');
+            });
 
-        closeProfileBtn.addEventListener('click', () => {
-            profileModal.classList.remove('show');
-        });
+            closeProfileBtn.addEventListener('click', () => {
+                profileModal.classList.remove('show');
+            });
+        }
 
         // Settings Modal Logic
         const settingsModal = document.getElementById('settings-modal');
         const openSettingsBtn = document.getElementById('open-settings-btn');
         const closeSettingsBtn = document.getElementById('close-settings-btn');
 
-        openSettingsBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            loadSettings();
-            settingsModal.classList.add('show');
-            userDropdown.classList.remove('show');
-        });
+        if (openSettingsBtn && closeSettingsBtn && settingsModal) {
+            openSettingsBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                loadSettings();
+                settingsModal.classList.add('show');
+                if (userDropdown) userDropdown.classList.remove('show');
+            });
 
-        closeSettingsBtn.addEventListener('click', () => {
-            settingsModal.classList.remove('show');
-        });
+            closeSettingsBtn.addEventListener('click', () => {
+                settingsModal.classList.remove('show');
+            });
+        }
 
         window.addEventListener('click', (e) => {
             if (e.target === profileModal) {
@@ -612,8 +729,8 @@
                 .then(res => res.json())
                 .then(data => {
                     tbody.innerHTML = '';
-                    const currentUserId = {% print current_user.id or 'null' %};
-            const isAdmin = {% print 'true' if current_user.is_admin else 'false' %};
+                    const currentUserId = {{ (current_user.id if current_user.is_authenticated else none) | tojson }};
+            const isAdmin = {{ (current_user.is_admin if current_user.is_authenticated else false) | tojson }};
 
         data.users.forEach(user => {
             const tr = document.createElement('tr');
@@ -621,7 +738,7 @@
 
             let actionsHtml = '';
             if (isAdmin && user.id !== currentUserId) {
-                actionsHtml = `<button class="btn-resend" onclick="resendPassword(${user.id}, '${user.nome}')" title="Reenviar Senha">Reenviar Senha</button> <button class="btn-delete" onclick="deleteUser(${user.id}, '${user.nome}')" title="Excluir Usuário">Excluir</button>`;
+                actionsHtml = `<button class="btn-resend" onclick='resendPassword(${JSON.stringify(user.id)}, ${JSON.stringify(user.nome)})' title="Reenviar Senha">Reenviar Senha</button> <button class="btn-delete" onclick='deleteUser(${JSON.stringify(user.id)}, ${JSON.stringify(user.nome)})' title="Excluir Usuário">Excluir</button>`;
             } else if (user.id === currentUserId) {
                 actionsHtml = '<small class="text-muted">Você</small>';
             }
@@ -753,19 +870,63 @@
         }
 
         // --- Lógica de Backup ---
-        function downloadBackup() {
-            window.location.href = '{{ url_for("auth.export_backup") }}';
+        function downloadBackup(event) {
+            if (event) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+            fetch('{{ url_for("auth.export_backup") }}', {
+                method: 'GET'
+            })
+                .then(async (res) => {
+                    if (!res.ok) {
+                        let msg = 'Erro ao gerar backup PostgreSQL.';
+                        try {
+                            const data = await res.json();
+                            if (data && data.message) {
+                                msg = data.message.includes('pg_dump')
+                                    ? 'Falha ao gerar backup: pg_dump não encontrado no servidor.'
+                                    : data.message;
+                            }
+                        } catch (_) { }
+                        throw new Error(msg);
+                    }
+
+                    const blob = await res.blob();
+                    const disposition = res.headers.get('Content-Disposition') || '';
+                    let filename = `backup_prp_${new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)}.backup`;
+                    const match = disposition.match(/filename="?([^"]+)"?/i);
+                    if (match && match[1]) filename = match[1];
+
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    window.URL.revokeObjectURL(url);
+                    showToast('Backup PostgreSQL gerado com sucesso.', 'success');
+                })
+                .catch((err) => {
+                    showToast(err.message || 'Erro ao gerar backup PostgreSQL.', 'error');
+                });
+            return false;
         }
 
-        function performRestore() {
+        function performRestore(event) {
+            if (event) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
             const fileInput = document.getElementById('restore-file');
             if (fileInput.files.length === 0) {
-                showToast("Selecione um arquivo CSV para restaurar.", "warning");
-                return;
+                showToast("Selecione um arquivo de backup PostgreSQL (.backup ou .dump).", "warning");
+                return false;
             }
 
             if (!confirm("CONFIRMAÇÃO CRÍTICA: Deseja realmente APAGAR TUDO e restaurar os dados deste arquivo? Esta ação não pode ser desfeita.")) {
-                return;
+                return false;
             }
 
             const formData = new FormData();
@@ -790,6 +951,7 @@
                     console.error(err);
                     showToast("Erro técnico ao restaurar dados.", "error");
                 });
+            return false;
         }
 
         // --- Lógica do Modal de Ações de Título ---
@@ -919,6 +1081,245 @@
                 })
                 .catch(err => console.error('Erro ao chamar API de tema:', err));
         }
+    </script>
+    <!-- Lógica de Atualização -->
+    <script>
+        async function checkUpdate() {
+            const currentVersion = "{{ app_version }}";
+            const ignoredVersion = localStorage.getItem('ignored_version');
+
+            try {
+                const response = await fetch('/api/system/latest');
+                const data = await response.json();
+
+                if (data.maintenance) {
+                    window.location.reload();
+                    return;
+                }
+
+                if (data.is_new && data.latest_version !== ignoredVersion) {
+                    document.getElementById('new-version-tag').innerText = 'v' + data.latest_version;
+                    document.getElementById('update-modal').classList.add('show');
+
+                    // Guardar payload globalmente para "Mais Tarde"
+                    window.latestUpdate = data;
+                }
+            } catch (e) {
+                console.error('Falha ao checar atualização', e);
+            }
+        }
+
+        async function ignoreUpdate() {
+            const version = document.getElementById('new-version-tag').innerText.replace('v', '');
+
+            // Persistir no DB como notificação se clicar em "Mais Tarde"
+            if (window.latestUpdate) {
+                try {
+                    const res = await fetch('/api/notifications', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            tipo: 'UPDATE_AVAILABLE',
+                            titulo: 'Atualização Disponível',
+                            mensagem: `A versão v${window.latestUpdate.latest_version} está disponível. Clique para atualizar.`,
+                            payload: window.latestUpdate
+                        })
+                    });
+                    const data = await res.json();
+
+                    if (data.status === 'success') {
+                        // Atualizar sino em real-time
+                        const notifList = document.querySelector('.notification-list');
+                        const emptyItem = notifList.querySelector('.empty-notif');
+                        if (emptyItem) emptyItem.remove();
+
+                        const newItem = document.createElement('li');
+                        newItem.id = `notif-item-${data.id}`;
+                        newItem.style.cursor = 'pointer';
+
+                        // Usar event listener para evitar problemas de aspas com JSON.stringify
+                        const currentUpdate = { ...window.latestUpdate };
+                        newItem.addEventListener('click', () => {
+                            handleSystemNotif(data.id, 'UPDATE_AVAILABLE', currentUpdate);
+                        });
+
+                        newItem.innerHTML = `
+                            <div class="notif-item">
+                                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                                    <strong>Atualização Disponível</strong>
+                                    <small>agora</small>
+                                </div>
+                                <small>A versão v${currentUpdate.latest_version} está disponível. Clique para atualizar.</small>
+                            </div>
+                        `;
+
+                        // Inserir no topo (seção sistema)
+                        notifList.prepend(newItem);
+
+                        // Atualizar badge
+                        const badgeCountEl = document.querySelector('.notification-badge');
+                        if (badgeCountEl) {
+                            badgeCountEl.innerText = parseInt(badgeCountEl.innerText) + 1;
+                        } else {
+                            const wrapper = document.querySelector('.notification-wrapper button');
+                            const newBadge = document.createElement('span');
+                            newBadge.className = 'notification-badge';
+                            newBadge.innerText = '1';
+                            wrapper.appendChild(newBadge);
+                        }
+                    }
+                } catch (e) { console.error('Erro ao salvar notificação', e); }
+            }
+
+            localStorage.setItem('ignored_version', version);
+            document.getElementById('update-modal').classList.remove('show');
+            showToast('Lembrete salvo nas notificações.', 'info');
+        }
+
+        let updateProgressValue = 8;
+        let updateProgressPulse = null;
+        let updateProgressPoll = null;
+
+        function setUpdateProgress(value, message) {
+            updateProgressValue = Math.max(0, Math.min(100, value));
+            const bar = document.getElementById('update-progress-bar');
+            const pct = document.getElementById('update-progress-percent');
+            const log = document.getElementById('update-progress-log');
+            if (bar) bar.style.width = `${updateProgressValue}%`;
+            if (pct) pct.innerText = `${Math.round(updateProgressValue)}%`;
+            if (message && log) log.innerText = message;
+        }
+
+        function openUpdateProgressModal(initialMessage = 'Iniciando atualização...') {
+            const modal = document.getElementById('update-progress-modal');
+            setUpdateProgress(8, initialMessage);
+            if (modal) modal.classList.add('show');
+
+            if (updateProgressPulse) clearInterval(updateProgressPulse);
+            updateProgressPulse = setInterval(() => {
+                // Progresso visual até 95% enquanto aguardamos confirmação final.
+                if (updateProgressValue < 95) {
+                    setUpdateProgress(updateProgressValue + 2);
+                }
+            }, 1800);
+        }
+
+        function closeUpdateProgressModal() {
+            const modal = document.getElementById('update-progress-modal');
+            if (modal) modal.classList.remove('show');
+            if (updateProgressPulse) clearInterval(updateProgressPulse);
+            if (updateProgressPoll) clearInterval(updateProgressPoll);
+            updateProgressPulse = null;
+            updateProgressPoll = null;
+        }
+
+        function startUpdatePolling() {
+            if (updateProgressPoll) clearInterval(updateProgressPoll);
+
+            const check = async () => {
+                try {
+                    const res = await fetch('/api/system/update/status', { cache: 'no-store' });
+                    if (!res.ok) return;
+                    const data = await res.json();
+
+                    if (data.last_error && !data.in_progress) {
+                        setUpdateProgress(updateProgressValue, `Falha: ${data.last_error}`);
+                        showToast('A atualização falhou. Verifique os logs.', 'error');
+                        if (updateProgressPulse) clearInterval(updateProgressPulse);
+                        return;
+                    }
+
+                    if (data.in_progress || data.maintenance) {
+                        setUpdateProgress(updateProgressValue, 'Aplicando atualização no ambiente HMG...');
+                        return;
+                    }
+
+                    // Finalizou com sucesso
+                    setUpdateProgress(100, 'Atualização concluída! Redirecionando para o Dashboard...');
+                    if (updateProgressPulse) clearInterval(updateProgressPulse);
+                    if (updateProgressPoll) clearInterval(updateProgressPoll);
+                    setTimeout(() => {
+                        window.location.href = '/';
+                    }, 1200);
+                } catch (e) {
+                    // Durante restart é esperado ter falha intermitente de conexão.
+                    setUpdateProgress(updateProgressValue, 'Reconectando ao servidor...');
+                }
+            };
+
+            check();
+            updateProgressPoll = setInterval(check, 2500);
+        }
+
+        async function requestUpdate(event) {
+            if (!confirm('O sistema entrará em modo manutenção e será reiniciado. Deseja continuar?')) return;
+
+            const btn = event ? event.target.closest('button') : document.querySelector('#update-modal .btn-primary');
+            const originalHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="status-dot warning" style="display:inline-block; vertical-align:middle; margin-right:8px;"></span> Atualizando...';
+            document.getElementById('update-modal').classList.remove('show');
+            openUpdateProgressModal('Solicitação enviada. Entrando em modo manutenção...');
+
+            try {
+                const res = await fetch('/api/system/update/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const result = await res.json();
+
+                if (result.status === 'success' || result.status === 'pending') {
+                    setUpdateProgress(18, 'Atualização em andamento. Aguarde...');
+                    startUpdatePolling();
+                } else {
+                    closeUpdateProgressModal();
+                    showToast('Erro na atualização: ' + (result.error || result.message), 'error');
+                    btn.disabled = false;
+                    btn.innerHTML = originalHtml;
+                }
+            } catch (e) {
+                // Em restart do serviço a conexão pode cair. Continuamos monitorando status.
+                setUpdateProgress(18, 'Servidor reiniciando... monitorando progresso.');
+                startUpdatePolling();
+                showToast('Atualização iniciada. Aguarde a finalização automática.', 'info');
+            }
+        }
+
+        function handleSystemNotif(id, tipo, payload) {
+            if (tipo === 'UPDATE_AVAILABLE') {
+                // Se recebemos payload (item real-time ou do DB), usamos ele
+                if (payload) {
+                    localStorage.removeItem('ignored_version');
+                    document.getElementById('new-version-tag').innerText = 'v' + (payload.version || payload.latest_version);
+                    document.getElementById('update-modal').classList.add('show');
+                    window.latestUpdate = payload;
+                } else {
+                    // Fallback para comportamento de force-check
+                    localStorage.removeItem('ignored_version');
+                    checkUpdate();
+                }
+            }
+            // Marcar como lida
+            fetch(`/api/notifications/${id}/read`, { method: 'POST' })
+                .then(() => {
+                    const item = document.getElementById(`notif-item-${id}`) || document.querySelector(`li[onclick*="'${id}'"]`);
+                    if (item) {
+                        item.remove();
+                        // Decrementar badge
+                        const badge = document.querySelector('.notification-badge');
+                        if (badge) {
+                            const newCount = parseInt(badge.innerText) - 1;
+                            if (newCount > 0) badge.innerText = newCount;
+                            else badge.remove();
+                        }
+                    }
+                });
+        }
+
+        // Check no load
+        document.addEventListener('DOMContentLoaded', () => {
+            checkUpdate();
+        });
     </script>
 </body>
 

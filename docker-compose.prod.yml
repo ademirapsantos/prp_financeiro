@@ -1,0 +1,78 @@
+version: '3.8'
+
+services:
+  prp-postgres-prod:
+    image: postgres:16-alpine
+    container_name: prp-postgres-prod
+    volumes:
+      - /srv/prp_financeiro/postgres:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB_PROD}
+      - POSTGRES_USER=${POSTGRES_USER_PROD}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD_PROD}
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER_PROD} -d ${POSTGRES_DB_PROD}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: always
+
+  prp-financeiro-prod:
+    image: ${PRP_IMAGE_PROD}
+    container_name: prp-financeiro-prod
+    command: ["gunicorn", "--bind", "0.0.0.0:5000", "--timeout", "120", "--graceful-timeout", "120", "--keep-alive", "5", "--access-logfile", "-", "--error-logfile", "-", "run:app"]
+    ports:
+      - "5000:5000"
+    volumes:
+      - /srv/prp_financeiro/data:/app/data
+      - ./manifests:/app/manifests:ro
+    environment:
+      - FLASK_ENV=production
+      - SECRET_KEY=${SECRET_KEY}
+      - DATABASE_URL=${DATABASE_URL_PROD}
+      - MAINTENANCE_MODE=false
+      - UPDATE_TOKEN=${UPDATE_TOKEN}
+      - ENVIRONMENT=prod
+      - MANIFEST_BASE_URL=https://ademirapsantos.github.io/prp_financeiro
+      - UPDATER_BASE_URL=http://prp-updater-prod:5005
+    depends_on:
+      prp-postgres-prod:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "curl", "-fsS", "http://localhost:5000/health" ]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    restart: always
+
+  prp-updater-prod:
+    image: ${UPDATER_IMAGE_PROD}
+    container_name: prp-updater-prod
+    ports:
+      - "5025:5005"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /srv/prp_financeiro/data:/app/data
+    networks:
+      default:
+        aliases:
+          - prp-updater
+    environment:
+      - UPDATE_TOKEN=${UPDATE_TOKEN}
+      - COMPOSE_FILE=docker-compose.prod.yml
+      - SERVICE_NAME=prp-financeiro-prod
+      - COMPOSE_PROJECT_NAME=prp_financeiro
+      - ENVIRONMENT=prod
+      - MANIFEST_BASE_URL=https://ademirapsantos.github.io/prp_financeiro
+      - GHCR_IMAGE=ghcr.io/ademirapsantos/prp_financeiro
+      - PROJECT_DIR=/app
+      - PRP_IMAGE_PROD=${PRP_IMAGE_PROD}
+      - UPDATER_IMAGE_PROD=${UPDATER_IMAGE_PROD}
+      - POSTGRES_DB_PROD=${POSTGRES_DB_PROD}
+      - POSTGRES_USER_PROD=${POSTGRES_USER_PROD}
+      - POSTGRES_PASSWORD_PROD=${POSTGRES_PASSWORD_PROD}
+      - SECRET_KEY=${SECRET_KEY}
+      - DATABASE_URL_PROD=${DATABASE_URL_PROD}
+      - DATABASE_URL=${DATABASE_URL_PROD}
+    restart: always
+

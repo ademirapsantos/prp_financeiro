@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manutenção - PRP Financeiro</title>
+    <style>
+        :root {
+            --bg: #f8fafc;
+            --text: #1e293b;
+            --primary: #2563eb;
+        }
+
+        [data-theme="dark"] {
+            --bg: #0f172a;
+            --text: #f8fafc;
+            --primary: #3b82f6;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            text-align: center;
+        }
+
+        .container {
+            max-width: 500px;
+            padding: 2rem;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+        }
+
+        p {
+            font-size: 1.1rem;
+            opacity: 0.8;
+            line-height: 1.6;
+        }
+
+        .icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            display: block;
+        }
+
+        .loader {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border-left-color: var(--primary);
+            animation: spin 1s linear infinite;
+            margin: 2rem auto;
+        }
+
+        .progress-wrap {
+            width: 100%;
+            max-width: 420px;
+            margin: 1rem auto 0.5rem;
+            background: rgba(148, 163, 184, 0.2);
+            border: 1px solid rgba(148, 163, 184, 0.35);
+            border-radius: 999px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 10px;
+            width: 8%;
+            background: linear-gradient(90deg, #2563eb, #06b6d4);
+            transition: width 0.5s ease;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <span class="icon">⚙️</span>
+        <h1>Sistema em Atualização</h1>
+        <p>Estamos aplicando melhorias e migrações de banco de dados para garantir o melhor desempenho. O sistema
+            voltará em instantes.</p>
+        <p id="update-status-text">Aguardando resposta do servidor...</p>
+        <div class="loader"></div>
+        <div class="progress-wrap">
+            <div id="progress-bar" class="progress-bar"></div>
+        </div>
+        <p id="progress-text" style="font-size: 0.85rem; opacity: 0.8;">8%</p>
+        <div id="error-container"
+            style="display: none; margin-top: 2rem; padding: 1rem; background: rgba(220, 38, 38, 0.1); border: 1px solid #dc2626; border-radius: 8px;">
+            <p style="color: #dc2626; font-weight: bold; margin-bottom: 0.5rem;">Ocorreu um problema:</p>
+            <p id="error-message" style="font-family: monospace; font-size: 0.85rem; opacity: 1;"></p>
+            <button onclick="window.location.reload()"
+                style="margin-top: 1rem; padding: 0.5rem 1rem; background: var(--primary); color: white; border: none; border-radius: 4px; cursor: pointer;">Tentar
+                Novamente</button>
+        </div>
+        <p style="font-size: 0.9rem; margin-top: 2rem;">Por favor, não recarregue a página febrilmente.</p>
+    </div>
+    <script>
+        const statusEl = document.getElementById('update-status-text');
+        const progressBar = document.getElementById('progress-bar');
+        const progressText = document.getElementById('progress-text');
+        const errorEl = document.getElementById('error-container');
+        const errorMsgEl = document.getElementById('error-message');
+        let progress = 8;
+
+        const pulse = setInterval(() => {
+            if (progress < 95) {
+                progress += 2;
+                progressBar.style.width = progress + '%';
+                progressText.innerText = `${progress}%`;
+            }
+        }, 1800);
+
+        // Check cada 5 segundos se saiu da manutenção
+        const poll = setInterval(async () => {
+            try {
+                const res = await fetch('/api/system/update/status');
+                if (!res.ok) {
+                    // Se der erro 503 aqui, pode ser que o app ainda esteja subindo
+                    return;
+                }
+                const data = await res.json();
+
+                // Se saiu da manutenção, redireciona
+                if (!data.maintenance) {
+                    clearInterval(poll);
+                    clearInterval(pulse);
+                    progressBar.style.width = '100%';
+                    progressText.innerText = '100%';
+                    statusEl.innerText = 'Atualização concluída! Redirecionando...';
+                    setTimeout(() => {
+                        window.location.href = '/';
+                    }, 1000);
+                    return;
+                }
+
+                // Se tem erro, mostra na tela
+                if (data.last_error) {
+                    if (errorEl) {
+                        errorEl.style.display = 'block';
+                        errorMsgEl.innerText = data.last_error;
+                    }
+                }
+            } catch (e) {
+                console.error("Erro no polling de status:", e);
+            }
+        }, 5000);
+    </script>
+</body>
+
+</html>

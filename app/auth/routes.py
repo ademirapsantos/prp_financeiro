@@ -1,13 +1,42 @@
-from flask import render_template, redirect, url_for, flash, request, session, current_app
+from flask import render_template, redirect, url_for, flash, request, session, current_app, send_file
+import os
+import subprocess
+import tempfile
+import shutil
 from flask_login import login_user, logout_user, login_required, current_user
 from . import auth_bp
 from ..models import User, db, Configuracao, ContaContabil, LivroDiario, PartidaDiario, Entidade, Ativo, Titulo, TransacaoFinanceira, ConfiguracaoSMTP
-import csv
 import io
-from datetime import datetime, date
+from datetime import datetime
 from decimal import Decimal
 import secrets
 import string
+
+def _resolve_pg_bin(binary_name):
+    """
+    Resolve caminho do binário pg_dump/pg_restore.
+    Prioridade:
+    1) variável de ambiente explícita (PG_DUMP_BIN / PG_RESTORE_BIN)
+    2) PATH do sistema (shutil.which)
+    3) caminhos comuns do Windows (Program Files/PostgreSQL/*/bin)
+    """
+    env_key = 'PG_DUMP_BIN' if binary_name == 'pg_dump' else 'PG_RESTORE_BIN'
+    explicit = os.getenv(env_key)
+    if explicit:
+        return explicit
+
+    found = shutil.which(binary_name)
+    if found:
+        return found
+
+    if os.name == 'nt':
+        program_files = os.getenv('ProgramFiles', r'C:\Program Files')
+        for version in ('18', '17', '16', '15', '14', '13', '12'):
+            candidate = os.path.join(program_files, 'PostgreSQL', version, 'bin', f'{binary_name}.exe')
+            if os.path.exists(candidate):
+                return candidate
+
+    raise FileNotFoundError(f'{binary_name} não encontrado no servidor.')
 
 def refresh_mail_config():
     """Atualiza as configurações do Flask-Mail e da instância global mail."""
@@ -328,7 +357,7 @@ def add_user():
         "message": message
     }
 
-@auth_bp.route('/api/users/<int:user_id>/delete', methods=['POST', 'DELETE'])
+@auth_bp.route('/api/users/<user_id>/delete', methods=['POST', 'DELETE'])
 @login_required
 def delete_user(user_id):
     if not current_user.is_admin:
@@ -347,7 +376,7 @@ def delete_user(user_id):
         db.session.rollback()
         return {"success": False, "message": f"Erro ao excluir usuário: {str(e)}"}, 400
 
-@auth_bp.route('/api/users/<int:user_id>/resend-password', methods=['POST'])
+@auth_bp.route('/api/users/<user_id>/resend-password', methods=['POST'])
 @login_required
 def resend_user_password(user_id):
     if not current_user.is_admin:
@@ -386,136 +415,106 @@ def export_backup():
     if not current_user.is_admin:
         return {"success": False, "message": "Acesso negado."}, 403
 
-    output = io.StringIO()
-    writer = csv.writer(output)
+    from ..config import Config
+    db_url = Config.get_sqlalchemy_uri()
 
-    from ..models import User, ContaContabil, Titulo, Entidade, Ativo, \
-        TransacaoFinanceira, LivroDiario, PartidaDiario, Configuracao, ConfiguracaoSMTP
-    models = [
-        User, ContaContabil, Entidade, Ativo, Titulo, 
-        TransacaoFinanceira, LivroDiario, PartidaDiario, Configuracao, ConfiguracaoSMTP
-    ]
+    temp_file = tempfile.NamedTemporaryFile(suffix='.backup', delete=False)
+    temp_file.close()
+    dump_path = temp_file.name
 
-    for model in models:
-        writer.writerow([f"--- TABLE: {model.__tablename__} ---"])
-        # Get columns
-        columns = [column.key for column in model.__table__.columns]
-        writer.writerow(columns)
-        
-        records = model.query.all()
-        for record in records:
-            row = []
-            for col in columns:
-                val = getattr(record, col)
-                if isinstance(val, (datetime, date)):
-                    row.append(val.isoformat())
-                elif isinstance(val, Decimal):
-                    row.append(str(val))
-                else:
-                    row.append(val)
-            writer.writerow(row)
-        writer.writerow([]) # Empty line between tables
+    try:
+        pg_dump_bin = _resolve_pg_bin('pg_dump')
+        cmd = [
+            pg_dump_bin,
+            '--dbname', db_url,
+            '--format=custom',
+            '--no-owner',
+            '--no-privileges',
+            '--verbose',
+            '--file', dump_path,
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise Exception(result.stderr or result.stdout or 'Falha no pg_dump')
 
-    output.seek(0)
-    from flask import Response
-    return Response(
-        output.getvalue(),
-        mimetype="text/csv",
-        headers={"Content-disposition": f"attachment; filename=prp_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"}
-    )
+        with open(dump_path, 'rb') as f:
+            memory_file = io.BytesIO(f.read())
+        memory_file.seek(0)
 
+        filename = f"backup_prp_{datetime.now().strftime('%Y%m%d_%H%M%S')}.backup"
+        return send_file(
+            memory_file,
+            mimetype='application/octet-stream',
+            as_attachment=True,
+            download_name=filename
+        )
+    except Exception as e:
+        if isinstance(e, FileNotFoundError):
+            return {
+                "success": False,
+                "message": "Falha ao gerar backup: pg_dump não encontrado no servidor. Configure PG_DUMP_BIN ou instale PostgreSQL Client Tools."
+            }, 500
+        return {"success": False, "message": f"Erro ao exportar backup Postgres: {str(e)}"}, 500
+    finally:
+        if os.path.exists(dump_path):
+            os.remove(dump_path)
 @auth_bp.route('/api/backup/restore', methods=['POST'])
 @login_required
 def restore_backup():
     if not current_user.is_admin:
         return {"success": False, "message": "Acesso negado."}, 403
 
+    from ..config import Config
+
     file = request.files.get('file')
     if not file:
         return {"success": False, "message": "Nenhum arquivo enviado."}, 400
 
-    try:
-        # Desabilitar chaves estrangeiras para limpeza e recarregamento massivo (SQLite)
-        db.session.execute(db.text("PRAGMA foreign_keys = OFF;"))
-        
-        stream = io.StringIO(file.stream.read().decode("UTF-8"), newline=None)
-        reader = csv.reader(stream)
-        
-        # Ordem de limpeza (Reversa)
-        models_to_clear = [
-            PartidaDiario, LivroDiario, TransacaoFinanceira, 
-            Titulo, Ativo, Entidade, ContaContabil, User, Configuracao, ConfiguracaoSMTP
-        ]
-        
-        for model in models_to_clear:
-            db.session.query(model).delete()
-        
-        db.session.flush() # Sincronizar as exclusões antes da inserção
+    Configuracao.set_valor('MAINTENANCE_MODE', 'true', 'Sistema em restauracao de backup')
 
-        # Ordem de inserção (Dependência)
-        # 1. User
-        # 2. Configuracao (Simples)
-        # 3. ContaContabil (Recursivo/Hierárquico)
-        # 4. Entidade
-        # 5. Ativo
-        # 6. Titulo
-        # ... e assim por diante
-        
-        current_table = None
-        current_columns = None
-        
-        # Mapeamento de nomes de tabela para classes
-        table_map = {m.__tablename__: m for m in models_to_clear}
-        
-        # Reset para ler do início
-        stream.seek(0)
-        reader = csv.reader(stream)
-        
-        for row in reader:
-            if not row: continue
-            
-            if row[0].startswith("--- TABLE:"):
-                current_table = row[0].split(":")[1].strip().replace(" ---", "")
-                current_columns = next(reader)
-                continue
-            
-            if current_table and current_columns:
-                model_class = table_map.get(current_table)
-                if model_class:
-                    data = {}
-                    for i, col in enumerate(current_columns):
-                        val = row[i]
-                        if val == "":
-                            data[col] = None
-                        else:
-                            # Tentar converter tipos específicos baseados no modelo se necessário
-                            # Aqui simplificamos esperando que o SQLAlchemy lide com strings para a maioria,
-                            # exceto campos críticos como data e booleano.
-                            column_type = getattr(model_class, col).property.columns[0].type
-                            if "DATETIME" in str(column_type).upper():
-                                data[col] = datetime.fromisoformat(val)
-                            elif "DATE" in str(column_type).upper():
-                                data[col] = datetime.fromisoformat(val).date()
-                            elif "BOOLEAN" in str(column_type).upper():
-                                data[col] = val.upper() == 'TRUE'
-                            elif "NUMERIC" in str(column_type).upper() or "DECIMAL" in str(column_type).upper():
-                                data[col] = Decimal(val)
-                            elif "INTEGER" in str(column_type).upper():
-                                data[col] = int(val)
-                            else:
-                                data[col] = val
-                    
-                    obj = model_class(**data)
-                    db.session.add(obj)
-        
-        db.session.commit()
-        db.session.execute(db.text("PRAGMA foreign_keys = ON;"))
-        return {"success": True, "message": "Dados restaurados com sucesso!"}
-        
+    temp_file = tempfile.NamedTemporaryFile(suffix='.backup', delete=False)
+    temp_file.close()
+
+    try:
+        if not file.filename:
+            raise Exception('Nome de arquivo inválido.')
+
+        filename = file.filename.lower()
+        if not (filename.endswith('.backup') or filename.endswith('.dump')):
+            raise Exception('Formato nao suportado. Envie um backup Postgres (.backup ou .dump).')
+
+        file.save(temp_file.name)
+        db_url = Config.get_sqlalchemy_uri()
+
+        db.session.remove()
+        db.engine.dispose()
+        pg_restore_bin = _resolve_pg_bin('pg_restore')
+
+        cmd = [
+            pg_restore_bin,
+            '--dbname', db_url,
+            '--clean',
+            '--if-exists',
+            '--no-owner',
+            '--no-privileges',
+            '--single-transaction',
+            '--verbose',
+            temp_file.name,
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise Exception(result.stderr or result.stdout or 'Falha no pg_restore')
+
+        Configuracao.set_valor('MAINTENANCE_MODE', 'false')
+        return {"success": True, "message": "Backup Postgres restaurado com sucesso."}
+
     except Exception as e:
         db.session.rollback()
+        Configuracao.set_valor('MAINTENANCE_MODE', 'false')
         return {"success": False, "message": f"Erro no restore: {str(e)}"}, 500
-
+    finally:
+        if os.path.exists(temp_file.name):
+            os.remove(temp_file.name)
 @auth_bp.route('/api/perfil/tema', methods=['POST'])
 @login_required
 def update_theme():
@@ -528,3 +527,5 @@ def update_theme():
     current_user.tema = tema
     db.session.commit()
     return {"success": True, "tema": tema}
+
+

@@ -1,15 +1,17 @@
 from . import db
 from datetime import datetime
 from sqlalchemy import Enum as EnumType
+from sqlalchemy.exc import ProgrammingError, OperationalError
 import enum
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
+import uuid
 
 # --- Módulo de Autenticação ---
 
 class User(UserMixin, db.Model):
     __tablename__ = 'users'
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     nome = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(100), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
@@ -71,14 +73,14 @@ class TipoTransacao(enum.Enum):
 
 class ContaContabil(db.Model):
     __tablename__ = 'contas_contabeis'
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     codigo = db.Column(db.String(20), unique=True, nullable=False) # Ex: 1.1.01
     nome = db.Column(db.String(100), nullable=False)
     tipo = db.Column(db.String(50), nullable=False)
     natureza = db.Column(db.String(20), nullable=False)
     
     # Hierarquia
-    parent_id = db.Column(db.Integer, db.ForeignKey('contas_contabeis.id'), nullable=True)
+    parent_id = db.Column(db.String(36), db.ForeignKey('contas_contabeis.id'), nullable=True)
     subcontas = db.relationship('ContaContabil', backref=db.backref('pai', remote_side=[id]), lazy='dynamic')
 
     # Relacionamentos
@@ -93,19 +95,19 @@ class ContaContabil(db.Model):
 
 class LivroDiario(db.Model):
     __tablename__ = 'livro_diario'
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     data = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     historico = db.Column(db.String(255), nullable=False)
-    transacao_id = db.Column(db.Integer, db.ForeignKey('transacoes_financeiras.id'), nullable=True)
+    transacao_id = db.Column(db.String(36), db.ForeignKey('transacoes_financeiras.id'), nullable=True)
     
     # Relação com os itens (partidas)
     partidas = db.relationship('PartidaDiario', backref='diario', lazy=True, cascade="all, delete-orphan")
 
 class PartidaDiario(db.Model):
     __tablename__ = 'partidas_diario'
-    id = db.Column(db.Integer, primary_key=True)
-    diario_id = db.Column(db.Integer, db.ForeignKey('livro_diario.id'), nullable=False)
-    conta_id = db.Column(db.Integer, db.ForeignKey('contas_contabeis.id'), nullable=False)
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    diario_id = db.Column(db.String(36), db.ForeignKey('livro_diario.id'), nullable=False)
+    conta_id = db.Column(db.String(36), db.ForeignKey('contas_contabeis.id'), nullable=False)
     tipo = db.Column(db.String(1), nullable=False) # 'D' para Débito, 'C' para Crédito
     valor = db.Column(db.Numeric(10, 2), nullable=False)
 
@@ -113,20 +115,20 @@ class PartidaDiario(db.Model):
 
 class Entidade(db.Model):
     __tablename__ = 'entidades'
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     nome = db.Column(db.String(100), nullable=False)
     tipo = db.Column(db.String(20), nullable=False)
     documento = db.Column(db.String(20), nullable=True)
     # Conta contábil padrão (Ex: Fornecedores a Pagar ou Clientes a Receber - Balanço)
-    conta_contabil_id = db.Column(db.Integer, db.ForeignKey('contas_contabeis.id'), nullable=True)
+    conta_contabil_id = db.Column(db.String(36), db.ForeignKey('contas_contabeis.id'), nullable=True)
     
     # Conta de Resultado padrão (Ex: Vendas para Clientes, Despesa X para Fornecedores)
-    conta_resultado_id = db.Column(db.Integer, db.ForeignKey('contas_contabeis.id'), nullable=True)
+    conta_resultado_id = db.Column(db.String(36), db.ForeignKey('contas_contabeis.id'), nullable=True)
 
     # Conta contábil de Venda (Ativo - Clientes a Receber) - Usado no tipo 'Outros'
-    conta_venda_id = db.Column(db.Integer, db.ForeignKey('contas_contabeis.id'), nullable=True)
+    conta_venda_id = db.Column(db.String(36), db.ForeignKey('contas_contabeis.id'), nullable=True)
     # Conta contábil de Compra (Passivo/Despesa - Contas a Pagar) - Usado no tipo 'Outros'
-    conta_compra_id = db.Column(db.Integer, db.ForeignKey('contas_contabeis.id'), nullable=True)
+    conta_compra_id = db.Column(db.String(36), db.ForeignKey('contas_contabeis.id'), nullable=True)
     
     conta_contabil = db.relationship('ContaContabil', foreign_keys=[conta_contabil_id], backref='entidades_patrimonial')
     conta_resultado = db.relationship('ContaContabil', foreign_keys=[conta_resultado_id], backref='entidades_resultado')
@@ -137,7 +139,7 @@ class Entidade(db.Model):
 
 class Ativo(db.Model):
     __tablename__ = 'ativos'
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     descricao = db.Column(db.String(100), nullable=False)
     tipo = db.Column(db.String(20), nullable=False)
     numero_conta = db.Column(db.String(30), nullable=True)
@@ -145,7 +147,7 @@ class Ativo(db.Model):
     data_aquisicao = db.Column(db.Date, nullable=False, default=datetime.utcnow)
     
     # Conta contábil que representa este ativo no Balanço (Ex: Banco X, Veículo Y)
-    conta_contabil_id = db.Column(db.Integer, db.ForeignKey('contas_contabeis.id'), nullable=True)
+    conta_contabil_id = db.Column(db.String(36), db.ForeignKey('contas_contabeis.id'), nullable=True)
     conta_contabil = db.relationship('ContaContabil', backref='ativos')
     
     # Controle de Investimentos / Qtd
@@ -158,8 +160,8 @@ class Ativo(db.Model):
 
 class Titulo(db.Model):
     __tablename__ = 'titulos'
-    id = db.Column(db.Integer, primary_key=True)
-    entidade_id = db.Column(db.Integer, db.ForeignKey('entidades.id'), nullable=False)
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    entidade_id = db.Column(db.String(36), db.ForeignKey('entidades.id'), nullable=False)
     descricao = db.Column(db.String(100), nullable=False)
     valor = db.Column(db.Numeric(10, 2), nullable=False)
     data_vencimento = db.Column(db.Date, nullable=False)
@@ -168,19 +170,35 @@ class Titulo(db.Model):
     tipo = db.Column(db.String(20), nullable=False)
     
     # Controle de Parcelamento
+    parcela_atual = db.Column(db.Integer, nullable=True)
     total_parcelas = db.Column(db.Integer, nullable=True)
-    ativo_id = db.Column(db.Integer, db.ForeignKey('ativos.id'), nullable=True)
+    ativo_id = db.Column(db.String(36), db.ForeignKey('ativos.id'), nullable=True)
     
     ativo = db.relationship('Ativo', backref='titulos_financeiros')
     transacoes = db.relationship('TransacaoFinanceira', backref='titulo', lazy=True)
 
+    @property
+    def data_liquidacao(self):
+        """Retorna a data da transação de liquidação mais recente."""
+        if self.status not in ['Pago', 'PAGO']:
+            return None
+        
+        # Busca a transação de pagamento/recebimento mais recente
+        ultima_transacao = TransacaoFinanceira.query.filter_by(titulo_id=self.id)\
+            .order_by(TransacaoFinanceira.data.desc()).first()
+        
+        return ultima_transacao.data.date() if ultima_transacao else None
+
 class TransacaoFinanceira(db.Model):
     __tablename__ = 'transacoes_financeiras'
-    id = db.Column(db.Integer, primary_key=True)
-    titulo_id = db.Column(db.Integer, db.ForeignKey('titulos.id'), nullable=True) # Pode ser nulo (ex: transferencia)
-    ativo_id = db.Column(db.Integer, db.ForeignKey('ativos.id'), nullable=True) # Banco envolvido
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    titulo_id = db.Column(db.String(36), db.ForeignKey('titulos.id'), nullable=True) # Pode ser nulo (ex: transferencia)
+    ativo_id = db.Column(db.String(36), db.ForeignKey('ativos.id'), nullable=True) # Banco envolvido
     tipo = db.Column(db.String(20), nullable=False)
     valor = db.Column(db.Numeric(10, 2), nullable=False)
+    valor_bruto = db.Column(db.Numeric(10, 2), nullable=True)
+    valor_desconto = db.Column(db.Numeric(10, 2), default=0.0)
+    valor_liquido = db.Column(db.Numeric(10, 2), default=0.0)
     data = db.Column(db.DateTime, default=datetime.utcnow)
     
     # Link reverso para o diário contábil gerado
@@ -188,15 +206,30 @@ class TransacaoFinanceira(db.Model):
 
 class Configuracao(db.Model):
     __tablename__ = 'configuracoes'
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     chave = db.Column(db.String(50), unique=True, nullable=False)
     valor = db.Column(db.Text, nullable=True)
     descricao = db.Column(db.String(255), nullable=True)
 
     @staticmethod
     def get_valor(chave, default=None):
-        config = Configuracao.query.filter_by(chave=chave).first()
-        return config.valor if config else default
+        try:
+            config = Configuracao.query.filter_by(chave=chave).first()
+            return config.valor if config else default
+        except (ProgrammingError, OperationalError):
+            db.session.rollback()
+            return default
+
+    @staticmethod
+    def is_maintenance():
+        # Keep this self-contained to avoid import issues across image versions.
+        import os
+
+        raw = os.getenv('MAINTENANCE_MODE')
+        if raw is not None and str(raw).strip().lower() in ('1', 'true', 't', 'yes', 'y', 'on'):
+            return True
+
+        return Configuracao.get_valor('MAINTENANCE_MODE') == 'true'
 
     @staticmethod
     def set_valor(chave, valor, descricao=None):
@@ -212,7 +245,7 @@ class Configuracao(db.Model):
 
 class ConfiguracaoSMTP(db.Model):
     __tablename__ = 'configuracao_smtp'
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     smtp_server = db.Column(db.String(100), nullable=False, default='smtp.gmail.com')
     smtp_port = db.Column(db.Integer, nullable=False, default=587)
     smtp_user = db.Column(db.String(100), nullable=True)
@@ -223,3 +256,112 @@ class ConfiguracaoSMTP(db.Model):
 
     def __repr__(self):
         return f"<ConfiguracaoSMTP {self.smtp_server}>"
+
+# --- Módulo de Cartão de Crédito ---
+
+class CartaoCredito(db.Model):
+    __tablename__ = 'cartoes_credito'
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = db.Column(db.String(36), db.ForeignKey('users.id'), nullable=False)
+    banco_id = db.Column(db.String(36), db.ForeignKey('ativos.id'), nullable=True) # Vinculado a um banco (Ativo)
+    nome = db.Column(db.String(100), nullable=False)
+    bandeira = db.Column(db.String(50))
+    limite_total = db.Column(db.Numeric(10, 2), default=0.0)
+    dia_fechamento = db.Column(db.Integer, nullable=False) # Dia do mês
+    dia_vencimento = db.Column(db.Integer, nullable=False) # Dia do mês
+    limite_disponivel = db.Column(db.Numeric(10, 2)) # Cache do saldo atual
+    
+    # Limite Emergencial
+    perc_limite_emergencial = db.Column(db.Numeric(5, 2), default=0.0) # ex: 0.35 para 35%
+    limite_emergencial_ativo = db.Column(db.Boolean, default=False)
+    
+    conta_contabil_id = db.Column(db.String(36), db.ForeignKey('contas_contabeis.id'), nullable=False) # Passivo
+    ativo = db.Column(db.Boolean, default=True)
+
+    # Relationships
+    banco = db.relationship('Ativo', backref='cartoes')
+    conta_contabil = db.relationship('ContaContabil', backref='cartao_passivo')
+    transacoes = db.relationship('TransacaoCartao', order_by='TransacaoCartao.data.desc()', backref='cartao', lazy=True)
+    faturas = db.relationship('FaturaCartao', order_by='FaturaCartao.competencia.desc()', backref='cartao', lazy=True)
+
+    @property
+    def limite_maximo_total(self):
+        from decimal import Decimal
+        if self.limite_emergencial_ativo and self.perc_limite_emergencial > 0:
+            return self.limite_total * (Decimal('1.0') + Decimal(str(self.perc_limite_emergencial)))
+        return self.limite_total
+
+class TransacaoCartao(db.Model):
+    __tablename__ = 'transacoes_cartao'
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    card_id = db.Column(db.String(36), db.ForeignKey('cartoes_credito.id'), nullable=False)
+    data = db.Column(db.DateTime, default=datetime.utcnow)
+    descricao = db.Column(db.String(255), nullable=False)
+    valor = db.Column(db.Numeric(10, 2), nullable=False)
+    categoria_id = db.Column(db.String(36), db.ForeignKey('contas_contabeis.id'), nullable=True) # Pra despesa
+    fatura_id = db.Column(db.String(36), db.ForeignKey('faturas_cartao.id'), nullable=True) # Será obrigatório após migração
+    competencia_calculada = db.Column(db.String(7), nullable=True) # YYYY-MM redundante para consulta
+    transacao_financeira_id = db.Column(db.String(36), db.ForeignKey('transacoes_financeiras.id'), nullable=True) # Link contábil
+    status = db.Column(db.String(20), default='confirmada') # pendente/confirmada/estornada
+    
+    # Parcelamento (Opção B: controle gerencial)
+    installment_group_id = db.Column(db.String(50), nullable=True)
+    installment_n = db.Column(db.Integer, nullable=True)
+    installment_total = db.Column(db.Integer, nullable=True)
+
+    categoria = db.relationship('ContaContabil', foreign_keys=[categoria_id])
+    fatura = db.relationship('FaturaCartao', backref='transacoes_list')
+    transacao_contabil = db.relationship('TransacaoFinanceira', backref='transacao_cartao')
+
+class FaturaCartao(db.Model):
+    __tablename__ = 'faturas_cartao'
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    card_id = db.Column(db.String(36), db.ForeignKey('cartoes_credito.id'), nullable=False)
+    competencia = db.Column(db.String(7), nullable=False) # ex: 2026-02
+    data_fechamento = db.Column(db.Date, nullable=False)
+    data_vencimento = db.Column(db.Date, nullable=False)
+    total = db.Column(db.Numeric(10, 2), default=0.0)
+    total_pago = db.Column(db.Numeric(10, 2), default=0.0)
+    data_pagamento_ultima = db.Column(db.DateTime, nullable=True)
+    status = db.Column(db.String(20), default='aberta') # aberta/fechada (ciclo)
+    situacao_pagamento = db.Column(db.String(20), default='em_aberto') # em_aberto/parcial/paga (financeiro)
+
+    # Relationships
+    pagamentos = db.relationship('PagamentoFaturaCartao', backref='fatura', lazy=True)
+
+class PagamentoFaturaCartao(db.Model):
+    __tablename__ = 'pagamentos_fatura_cartao'
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    fatura_id = db.Column(db.String(36), db.ForeignKey('faturas_cartao.id'), nullable=False)
+    banco_id = db.Column(db.String(36), db.ForeignKey('ativos.id'), nullable=True)
+    valor = db.Column(db.Numeric(10, 2), nullable=False) # Principal
+    valor_encargos = db.Column(db.Numeric(10, 2), default=0.0) # Juros/Taxas
+    data_pagamento = db.Column(db.DateTime, default=datetime.utcnow)
+    transacao_financeira_id = db.Column(db.String(36), db.ForeignKey('transacoes_financeiras.id'), nullable=True)
+    
+    banco = db.relationship('Ativo', backref='pagamentos_fatura')
+
+class UpdateLog(db.Model):
+    __tablename__ = 'update_logs'
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    started_at = db.Column(db.DateTime, default=datetime.utcnow)
+    finished_at = db.Column(db.DateTime, nullable=True)
+    from_version = db.Column(db.String(20))
+    to_version = db.Column(db.String(20))
+    status = db.Column(db.String(20)) # 'pending', 'success', 'failed'
+    details = db.Column(db.Text, nullable=True)
+
+class Notificacao(db.Model):
+    __tablename__ = 'notificacoes'
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = db.Column(db.String(36), db.ForeignKey('users.id'), nullable=True) # Null = Global
+    tipo = db.Column(db.String(50), nullable=False) # ex: 'UPDATE_AVAILABLE'
+    titulo = db.Column(db.String(100), nullable=False)
+    mensagem = db.Column(db.Text, nullable=False)
+    payload_json = db.Column(db.Text, nullable=True) # Guardar {latest_version, ambiente}
+    lida = db.Column(db.Boolean, default=False)
+    criada_em = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship('User', backref='notificacoes_list')
+
+

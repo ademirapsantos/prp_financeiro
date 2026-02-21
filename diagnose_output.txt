@@ -1,0 +1,28 @@
+Período: 2026-02-01 00:00:00 até 2026-02-18 23:59:59.999999
+
+--- Balanço do Livro Diário (Toda a História) ---
+Conta 1 (Ativos): D=27850.00, C=0.00, Saldo(Devedora)=27850.00
+Conta 2 (Passivos): D=0.00, C=0.00, Saldo(Credora)=0.00
+Conta 4 (Receitas): D=0.00, C=27850.00, Saldo(Credora)=27850.00
+Conta 5 (Despesas): D=0.00, C=0.00, Saldo(Devedora)=0.00
+Conta 3 (Patrimônio Líquido): D=0.00, C=0.00, Saldo(Credora)=0.00
+
+--- Verificação de Integridade (Ledger) ---
+Ativo: 27850.00
+Passivo: 0.00
+PL (No Livro): 0.00
+Receita: 27850.00
+Despesa: 0.00
+Resultado (Rec - Desp): 27850.00
+Balanço (Ativo - Passivo - PL): 27850.00
+Diferença Final: 0.00 (Deveria ser zero)
+
+--- Lógica Especial Grupo 3 (Patrimônio Líquido) ---
+Ativos (exceto 1.5) na data fim: 27850.00
+A Pagar (Títulos Abertos) na data fim: 0.00
+PL Calculado (Ativos - A Pagar): 27850.00
+PL no Livro Diário (Grupo 3): 0.00
+Diferença PL(Calc) vs PL(Livro): 27850.00
+
+Saldo Conta 1.5 (Recebíveis no Ledger): 0.00
+Total Títulos A Receber (Abertos): 0.00

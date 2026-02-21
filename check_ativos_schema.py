@@ -1,7 +1,7 @@
 import sqlite3
 import os
 
-db_path = os.path.join(os.getcwd(), 'prp_financeiro.db')
+db_path = os.path.join(os.getcwd(), 'data/prp_financeiro.db')
 
 def check_schema():
     conn = sqlite3.connect(db_path)

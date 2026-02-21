@@ -1,0 +1,67 @@
+name: Build and Push (GHCR)
+
+on:
+  push:
+    branches:
+      - release
+      - main
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set Environment Variables
+        run: |
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "TAG_PREFIX=prod" >> $GITHUB_ENV
+          else
+            echo "TAG_PREFIX=hml" >> $GITHUB_ENV
+          fi
+
+      - name: Read Version
+        id: version
+        run: |
+          VERSION=$(grep "__version__ =" app/version.py | cut -d'"' -f2)
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:${{ env.TAG_PREFIX }}-latest
+            ghcr.io/${{ github.repository }}:${{ env.TAG_PREFIX }}-v${{ steps.version.outputs.VERSION }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push updater image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.updater
+          push: true
+          tags: |
+            ghcr.io/ademirapsantos/prp_financeiro_updater:${{ env.TAG_PREFIX }}-latest
+            ghcr.io/ademirapsantos/prp_financeiro_updater:${{ env.TAG_PREFIX }}-v${{ steps.version.outputs.VERSION }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
