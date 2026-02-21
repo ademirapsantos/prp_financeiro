@@ -330,7 +330,7 @@ def add_user():
         "message": message
     }
 
-@auth_bp.route('/api/users/<int:user_id>/delete', methods=['POST', 'DELETE'])
+@auth_bp.route('/api/users/<user_id>/delete', methods=['POST', 'DELETE'])
 @login_required
 def delete_user(user_id):
     if not current_user.is_admin:
@@ -349,7 +349,7 @@ def delete_user(user_id):
         db.session.rollback()
         return {"success": False, "message": f"Erro ao excluir usuário: {str(e)}"}, 400
 
-@auth_bp.route('/api/users/<int:user_id>/resend-password', methods=['POST'])
+@auth_bp.route('/api/users/<user_id>/resend-password', methods=['POST'])
 @login_required
 def resend_user_password(user_id):
     if not current_user.is_admin:

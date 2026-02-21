@@ -554,12 +554,14 @@ def exportar_balancete():
     return send_file(output, as_attachment=True, download_name=filename, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 
-@main_bp.route('/detalhamento/<int:ano>/<int:mes>/<tipo>')
+@main_bp.route('/detalhamento/<ano>/<mes>/<tipo>')
 def detalhamento(ano, mes, tipo):
     from .models import LivroDiario, PartidaDiario, ContaContabil, Titulo, TransacaoFinanceira, TipoTransacao, StatusTitulo, FaturaCartao, Configuracao
     from sqlalchemy import extract, func, or_
     from sqlalchemy.orm import joinedload
     
+    ano = int(ano)
+    mes = int(mes)
     page = request.args.get('page', 1, type=int)
     per_page = 50
     
@@ -1227,7 +1229,7 @@ def get_notifications():
         } for n in notificacoes]
     })
 
-@main_bp.route('/api/notifications/<int:id>/read', methods=['POST'])
+@main_bp.route('/api/notifications/<id>/read', methods=['POST'])
 @login_required
 def mark_notification_read(id):
     notif = Notificacao.query.get_or_404(id)
