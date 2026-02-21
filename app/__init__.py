@@ -104,7 +104,8 @@ def create_app():
             '/api/system/update/status',
             '/api/system/latest',
             '/api/version',
-            '/api/system/maintenance/off-token'
+            '/api/system/maintenance/off-token',
+            '/api/system/update/finalize-token'
         }
         if request.path in public_paths:
             return
@@ -115,7 +116,8 @@ def create_app():
             'main.system_latest',
             'main.health',
             'main.api_system_update_status',
-            'main.maintenance_off_token'
+            'main.maintenance_off_token',
+            'main.api_system_update_finalize_token'
         ]
         if request.endpoint and (
             'static' in request.endpoint or 
