@@ -21,6 +21,9 @@ PROJECT_NAME = os.getenv('COMPOSE_PROJECT_NAME', 'prp_financeiro')
 APP_HOST = os.getenv('APP_HOST', 'prp-financeiro-hml' if ENVIRONMENT == 'hml' else 'prp-financeiro-prod' if ENVIRONMENT == 'prod' else 'prp-financeiro')
 APP_PORT = os.getenv('APP_PORT', '5000')
 KEEP_IMAGES = int(os.getenv('KEEP_IMAGES', '3'))
+APP_FINALIZE_URL = os.getenv('APP_FINALIZE_URL', f'http://{APP_HOST}:{APP_PORT}/api/system/update/finalize-token')
+UPDATER_HEALTH_ATTEMPTS = int(os.getenv('UPDATER_HEALTH_ATTEMPTS', '15'))
+UPDATER_HEALTH_SLEEP_SECONDS = int(os.getenv('UPDATER_HEALTH_SLEEP_SECONDS', '10'))
 
 # Caminhos de Arquivos
 DATA_DIR = os.path.join(PROJECT_DIR, 'data')
@@ -126,9 +129,9 @@ def check_container_health():
     health_url = f"http://{APP_HOST}:{APP_PORT}/health"
     log_event("health_check_start", {"url": health_url})
     
-    for i in range(15): # 15 tentativas
+    for i in range(UPDATER_HEALTH_ATTEMPTS):
         try:
-            time.sleep(10)
+            time.sleep(UPDATER_HEALTH_SLEEP_SECONDS)
             res = requests.get(health_url, timeout=5)
             if res.status_code == 200 or res.status_code == 503:
                 data = res.json()
@@ -139,6 +142,27 @@ def check_container_health():
         except Exception as e:
             log_event("health_check_attempt_failed", {"attempt": i+1, "error": str(e)})
             
+    return False
+
+def finalize_update_state(status, error_message=''):
+    """Notifica o app principal para finalizar flags de manutenção/update."""
+    payload = {"status": status}
+    if error_message:
+        payload["error"] = error_message
+
+    headers = {"Authorization": f"Bearer {UPDATE_TOKEN}"}
+
+    for attempt in range(1, 16):
+        try:
+            res = requests.post(APP_FINALIZE_URL, json=payload, headers=headers, timeout=5)
+            if res.status_code == 200:
+                log_event("finalize_notified", {"status": status, "attempt": attempt})
+                return True
+            log_event("finalize_failed_status", {"attempt": attempt, "status_code": res.status_code, "body": res.text})
+        except Exception as e:
+            log_event("finalize_failed_exception", {"attempt": attempt, "error": str(e)})
+        time.sleep(2)
+
     return False
 
 def cleanup_images():
@@ -187,6 +211,9 @@ def perform_update():
         return jsonify({"error": "Update already in progress"}), 409
     
     update_id = str(uuid.uuid4())
+    previous_tag = None
+    target_tag = None
+    env_tag_switched = False
     try:
         # 1. Lock
         with open(LOCK_FILE, 'w') as f:
@@ -215,6 +242,7 @@ def perform_update():
         
         # 3. Pull and Deploy
         set_env_tag(target_tag)
+        env_tag_switched = True
         run_docker_command(["rm", "-sf", SERVICE_NAME])
         run_docker_command(["pull", SERVICE_NAME])
         run_docker_command(["up", "-d", "--no-deps", "--force-recreate", SERVICE_NAME])
@@ -227,6 +255,7 @@ def perform_update():
             log_event("update_success", {"new_tag": target_tag})
             # Limpeza de imagens pós-sucesso
             cleanup_images()
+            finalize_update_state("success")
             os.remove(LOCK_FILE)
             return jsonify({"status": "success", "update_id": update_id})
         else:
@@ -236,17 +265,31 @@ def perform_update():
                 set_env_tag(previous_tag)
                 run_docker_command(["up", "-d", "--no-deps", "--force-recreate", SERVICE_NAME])
                 log_event("rollback_completed", {"restored_tag": previous_tag})
+                finalize_update_state("failed", "App unhealthy after update. Rollback performed.")
                 os.remove(LOCK_FILE)
                 return jsonify({"error": "health_failed", "details": "App unhealthy after update. Rollback performed."}), 500
             else:
+                finalize_update_state("failed", "App unhealthy and no previous tag for rollback.")
                 os.remove(LOCK_FILE)
                 return jsonify({"error": "health_failed", "details": "App unhealthy and no previous tag for rollback."}), 500
                 
     except Exception as e:
-        log_event("update_error", {"error": str(e)})
+        error_message = str(e)
+        log_event("update_error", {"error": error_message})
+
+        if env_tag_switched and previous_tag:
+            try:
+                set_env_tag(previous_tag)
+                run_docker_command(["up", "-d", "--no-deps", "--force-recreate", SERVICE_NAME])
+                log_event("rollback_after_exception", {"restored_tag": previous_tag, "failed_target_tag": target_tag})
+            except Exception as rb_error:
+                log_event("rollback_after_exception_failed", {"error": str(rb_error)})
+
+        finalize_update_state("failed", error_message)
+
         if os.path.exists(LOCK_FILE):
             os.remove(LOCK_FILE)
-        return jsonify({"error": "docker_compose_failed", "details": str(e)}), 500
+        return jsonify({"error": "docker_compose_failed", "details": error_message}), 500
 
 @app.route('/api/rollback', methods=['POST'])
 def manual_rollback():

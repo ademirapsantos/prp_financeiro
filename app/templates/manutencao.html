@@ -62,6 +62,23 @@
             margin: 2rem auto;
         }
 
+        .progress-wrap {
+            width: 100%;
+            max-width: 420px;
+            margin: 1rem auto 0.5rem;
+            background: rgba(148, 163, 184, 0.2);
+            border: 1px solid rgba(148, 163, 184, 0.35);
+            border-radius: 999px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 10px;
+            width: 8%;
+            background: linear-gradient(90deg, #2563eb, #06b6d4);
+            transition: width 0.5s ease;
+        }
+
         @keyframes spin {
             0% {
                 transform: rotate(0deg);
@@ -82,6 +99,10 @@
             voltará em instantes.</p>
         <p id="update-status-text">Aguardando resposta do servidor...</p>
         <div class="loader"></div>
+        <div class="progress-wrap">
+            <div id="progress-bar" class="progress-bar"></div>
+        </div>
+        <p id="progress-text" style="font-size: 0.85rem; opacity: 0.8;">8%</p>
         <div id="error-container"
             style="display: none; margin-top: 2rem; padding: 1rem; background: rgba(220, 38, 38, 0.1); border: 1px solid #dc2626; border-radius: 8px;">
             <p style="color: #dc2626; font-weight: bold; margin-bottom: 0.5rem;">Ocorreu um problema:</p>
@@ -94,8 +115,19 @@
     </div>
     <script>
         const statusEl = document.getElementById('update-status-text');
+        const progressBar = document.getElementById('progress-bar');
+        const progressText = document.getElementById('progress-text');
         const errorEl = document.getElementById('error-container');
         const errorMsgEl = document.getElementById('error-message');
+        let progress = 8;
+
+        const pulse = setInterval(() => {
+            if (progress < 95) {
+                progress += 2;
+                progressBar.style.width = progress + '%';
+                progressText.innerText = `${progress}%`;
+            }
+        }, 1800);
 
         // Check cada 5 segundos se saiu da manutenção
         const poll = setInterval(async () => {
@@ -110,7 +142,13 @@
                 // Se saiu da manutenção, redireciona
                 if (!data.maintenance) {
                     clearInterval(poll);
-                    window.location.href = '/login';
+                    clearInterval(pulse);
+                    progressBar.style.width = '100%';
+                    progressText.innerText = '100%';
+                    statusEl.innerText = 'Atualização concluída! Redirecionando...';
+                    setTimeout(() => {
+                        window.location.href = '/';
+                    }, 1000);
                     return;
                 }
 

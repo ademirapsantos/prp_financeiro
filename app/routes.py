@@ -23,6 +23,7 @@ def check_maintenance():
             '/api/version', 
             '/api/system/latest', 
             '/api/system/update/status',
+            '/api/system/update/finalize-token',
             '/api/system/maintenance/off',
             '/api/system/maintenance/off-token', # Emergência
             '/health', 
@@ -1140,13 +1141,36 @@ def system_update_start():
 @main_bp.route('/api/system/update/status')
 def api_system_update_status():
     """Retorna o progresso e estado do update."""
+    in_progress = Configuracao.get_valor('UPDATE_IN_PROGRESS') == 'true'
+    maintenance = Configuracao.get_valor('MAINTENANCE_MODE') == 'true'
+    started_at = Configuracao.get_valor('UPDATE_STARTED_AT')
+    last_error = Configuracao.get_valor('UPDATE_LAST_ERROR')
+    target_tag = Configuracao.get_valor('UPDATE_TARGET_TAG')
+    prev_tag = Configuracao.get_valor('UPDATE_PREV_TAG')
+
+    # Evita lock infinito: se passar do limite, libera manutenção e marca erro.
+    if in_progress and started_at:
+        try:
+            started_dt = datetime.fromisoformat(started_at)
+            max_minutes = int(os.getenv('UPDATE_MAX_MINUTES', '30'))
+            if datetime.utcnow() - started_dt > timedelta(minutes=max_minutes):
+                timeout_msg = f"Update excedeu tempo máximo de {max_minutes} minutos e foi finalizado automaticamente."
+                Configuracao.set_valor('UPDATE_IN_PROGRESS', 'false')
+                Configuracao.set_valor('MAINTENANCE_MODE', 'false')
+                Configuracao.set_valor('UPDATE_LAST_ERROR', timeout_msg)
+                in_progress = False
+                maintenance = False
+                last_error = timeout_msg
+        except Exception:
+            current_app.logger.exception("Falha ao validar timeout de update")
+
     return jsonify({
-        "in_progress": Configuracao.get_valor('UPDATE_IN_PROGRESS') == 'true',
-        "maintenance": Configuracao.get_valor('MAINTENANCE_MODE') == 'true',
-        "started_at": Configuracao.get_valor('UPDATE_STARTED_AT'),
-        "last_error": Configuracao.get_valor('UPDATE_LAST_ERROR'),
-        "target_tag": Configuracao.get_valor('UPDATE_TARGET_TAG'),
-        "prev_tag": Configuracao.get_valor('UPDATE_PREV_TAG'),
+        "in_progress": in_progress,
+        "maintenance": maintenance,
+        "started_at": started_at,
+        "last_error": last_error,
+        "target_tag": target_tag,
+        "prev_tag": prev_tag,
         "current_version": __version__
     })
 
@@ -1161,6 +1185,29 @@ def maintenance_off_token():
     Configuracao.set_valor('MAINTENANCE_MODE', 'false')
     Configuracao.set_valor('UPDATE_IN_PROGRESS', 'false')
     return jsonify({"status": "success", "message": "Manutenção desligada via token"})
+
+@main_bp.route('/api/system/update/finalize-token', methods=['POST'])
+def api_system_update_finalize_token():
+    """Finaliza update por token com status final informado pelo updater."""
+    token = request.headers.get('Authorization')
+    expected = f"Bearer {os.getenv('UPDATE_TOKEN', 'change_me_token')}"
+    if token != expected:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    payload = request.get_json(silent=True) or {}
+    status = str(payload.get('status', 'success')).lower()
+    error_message = (payload.get('error') or '').strip()
+
+    Configuracao.set_valor('UPDATE_IN_PROGRESS', 'false')
+    Configuracao.set_valor('MAINTENANCE_MODE', 'false')
+    Configuracao.set_valor('UPDATE_FINISHED_AT', datetime.utcnow().isoformat())
+
+    if status in ('failed', 'error'):
+        Configuracao.set_valor('UPDATE_LAST_ERROR', error_message or 'Falha na atualização.')
+    else:
+        Configuracao.set_valor('UPDATE_LAST_ERROR', '')
+
+    return jsonify({"status": "success", "message": "Update finalizado por token"})
 
 @main_bp.route('/api/notifications')
 @login_required

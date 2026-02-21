@@ -1,4 +1,4 @@
-from flask import Flask, render_template, redirect, url_for, request, session
+﻿from flask import Flask, render_template, redirect, url_for, request, session
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import DeclarativeBase
 from flask_login import LoginManager, current_user
@@ -13,14 +13,14 @@ def create_app():
     app = Flask(__name__)
     app.config['SECRET_KEY'] = 'dev_key_prp_system'
     
-    # Configuração centralizada de caminhos
+    # ConfiguraÃ§Ã£o centralizada de caminhos
     from .config import Config
     app.config['SQLALCHEMY_DATABASE_URI'] = Config.get_sqlalchemy_uri()
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['__version__'] = __version__
     app.config['__build__'] = __build__
 
-    # Flask-Mail base config (Os valores reais virão do DB)
+    # Flask-Mail base config (Os valores reais virÃ£o do DB)
     from .models import ConfiguracaoSMTP
     with app.app_context():
         try:
@@ -33,14 +33,14 @@ def create_app():
                 app.config['MAIL_USERNAME'] = cfg.smtp_user
                 app.config['MAIL_PASSWORD'] = cfg.smtp_password
         except:
-            pass # Fallback se o banco não estiver pronto
+            pass # Fallback se o banco nÃ£o estiver pronto
 
     db.init_app(app)
     mail.init_app(app)
 
     login_manager = LoginManager()
     login_manager.login_view = 'auth.login'
-    login_manager.login_message = 'Por favor, faça login para acessar esta página.'
+    login_manager.login_message = 'Por favor, faÃ§a login para acessar esta pÃ¡gina.'
     login_manager.login_message_category = 'info'
     login_manager.init_app(app)
 
@@ -62,14 +62,14 @@ def create_app():
         from . import models
         db.create_all()
         
-        # Migrações defensivas (Schema update)
+        # MigraÃ§Ãµes defensivas (Schema update)
         from .migrations import run_migrations
         try:
             run_migrations()
         except Exception as e:
-            app.logger.error(f"Falha crítica nas migrações: {e}")
+            app.logger.error(f"Falha crÃ­tica nas migraÃ§Ãµes: {e}")
 
-        # Importante: Criar plano de contas inicial se não existir
+        # Importante: Criar plano de contas inicial se nÃ£o existir
         from .seed import seed_db
         seed_db()
 
@@ -91,14 +91,34 @@ def create_app():
     from .auth import auth_bp
     app.register_blueprint(auth_bp)
 
-    # Proteção Global de Rotas
+    # ProteÃ§Ã£o Global de Rotas
     @app.before_request
     def check_auth():
         from .models import User
         from flask import session
         
-        # Permitir acesso a rotas estáticas, blueprint de auth e endpoints públicos de sistema
-        public_endpoints = ['main.api_version', 'main.system_latest', 'main.health']
+
+        # Endpoints de orquestracao devem ser publicos por path.
+        public_paths = {
+            '/health',
+            '/api/system/update/status',
+            '/api/system/latest',
+            '/api/version',
+            '/api/system/maintenance/off-token',
+            '/api/system/update/finalize-token'
+        }
+        if request.path in public_paths:
+            return
+
+        # Permitir acesso a rotas estÃ¡ticas, blueprint de auth e endpoints pÃºblicos de sistema
+        public_endpoints = [
+            'main.api_version',
+            'main.system_latest',
+            'main.health',
+            'main.api_system_update_status',
+            'main.maintenance_off_token',
+            'main.api_system_update_finalize_token'
+        ]
         if request.endpoint and (
             'static' in request.endpoint or 
             'auth' in request.endpoint or
@@ -109,17 +129,17 @@ def create_app():
                 return redirect(url_for('auth.lock_screen'))
             return
 
-        # Se não houver usuários no banco, permitir apenas acesso ao registro inicial
+        # Se nÃ£o houver usuÃ¡rios no banco, permitir apenas acesso ao registro inicial
         user_count = User.query.count()
         if user_count == 0:
             if request.endpoint != 'auth.register':
                 return redirect(url_for('auth.register'))
             return
 
-        # Bloquear acesso se não estiver logado
+        # Bloquear acesso se nÃ£o estiver logado
         if not current_user.is_authenticated:
-            # Se for API, o unauthorized_handler cuidará disso se usarmos login_required,
-            # mas aqui é uma proteção global. Vamos garantir que APIs retornem JSON.
+            # Se for API, o unauthorized_handler cuidarÃ¡ disso se usarmos login_required,
+            # mas aqui Ã© uma proteÃ§Ã£o global. Vamos garantir que APIs retornem JSON.
             if request.path.startswith('/api/'):
                 return {"error": "unauthorized"}, 401
             return redirect(url_for('auth.login'))
@@ -128,11 +148,11 @@ def create_app():
         if session.get('is_locked') and request.endpoint != 'auth.lock_screen' and request.endpoint != 'auth.logout':
             return redirect(url_for('auth.lock_screen'))
         
-        # Forçar troca de senha se necessário
+        # ForÃ§ar troca de senha se necessÃ¡rio
         if current_user.deve_alterar_senha and request.endpoint != 'auth.change_password' and request.endpoint != 'auth.logout' and not session.get('is_locked'):
             return redirect(url_for('auth.change_password'))
 
-    # Context processor para notificações globais
+    # Context processor para notificaÃ§Ãµes globais
     @app.context_processor
     def inject_notifications():
         from .models import Titulo, StatusTitulo, Notificacao
@@ -141,14 +161,14 @@ def create_app():
         hoje = datetime.utcnow().date()
         proximos_dias = hoje + timedelta(days=3)
 
-        # Notificações de Títulos (Urgentes)
+        # NotificaÃ§Ãµes de TÃ­tulos (Urgentes)
         notificacoes_financeiras = Titulo.query.filter(
             Titulo.status == StatusTitulo.ABERTO.value,
             Titulo.data_vencimento <= proximos_dias,
             Titulo.data_vencimento >= hoje
         ).order_by(Titulo.data_vencimento.asc()).all()
 
-        # Notificações de Sistema (Não lidas)
+        # NotificaÃ§Ãµes de Sistema (NÃ£o lidas)
         notificacoes_sistema = []
         if current_user.is_authenticated:
             notificacoes_sistema = Notificacao.query.filter(
