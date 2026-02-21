@@ -17,6 +17,8 @@ COPY requirements_updater.txt .
 RUN pip install -r requirements_updater.txt
 
 COPY updater.py .
+COPY docker-compose.prod.yml .
+COPY docker-compose.prod.override.yml .
 COPY alembic.ini .
 COPY migrations ./migrations
 

@@ -1,46 +1,120 @@
-# Guia Técnico: Sistema de Atualização Robusto (Enterprise Ready)
+# PRP Financeiro - Guia de Producao (VPS 1GB)
 
-O PRP Financeiro agora utiliza um sistema de atualização nível enterprise, garantindo alta disponibilidade e segurança durante o processo de update.
+Este guia cobre o deploy de producao com Docker Compose em VPS pequena (Oracle VM.Standard.E2.1.Micro: 1 OCPU / 1GB RAM), com foco em estabilidade, seguranca e previsibilidade.
 
-## Arquitetura de Update
+## 1. Preparar VPS
 
-O processo envolve três componentes principais:
-1. **App Flask (Backend)**: Gerencia o estado no banco de dados, expõe o status e aciona o Sidecar.
-2. **Updater (Sidecar)**: Script isolado em container responsável por operações Docker, Healthchecks e Rollbacks.
-3. **Frontend (Dashboard)**: Notifica o usuário e monitora a conclusão via polling de status.
-
-## Fluxo de Operação
-
-1. **Início**: O usuário admin clica em "Atualizar Agora". O Backend registra o início no DB e chama o Sidecar.
-2. **Manutenção**: O app entra em `MAINTENANCE_MODE`, bloqueando rotas normais mas permitindo status e emergência.
-3. **Deployment**:
-   - O Sidecar faz pull da nova imagem.
-   - Remove o container antigo (`rm -sf`) para evitar locks.
-   - Sobe o novo com `--force-recreate`.
-4. **Healthcheck**: 
-   - O Sidecar aguarda e verifica `http://app:5000/health`.
-   - Considera sucesso se retornar 200 (OK) ou 503 (Manutenção).
-5. **Rollback**: Se o Healthcheck falhar após 15 tentativas (150s), o Sidecar restaura a tag anterior no `.env` e sobe a versão estável.
-6. **Limpeza**: Após sucesso, o sistema remove imagens GHCR antigas, mantendo as últimas 3.
-
-## Configuração de Ambiente
-
-Crie ou edite os arquivos `.env.hml` e `.env.prod` na raiz do projeto:
+### 1.1 Ativar swap (recomendado para reduzir risco de OOM)
 
 ```bash
-# Exemplo .env.hml
-ENVIRONMENT=hml
-PRP_IMAGE_HML=ghcr.io/ademirapsantos/prp_financeiro:tag
-COMPOSE_PROJECT_NAME=prp_financeiro_hml
-KEEP_IMAGES=3
+sudo fallocate -l 1G /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+free -h
 ```
 
-## Recuperação de Emergência
+### 1.2 Instalar Docker + Compose plugin
 
-Caso o sistema trave em manutenção, você pode usar o comando de emergência via terminal ou API:
+```bash
+sudo apt-get update
+sudo apt-get install -y docker.io docker-compose-plugin
+sudo systemctl enable --now docker
+sudo usermod -aG docker $USER
+```
 
-**Via API (Token necessário no Header):**
-`POST /api/system/maintenance/off-token`
+Abra nova sessao SSH apos adicionar usuario ao grupo `docker`.
 
-**Via Sidecar (Logs):**
-Os logs detalhados ficam em `data/update_logs.jsonl`.
+## 2. Estrutura de diretorios na VPS
+
+```bash
+sudo mkdir -p /srv/prp_financeiro/{postgres,data,backup}
+sudo chown -R $USER:$USER /srv/prp_financeiro
+```
+
+## 3. Arquivo de ambiente de producao
+
+No servidor, dentro da pasta do projeto:
+
+```bash
+cp .env.prod.example /srv/prp_financeiro/.env.prod
+```
+
+Edite `/srv/prp_financeiro/.env.prod` com valores reais e fortes (nao commitar).
+
+## 4. Deploy de producao
+
+Executar sempre com `--env-file` e os dois arquivos Compose:
+
+```bash
+docker compose \
+  --env-file /srv/prp_financeiro/.env.prod \
+  -f docker-compose.prod.yml \
+  -f docker-compose.prod.override.yml \
+  up -d
+```
+
+## 5. Operacao basica
+
+### 5.1 Status
+
+```bash
+docker compose \
+  --env-file /srv/prp_financeiro/.env.prod \
+  -f docker-compose.prod.yml \
+  -f docker-compose.prod.override.yml \
+  ps
+```
+
+### 5.2 Logs
+
+```bash
+docker compose \
+  --env-file /srv/prp_financeiro/.env.prod \
+  -f docker-compose.prod.yml \
+  -f docker-compose.prod.override.yml \
+  logs -f --tail=200 prp-financeiro-prod
+```
+
+```bash
+docker compose \
+  --env-file /srv/prp_financeiro/.env.prod \
+  -f docker-compose.prod.yml \
+  -f docker-compose.prod.override.yml \
+  logs -f --tail=200 prp-updater-prod
+```
+
+### 5.3 Healthcheck da aplicacao
+
+```bash
+curl http://localhost:5000/health
+```
+
+## 6. Backup PostgreSQL
+
+Gerar dump em `/srv/prp_financeiro/backup/`:
+
+```bash
+docker exec prp-postgres-prod \
+  pg_dump -U "$POSTGRES_USER_PROD" -d "$POSTGRES_DB_PROD" -Fc \
+  > /srv/prp_financeiro/backup/prp_financeiro_$(date +%F_%H%M).dump
+```
+
+## 7. Acesso ao PostgreSQL sem expor porta
+
+O Postgres de producao nao deve publicar porta no host.
+Quando precisar acessar localmente, use tunel SSH:
+
+```bash
+ssh -L 55432:127.0.0.1:5432 <usuario>@<ip-da-vps>
+```
+
+No servidor, conecte no container pelo socket interno:
+
+```bash
+docker exec -it prp-postgres-prod psql -U "$POSTGRES_USER_PROD" -d "$POSTGRES_DB_PROD"
+```
+
+Se precisar acessar com cliente local (via tunel), rode um proxy local na VPS somente durante a manutencao (evitar permanente).
+

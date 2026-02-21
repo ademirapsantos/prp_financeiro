@@ -4,23 +4,21 @@ services:
   prp-postgres-prod:
     image: postgres:16-alpine
     container_name: prp-postgres-prod
-    ports:
-      - "5434:5432"
     volumes:
       - /srv/prp_financeiro/postgres:/var/lib/postgresql/data
     environment:
-      - POSTGRES_DB=${POSTGRES_DB_PROD:-prp_financeiro}
-      - POSTGRES_USER=${POSTGRES_USER_PROD:-prp_user}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD_PROD:-zH23LJGicTj9SR}
+      - POSTGRES_DB=${POSTGRES_DB_PROD}
+      - POSTGRES_USER=${POSTGRES_USER_PROD}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD_PROD}
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER_PROD:-prp_user} -d ${POSTGRES_DB_PROD:-prp_financeiro}" ]
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER_PROD} -d ${POSTGRES_DB_PROD}" ]
       interval: 10s
       timeout: 5s
       retries: 12
     restart: always
 
   prp-financeiro-prod:
-    image: ${PRP_IMAGE_PROD:-ghcr.io/ademirapsantos/prp_financeiro:prod-latest}
+    image: ${PRP_IMAGE_PROD}
     container_name: prp-financeiro-prod
     command: ["gunicorn", "--bind", "0.0.0.0:5000", "--timeout", "120", "--graceful-timeout", "120", "--keep-alive", "5", "--access-logfile", "-", "--error-logfile", "-", "run:app"]
     ports:
@@ -30,8 +28,8 @@ services:
       - ./manifests:/app/manifests:ro
     environment:
       - FLASK_ENV=production
-      - SECRET_KEY=prod_key_change_me
-      - DATABASE_URL=${DATABASE_URL_PROD:-postgresql://prp_user:zH23LJGicTj9SR@prp-postgres-prod:5432/prp_financeiro}
+      - SECRET_KEY=${SECRET_KEY}
+      - DATABASE_URL=${DATABASE_URL_PROD}
       - MAINTENANCE_MODE=false
       - UPDATE_TOKEN=${UPDATE_TOKEN}
       - ENVIRONMENT=prod
@@ -48,15 +46,12 @@ services:
     restart: always
 
   prp-updater-prod:
-    build:
-      context: .
-      dockerfile: Dockerfile.updater
+    image: ${UPDATER_IMAGE_PROD}
     container_name: prp-updater-prod
     ports:
       - "5025:5005"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - .:/app
       - /srv/prp_financeiro/data:/app/data
     networks:
       default:
@@ -71,6 +66,13 @@ services:
       - MANIFEST_BASE_URL=https://ademirapsantos.github.io/prp_financeiro
       - GHCR_IMAGE=ghcr.io/ademirapsantos/prp_financeiro
       - PROJECT_DIR=/app
-      - DATABASE_URL=${DATABASE_URL_PROD:-postgresql://prp_user:zH23LJGicTj9SR@prp-postgres-prod:5432/prp_financeiro}
+      - PRP_IMAGE_PROD=${PRP_IMAGE_PROD}
+      - UPDATER_IMAGE_PROD=${UPDATER_IMAGE_PROD}
+      - POSTGRES_DB_PROD=${POSTGRES_DB_PROD}
+      - POSTGRES_USER_PROD=${POSTGRES_USER_PROD}
+      - POSTGRES_PASSWORD_PROD=${POSTGRES_PASSWORD_PROD}
+      - SECRET_KEY=${SECRET_KEY}
+      - DATABASE_URL_PROD=${DATABASE_URL_PROD}
+      - DATABASE_URL=${DATABASE_URL_PROD}
     restart: always
 
