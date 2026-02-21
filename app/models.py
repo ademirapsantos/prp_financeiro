@@ -216,11 +216,13 @@ class Configuracao(db.Model):
 
     @staticmethod
     def is_maintenance():
-        from .utils.env import env_bool
-        # Prioridade 1: Variável de Ambiente
-        if env_bool('MAINTENANCE_MODE', False):
+        # Keep this self-contained to avoid import issues across image versions.
+        import os
+
+        raw = os.getenv('MAINTENANCE_MODE')
+        if raw is not None and str(raw).strip().lower() in ('1', 'true', 't', 'yes', 'y', 'on'):
             return True
-        # Prioridade 2: Banco de Dados
+
         return Configuracao.get_valor('MAINTENANCE_MODE') == 'true'
 
     @staticmethod

@@ -98,7 +98,7 @@ def create_app():
         from flask import session
         
         # Permitir acesso a rotas estáticas, blueprint de auth e endpoints públicos de sistema
-        public_endpoints = ['main.api_version', 'main.system_latest']
+        public_endpoints = ['main.api_version', 'main.system_latest', 'main.health']
         if request.endpoint and (
             'static' in request.endpoint or 
             'auth' in request.endpoint or
