@@ -70,7 +70,7 @@ def create_app():
             app.logger.error(f"Falha crítica nas migrações: {e}")
 
         # Importante: Criar plano de contas inicial se não existir
-        from .utils import seed_db
+        from .helpers import seed_db
         seed_db()
 
     from .routes import main_bp
