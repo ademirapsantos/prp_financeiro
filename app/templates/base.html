@@ -391,7 +391,7 @@
                         <button class="tab-btn" data-tab="tab-users"
                             onclick="switchSettingsTab('tab-users')">Usuários</button>
                         <button class="tab-btn" data-tab="tab-backup" onclick="switchSettingsTab('tab-backup')">Backup
-                            de Dados</button>
+                            PostgreSQL</button>
                     </div>
 
                     <!-- Aba SMTP -->
@@ -497,30 +497,32 @@
 
                         <div
                             style="background: #f8fafc; padding: 1.5rem; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 2rem;">
-                            <h4 style="margin-top: 0; color: var(--text-main); margin-bottom: 0.5rem;">Exportar Dados
+                            <h4 style="margin-top: 0; color: var(--text-main); margin-bottom: 0.5rem;">Gerar Backup
+                                PostgreSQL
                             </h4>
                             <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.5rem;">Gera um
-                                arquivo CSV
-                                contendo todos os registros de todas as tabelas do sistema (Usuários, Títulos,
-                                Lançamentos, etc.).</p>
-                            <button class="btn btn-success" onclick="downloadBackup()">Baixar Backup (CSV)</button>
+                                arquivo no formato nativo do PostgreSQL (.backup), contendo estrutura e dados de
+                                todas as tabelas do sistema.</p>
+                            <button type="button" class="btn btn-success" onclick="downloadBackup(event)">Gerar Backup PostgreSQL
+                                (.backup)</button>
                         </div>
 
                         <div
                             style="background: var(--bg-muted); padding: 1.5rem; border-radius: 8px; border: 1px solid var(--danger-color); opacity: 0.9;">
                             <h4 style="margin-top: 0; color: var(--danger-color); margin-bottom: 0.5rem;">Restaurar
-                                Dados</h4>
+                                Backup PostgreSQL</h4>
                             <p style="color: #742a2a; font-size: 0.9rem; margin-bottom: 1.5rem;">
                                 <strong>ATENÇÃO:</strong> O
                                 processo de restauração irá <strong>APAGAR TODOS OS DADOS ATUAIS</strong> e
                                 substituí-los
-                                pelo conteúdo do arquivo de backup.
+                                pelo conteúdo do arquivo de backup PostgreSQL (.backup ou .dump).
                             </p>
 
                             <div style="display: flex; gap: 1rem; align-items: center;">
-                                <input type="file" id="restore-file" accept=".csv" class="form-control"
+                                <input type="file" id="restore-file" accept=".backup,.dump,application/octet-stream"
+                                    class="form-control"
                                     style="flex-grow: 1;">
-                                <button class="btn btn-danger" onclick="performRestore()">Executar Restore</button>
+                                <button type="button" class="btn btn-danger" onclick="performRestore(event)">Restaurar Backup</button>
                             </div>
                         </div>
                     </div>
@@ -868,19 +870,63 @@
         }
 
         // --- Lógica de Backup ---
-        function downloadBackup() {
-            window.location.href = '{{ url_for("auth.export_backup") }}';
+        function downloadBackup(event) {
+            if (event) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+            fetch('{{ url_for("auth.export_backup") }}', {
+                method: 'GET'
+            })
+                .then(async (res) => {
+                    if (!res.ok) {
+                        let msg = 'Erro ao gerar backup PostgreSQL.';
+                        try {
+                            const data = await res.json();
+                            if (data && data.message) {
+                                msg = data.message.includes('pg_dump')
+                                    ? 'Falha ao gerar backup: pg_dump não encontrado no servidor.'
+                                    : data.message;
+                            }
+                        } catch (_) { }
+                        throw new Error(msg);
+                    }
+
+                    const blob = await res.blob();
+                    const disposition = res.headers.get('Content-Disposition') || '';
+                    let filename = `backup_prp_${new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)}.backup`;
+                    const match = disposition.match(/filename="?([^"]+)"?/i);
+                    if (match && match[1]) filename = match[1];
+
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    window.URL.revokeObjectURL(url);
+                    showToast('Backup PostgreSQL gerado com sucesso.', 'success');
+                })
+                .catch((err) => {
+                    showToast(err.message || 'Erro ao gerar backup PostgreSQL.', 'error');
+                });
+            return false;
         }
 
-        function performRestore() {
+        function performRestore(event) {
+            if (event) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
             const fileInput = document.getElementById('restore-file');
             if (fileInput.files.length === 0) {
-                showToast("Selecione um arquivo CSV para restaurar.", "warning");
-                return;
+                showToast("Selecione um arquivo de backup PostgreSQL (.backup ou .dump).", "warning");
+                return false;
             }
 
             if (!confirm("CONFIRMAÇÃO CRÍTICA: Deseja realmente APAGAR TUDO e restaurar os dados deste arquivo? Esta ação não pode ser desfeita.")) {
-                return;
+                return false;
             }
 
             const formData = new FormData();
@@ -905,6 +951,7 @@
                     console.error(err);
                     showToast("Erro técnico ao restaurar dados.", "error");
                 });
+            return false;
         }
 
         // --- Lógica do Modal de Ações de Título ---

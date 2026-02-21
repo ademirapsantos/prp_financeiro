@@ -2,6 +2,7 @@ from flask import render_template, redirect, url_for, flash, request, session, c
 import os
 import subprocess
 import tempfile
+import shutil
 from flask_login import login_user, logout_user, login_required, current_user
 from . import auth_bp
 from ..models import User, db, Configuracao, ContaContabil, LivroDiario, PartidaDiario, Entidade, Ativo, Titulo, TransacaoFinanceira, ConfiguracaoSMTP
@@ -10,6 +11,32 @@ from datetime import datetime
 from decimal import Decimal
 import secrets
 import string
+
+def _resolve_pg_bin(binary_name):
+    """
+    Resolve caminho do binário pg_dump/pg_restore.
+    Prioridade:
+    1) variável de ambiente explícita (PG_DUMP_BIN / PG_RESTORE_BIN)
+    2) PATH do sistema (shutil.which)
+    3) caminhos comuns do Windows (Program Files/PostgreSQL/*/bin)
+    """
+    env_key = 'PG_DUMP_BIN' if binary_name == 'pg_dump' else 'PG_RESTORE_BIN'
+    explicit = os.getenv(env_key)
+    if explicit:
+        return explicit
+
+    found = shutil.which(binary_name)
+    if found:
+        return found
+
+    if os.name == 'nt':
+        program_files = os.getenv('ProgramFiles', r'C:\Program Files')
+        for version in ('18', '17', '16', '15', '14', '13', '12'):
+            candidate = os.path.join(program_files, 'PostgreSQL', version, 'bin', f'{binary_name}.exe')
+            if os.path.exists(candidate):
+                return candidate
+
+    raise FileNotFoundError(f'{binary_name} não encontrado no servidor.')
 
 def refresh_mail_config():
     """Atualiza as configurações do Flask-Mail e da instância global mail."""
@@ -391,17 +418,19 @@ def export_backup():
     from ..config import Config
     db_url = Config.get_sqlalchemy_uri()
 
-    temp_file = tempfile.NamedTemporaryFile(suffix='.dump', delete=False)
+    temp_file = tempfile.NamedTemporaryFile(suffix='.backup', delete=False)
     temp_file.close()
     dump_path = temp_file.name
 
     try:
+        pg_dump_bin = _resolve_pg_bin('pg_dump')
         cmd = [
-            'pg_dump',
+            pg_dump_bin,
             '--dbname', db_url,
             '--format=custom',
             '--no-owner',
             '--no-privileges',
+            '--verbose',
             '--file', dump_path,
         ]
         result = subprocess.run(cmd, capture_output=True, text=True)
@@ -412,7 +441,7 @@ def export_backup():
             memory_file = io.BytesIO(f.read())
         memory_file.seek(0)
 
-        filename = f"backup_prp_{datetime.now().strftime('%Y%m%d_%H%M%S')}.dump"
+        filename = f"backup_prp_{datetime.now().strftime('%Y%m%d_%H%M%S')}.backup"
         return send_file(
             memory_file,
             mimetype='application/octet-stream',
@@ -420,6 +449,11 @@ def export_backup():
             download_name=filename
         )
     except Exception as e:
+        if isinstance(e, FileNotFoundError):
+            return {
+                "success": False,
+                "message": "Falha ao gerar backup: pg_dump não encontrado no servidor. Configure PG_DUMP_BIN ou instale PostgreSQL Client Tools."
+            }, 500
         return {"success": False, "message": f"Erro ao exportar backup Postgres: {str(e)}"}, 500
     finally:
         if os.path.exists(dump_path):
@@ -438,26 +472,33 @@ def restore_backup():
 
     Configuracao.set_valor('MAINTENANCE_MODE', 'true', 'Sistema em restauracao de backup')
 
-    temp_file = tempfile.NamedTemporaryFile(suffix='.dump', delete=False)
+    temp_file = tempfile.NamedTemporaryFile(suffix='.backup', delete=False)
     temp_file.close()
 
     try:
-        if not file.filename or not (file.filename.endswith('.dump') or file.filename.endswith('.backup')):
-            raise Exception('Formato nao suportado. Envie um backup Postgres (.dump ou .backup).')
+        if not file.filename:
+            raise Exception('Nome de arquivo inválido.')
+
+        filename = file.filename.lower()
+        if not (filename.endswith('.backup') or filename.endswith('.dump')):
+            raise Exception('Formato nao suportado. Envie um backup Postgres (.backup ou .dump).')
 
         file.save(temp_file.name)
         db_url = Config.get_sqlalchemy_uri()
 
         db.session.remove()
         db.engine.dispose()
+        pg_restore_bin = _resolve_pg_bin('pg_restore')
 
         cmd = [
-            'pg_restore',
+            pg_restore_bin,
             '--dbname', db_url,
             '--clean',
             '--if-exists',
             '--no-owner',
             '--no-privileges',
+            '--single-transaction',
+            '--verbose',
             temp_file.name,
         ]
         result = subprocess.run(cmd, capture_output=True, text=True)
