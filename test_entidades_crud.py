@@ -9,12 +9,6 @@ def test_crud_entidades():
     
     print("--- 1. Testando Listagem Vazia (ou com seeds) ---")
     print(f"DB URI: {app.config['SQLALCHEMY_DATABASE_URI']}")
-    import os
-    print(f"CWD: {os.getcwd()}")
-    if os.path.exists('instance/data/prp_financeiro.db'):
-        print("Arquivo encontrado em INSTANCE/data/prp_financeiro.db")
-    if os.path.exists('data/prp_financeiro.db'):
-        print("Arquivo encontrado em data/prp_financeiro.db")
 
     with app.app_context():
         print(f"Colunas Entidade: {Entidade.__table__.columns.keys()}")

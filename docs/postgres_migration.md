@@ -1,45 +1,36 @@
-# Migracao para Postgres (HML)
+# Operacao em PostgreSQL (HML/DEV)
 
-Este guia considera o sistema em modo PostgreSQL-only.
+Este projeto opera em modo PostgreSQL-only.
 
-## 1) Subir infraestrutura
+## 1) Variaveis de ambiente
 
-No arquivo `.env`, configure:
+Defina no `.env`:
 
-```
+```bash
 POSTGRES_DB_HML=prp_financeiro
 POSTGRES_USER_HML=prp_user
-POSTGRES_PASSWORD_HML=zH23LJGicTj9SR
-DATABASE_URL_HML=postgresql://prp_user:zH23LJGicTj9SR@prp-postgres-hml:5432/prp_financeiro
+POSTGRES_PASSWORD_HML=CHANGE_ME
+DATABASE_URL_HML=postgresql://prp_user:CHANGE_ME@prp-postgres-hml:5432/prp_financeiro
 ```
 
-Suba os servicos:
+Para DEV:
 
 ```bash
-docker compose -f docker-compose.hml.yml up -d --build
+DATABASE_URL_DEV=postgresql://prp_user:CHANGE_ME@localhost:5435/prp_financeiro
 ```
 
-## 2) Garantir schema no Postgres
-
-Ao iniciar o app com `DATABASE_URL_HML`, o app executa `db.create_all()` e cria as tabelas no Postgres.
-
-## 3) Migrar dados do SQLite para Postgres
-
-Execute no host:
+## 2) Subir stack
 
 ```bash
-python scripts/migrate_sqlite_to_postgres.py \
-  --sqlite-path data/hml/prp_financeiro.db \
-  --postgres-url "postgresql://prp_user:troque_esta_senha@localhost:5433/prp_financeiro" \
-  --truncate-target
+docker compose -f docker-compose.hml.yml up -d
 ```
+
+## 3) Garantir schema
+
+No startup, o app executa `db.create_all()` e migrações defensivas.
 
 ## 4) Validar
 
-1. Acesse `http://127.0.0.1:5001/health`
-2. Verifique login e dados principais (usuarios, entidades, titulos, ativos).
-3. Faça backup antes do primeiro deploy com Postgres.
-
-## 5) Rollback rapido (entre backups Postgres)
-
-Use backup `.dump` e restore pelo endpoint de backup do sistema.
+1. `curl http://127.0.0.1:5001/health`
+2. Testar login e telas principais.
+3. Gerar backup antes de qualquer mudança estrutural.

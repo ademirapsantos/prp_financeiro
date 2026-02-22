@@ -44,7 +44,7 @@ class Config:
 
         if not db_uri:
             raise RuntimeError(
-                'DATABASE_URL nao configurada. Defina DATABASE_URL ou DATABASE_URL_DEV no .env/ambiente.'
+                'DATABASE_URL nao configurada. Defina DATABASE_URL ou DATABASE_URL_<AMBIENTE> no .env/ambiente.'
             )
 
         if db_uri.startswith('postgres://'):
