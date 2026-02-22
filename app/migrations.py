@@ -6,7 +6,7 @@ logger = logging.getLogger(__name__)
 
 def run_migrations():
     """
-    Executa migrações defensivas no SQLite.
+    Executa migrações defensivas no PostgreSQL.
     Adiciona colunas faltantes e garante que tabelas existam.
     NUNCA apaga dados ou colunas.
     """

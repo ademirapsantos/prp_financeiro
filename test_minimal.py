@@ -1,13 +1,14 @@
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import DeclarativeBase
+from app.config import Config
 
 class Base(DeclarativeBase):
     pass
 
 db = SQLAlchemy(model_class=Base)
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///:memory:'
+app.config['SQLALCHEMY_DATABASE_URI'] = Config.get_sqlalchemy_uri()
 db.init_app(app)
 
 class User(db.Model):
@@ -17,4 +18,4 @@ class User(db.Model):
 
 with app.app_context():
     db.create_all()
-    print("Model created successfully")
+    print("Model created successfully (PostgreSQL)")
