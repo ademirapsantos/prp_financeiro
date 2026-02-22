@@ -1,9 +1,9 @@
 version: '3.8'
+name: ${COMPOSE_PROJECT_NAME_HML:-prp_hml}
 
 services:
   prp-postgres-hml:
     image: postgres:16-alpine
-    container_name: prp-postgres-hml
     ports:
       - "5433:5432"
     volumes:
@@ -21,7 +21,6 @@ services:
 
   prp-financeiro-hml:
     image: ${PRP_IMAGE_HML:-ghcr.io/ademirapsantos/prp_financeiro:hml-latest}
-    container_name: prp-financeiro-hml
     command: ["gunicorn", "--bind", "0.0.0.0:5000", "--timeout", "120", "--graceful-timeout", "120", "--keep-alive", "5", "--access-logfile", "-", "--error-logfile", "-", "run:app"]
     ports:
       - "5001:5000"
@@ -30,9 +29,8 @@ services:
       - ./manifests:/app/manifests:ro
     environment:
       - FLASK_ENV=production
-      - SECRET_KEY=prod_key_change_me
+      - SECRET_KEY=${SECRET_KEY:-prod_key_change_me}
       - DATABASE_URL=${DATABASE_URL_HML:-postgresql://prp_user:zH23LJGicTj9SR@prp-postgres-hml:5432/prp_financeiro}
-
       - UPDATE_TOKEN=${UPDATE_TOKEN:-prp_secure_token_2026}
       - ENVIRONMENT=hml
       - MANIFEST_BASE_URL=https://ademirapsantos.github.io/prp_financeiro
@@ -51,7 +49,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.updater
-    container_name: prp-updater-hml
     ports:
       - "5015:5005"
     volumes:
@@ -66,11 +63,10 @@ services:
       - UPDATE_TOKEN=${UPDATE_TOKEN:-prp_secure_token_2026}
       - COMPOSE_FILE=docker-compose.hml.yml
       - SERVICE_NAME=prp-financeiro-hml
-      - COMPOSE_PROJECT_NAME=prp_financeiro
+      - COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME_HML:-prp_hml}
       - ENVIRONMENT=hml
       - MANIFEST_BASE_URL=https://ademirapsantos.github.io/prp_financeiro
       - GHCR_IMAGE=ghcr.io/ademirapsantos/prp_financeiro
       - PROJECT_DIR=/app
       - DATABASE_URL=${DATABASE_URL_HML:-postgresql://prp_user:zH23LJGicTj9SR@prp-postgres-hml:5432/prp_financeiro}
     restart: always
-
