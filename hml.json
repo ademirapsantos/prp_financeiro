@@ -1,8 +1,8 @@
 {
-  "version": "1.4.16",
-  "latest_version": "1.4.16",
-  "tag": "hml-v1.4.16",
-  "commit": "07fb26329f3db9224505dcdaa2186a062e146b0c",
-  "date": "2026-02-22T09:51:08Z",
+  "version": "1.4.17",
+  "latest_version": "1.4.17",
+  "tag": "hml-v1.4.17",
+  "commit": "8d90dbbf1e2a33f3e234e1b6ca49917dce6ec88b",
+  "date": "2026-02-22T18:50:34Z",
   "environment": "hml"
 }
