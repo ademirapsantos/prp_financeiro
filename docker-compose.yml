@@ -1,9 +1,9 @@
 version: '3.8'
+name: ${COMPOSE_PROJECT_NAME_TEST:-prp_test}
 
 services:
   prp-postgres-test:
     image: postgres:16-alpine
-    container_name: prp-postgres-test
     ports:
       - "5435:5432"
     volumes:
@@ -21,17 +21,16 @@ services:
 
   prp-financeiro-test:
     build: .
-    container_name: prp_financeiro_test
     command: ["gunicorn", "--bind", "0.0.0.0:5000", "--timeout", "120", "--graceful-timeout", "120", "--keep-alive", "5", "--access-logfile", "-", "--error-logfile", "-", "run:app"]
     ports:
-      - "5002:5000" # Mapeia porta 5002 (Host) (Base Teste) para 5000 (Container)
+      - "5002:5000"
     volumes:
       - ./data:/app/data
       - ./instance:/app/instance
     restart: always
     environment:
       - FLASK_ENV=development
-      - SECRET_KEY=prod_key_change_me
+      - SECRET_KEY=${SECRET_KEY:-prod_key_change_me}
       - DATABASE_URL=${DATABASE_URL_TEST:-postgresql://prp_user:zH23LJGicTj9SR@prp-postgres-test:5432/prp_financeiro}
     depends_on:
       prp-postgres-test:
@@ -41,14 +40,17 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.updater
-    container_name: prp_updater
     ports:
       - "5005:5005"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - .:/app
     environment:
-      - UPDATE_TOKEN=prp_secure_token_2026
+      - UPDATE_TOKEN=${UPDATE_TOKEN:-prp_secure_token_2026}
       - DATABASE_URL=${DATABASE_URL_TEST:-postgresql://prp_user:zH23LJGicTj9SR@prp-postgres-test:5432/prp_financeiro}
+      - COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME_TEST:-prp_test}
+      - COMPOSE_FILE=docker-compose.yml
+      - PROJECT_DIR=/app
+      - SERVICE_NAME=prp-financeiro-test
+      - ENVIRONMENT=dev
     restart: always
-
