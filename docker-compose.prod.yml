@@ -1,11 +1,12 @@
 version: '3.8'
+name: ${COMPOSE_PROJECT_NAME_PROD:-prp}
 
 services:
   prp-postgres-prod:
     image: postgres:16-alpine
-    container_name: prp-postgres-prod
+    restart: unless-stopped
     volumes:
-      - /srv/prp_financeiro/postgres:/var/lib/postgresql/data
+      - /srv/prp/postgres:/var/lib/postgresql/data
     environment:
       - POSTGRES_DB=${POSTGRES_DB_PROD}
       - POSTGRES_USER=${POSTGRES_USER_PROD}
@@ -15,17 +16,17 @@ services:
       interval: 10s
       timeout: 5s
       retries: 12
-    restart: always
+    networks:
+      - prp_net
 
   prp-financeiro-prod:
     image: ${PRP_IMAGE_PROD}
-    container_name: prp-financeiro-prod
     command: ["gunicorn", "--bind", "0.0.0.0:5000", "--timeout", "120", "--graceful-timeout", "120", "--keep-alive", "5", "--access-logfile", "-", "--error-logfile", "-", "run:app"]
     ports:
-      - "5000:5000"
+      - "127.0.0.1:5000:5000"
     volumes:
-      - /srv/prp_financeiro/data:/app/data
-      - ./manifests:/app/manifests:ro
+      - /srv/prp/data:/app/data
+      - /srv/prp/manifests:/app/manifests:ro
     environment:
       - FLASK_ENV=production
       - SECRET_KEY=${SECRET_KEY}
@@ -43,36 +44,41 @@ services:
       interval: 10s
       timeout: 3s
       retries: 10
-    restart: always
+    restart: unless-stopped
+    networks:
+      - prp_net
 
   prp-updater-prod:
     image: ${UPDATER_IMAGE_PROD}
-    container_name: prp-updater-prod
     ports:
-      - "5025:5005"
+      - "127.0.0.1:5025:5005"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - /srv/prp_financeiro/data:/app/data
-    networks:
-      default:
-        aliases:
-          - prp-updater
+      - /srv/prp:/srv/prp
+      - /srv/prp/data:/srv/prp/data
     environment:
       - UPDATE_TOKEN=${UPDATE_TOKEN}
       - COMPOSE_FILE=docker-compose.prod.yml
       - SERVICE_NAME=prp-financeiro-prod
-      - COMPOSE_PROJECT_NAME=prp_financeiro
+      - COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME_PROD:-prp}
       - ENVIRONMENT=prod
       - MANIFEST_BASE_URL=https://ademirapsantos.github.io/prp_financeiro
       - GHCR_IMAGE=ghcr.io/ademirapsantos/prp_financeiro
-      - PROJECT_DIR=/app
+      - PROJECT_DIR=/srv/prp
       - PRP_IMAGE_PROD=${PRP_IMAGE_PROD}
       - UPDATER_IMAGE_PROD=${UPDATER_IMAGE_PROD}
-      - POSTGRES_DB_PROD=${POSTGRES_DB_PROD}
-      - POSTGRES_USER_PROD=${POSTGRES_USER_PROD}
-      - POSTGRES_PASSWORD_PROD=${POSTGRES_PASSWORD_PROD}
       - SECRET_KEY=${SECRET_KEY}
       - DATABASE_URL_PROD=${DATABASE_URL_PROD}
       - DATABASE_URL=${DATABASE_URL_PROD}
-    restart: always
+      - APP_HOST=prp-financeiro-prod
+      - APP_PORT=5000
+    networks:
+      prp_net:
+        aliases:
+          - prp-updater
+    restart: unless-stopped
 
+networks:
+  prp_net:
+    name: prp_net
+    driver: bridge
