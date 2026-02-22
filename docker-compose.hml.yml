@@ -31,6 +31,9 @@ services:
       - FLASK_ENV=production
       - SECRET_KEY=${SECRET_KEY:-prod_key_change_me}
       - DATABASE_URL=${DATABASE_URL_HML:-postgresql://prp_user:zH23LJGicTj9SR@prp-postgres-hml:5432/prp_financeiro}
+      - PG_BIN_DIR=${PG_BIN_DIR:-}
+      - PG_DUMP_BIN=${PG_DUMP_BIN:-}
+      - PG_RESTORE_BIN=${PG_RESTORE_BIN:-}
       - UPDATE_TOKEN=${UPDATE_TOKEN:-prp_secure_token_2026}
       - ENVIRONMENT=hml
       - MANIFEST_BASE_URL=https://ademirapsantos.github.io/prp_financeiro

@@ -31,6 +31,9 @@ services:
       - FLASK_ENV=production
       - SECRET_KEY=${SECRET_KEY}
       - DATABASE_URL=${DATABASE_URL_PROD}
+      - PG_BIN_DIR=${PG_BIN_DIR:-}
+      - PG_DUMP_BIN=${PG_DUMP_BIN:-}
+      - PG_RESTORE_BIN=${PG_RESTORE_BIN:-}
       - MAINTENANCE_MODE=false
       - UPDATE_TOKEN=${UPDATE_TOKEN}
       - ENVIRONMENT=prod

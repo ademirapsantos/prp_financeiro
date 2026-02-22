@@ -1,4 +1,4 @@
-from flask import render_template, redirect, url_for, flash, request, session, current_app, send_file
+﻿from flask import render_template, redirect, url_for, flash, request, session, current_app, send_file
 import os
 import subprocess
 import tempfile
@@ -11,23 +11,73 @@ from datetime import datetime
 from decimal import Decimal
 import secrets
 import string
+from urllib.parse import urlparse, urlunparse
+
+def _read_runtime_env_value(key):
+    value = os.getenv(key)
+    if value:
+        return value
+
+    root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+    env_name = (os.getenv('ENVIRONMENT', 'dev') or 'dev').strip().lower()
+    candidates = [
+        os.path.join(root_dir, f'.env.{env_name}'),
+        os.path.join(root_dir, '.env'),
+    ]
+    for env_file in candidates:
+        if not os.path.exists(env_file):
+            continue
+        try:
+            with open(env_file, 'r', encoding='utf-8') as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith('#') or '=' not in line:
+                        continue
+                    k, v = line.split('=', 1)
+                    if k.strip() == key:
+                        return v.strip()
+        except Exception:
+            continue
+    return None
 
 def _resolve_pg_bin(binary_name):
     """
-    Resolve caminho do binário pg_dump/pg_restore.
+    Resolve caminho do binario pg_dump/pg_restore.
     Prioridade:
-    1) variável de ambiente explícita (PG_DUMP_BIN / PG_RESTORE_BIN)
-    2) PATH do sistema (shutil.which)
-    3) caminhos comuns do Windows (Program Files/PostgreSQL/*/bin)
+    1) PG_BIN_DIR (diretorio base comum para ambos binarios)
+    2) variavel de ambiente explicita (PG_DUMP_BIN / PG_RESTORE_BIN)
+    3) PATH do sistema (shutil.which)
+    4) caminhos comuns Linux e Windows
     """
+    exe_name = f'{binary_name}.exe' if os.name == 'nt' else binary_name
+
+    pg_bin_dir = _read_runtime_env_value('PG_BIN_DIR')
+    if pg_bin_dir:
+        candidate = os.path.join(pg_bin_dir, exe_name)
+        if os.path.exists(candidate):
+            return candidate
+
     env_key = 'PG_DUMP_BIN' if binary_name == 'pg_dump' else 'PG_RESTORE_BIN'
-    explicit = os.getenv(env_key)
+    explicit = _read_runtime_env_value(env_key)
     if explicit:
-        return explicit
+        if os.path.exists(explicit):
+            return explicit
+        explicit_found = shutil.which(explicit)
+        if explicit_found:
+            return explicit_found
 
     found = shutil.which(binary_name)
     if found:
         return found
+
+    linux_candidates = [
+        f'/usr/local/bin/{binary_name}',
+        f'/usr/bin/{binary_name}',
+        f'/bin/{binary_name}',
+    ]
+    for candidate in linux_candidates:
+        if os.path.exists(candidate):
+            return candidate
 
     if os.name == 'nt':
         program_files = os.getenv('ProgramFiles', r'C:\Program Files')
@@ -36,10 +86,57 @@ def _resolve_pg_bin(binary_name):
             if os.path.exists(candidate):
                 return candidate
 
-    raise FileNotFoundError(f'{binary_name} não encontrado no servidor.')
+    raise FileNotFoundError(
+        f'{binary_name} nao encontrado no servidor. '
+        f'Configure PG_BIN_DIR ou {"PG_DUMP_BIN" if binary_name == "pg_dump" else "PG_RESTORE_BIN"}.'
+    )
+
+def _to_pg_tools_uri(db_url):
+    """
+    Converte URL do SQLAlchemy (postgresql+psycopg://) para formato aceito por
+    pg_dump/pg_restore (postgresql://).
+    """
+    if not db_url:
+        return db_url
+    if db_url.startswith('postgresql+psycopg://'):
+        return db_url.replace('postgresql+psycopg://', 'postgresql://', 1)
+    return db_url
+
+def _fallback_local_db_url(db_url, error_text):
+    """
+    Fallback para DEV local quando o host do DB Ã© nome de serviÃ§o Docker
+    (ex.: prp-postgres-test), mas o processo Flask estÃ¡ fora da rede Docker.
+    """
+    if not db_url or not error_text:
+        return None
+
+    lowered = error_text.lower()
+    if 'could not translate host name' not in lowered and 'name or service not known' not in lowered:
+        return None
+
+    parsed = urlparse(db_url)
+    host = parsed.hostname or ''
+    if not host.startswith('prp-postgres-'):
+        return None
+
+    if host.endswith('-test'):
+        port = 5435
+    elif host.endswith('-hml'):
+        port = 5433
+    else:
+        port = parsed.port or 5432
+
+    netloc = parsed.netloc
+    if '@' in netloc:
+        auth, _ = netloc.rsplit('@', 1)
+        new_netloc = f"{auth}@127.0.0.1:{port}"
+    else:
+        new_netloc = f"127.0.0.1:{port}"
+
+    return urlunparse((parsed.scheme, new_netloc, parsed.path, parsed.params, parsed.query, parsed.fragment))
 
 def refresh_mail_config():
-    """Atualiza as configurações do Flask-Mail e da instância global mail."""
+    """Atualiza as configuraÃ§Ãµes do Flask-Mail e da instÃ¢ncia global mail."""
     from .. import mail
     from ..models import ConfiguracaoSMTP
     
@@ -62,7 +159,7 @@ def refresh_mail_config():
     current_app.config['MAIL_USERNAME'] = user
     current_app.config['MAIL_PASSWORD'] = password
     
-    # CRITICAL: Atualiza a instância do Mail, pois ela não lê o config dinamicamente após init_app
+    # CRITICAL: Atualiza a instÃ¢ncia do Mail, pois ela nÃ£o lÃª o config dinamicamente apÃ³s init_app
     mail.server = server
     mail.port = port
     mail.use_tls = use_tls
@@ -75,7 +172,7 @@ def generate_temp_password(length=12):
     return ''.join(secrets.choice(alphabet) for _ in range(length))
 
 def send_email_direct(subject, recipient_email, body):
-    """Envia um e-mail diretamente via smtplib usando as configurações do banco."""
+    """Envia um e-mail diretamente via smtplib usando as configuraÃ§Ãµes do banco."""
     import smtplib
     import ssl
     from email.mime.text import MIMEText
@@ -85,7 +182,7 @@ def send_email_direct(subject, recipient_email, body):
     
     cfg = ConfiguracaoSMTP.query.first()
     if not cfg:
-        raise Exception("Servidor SMTP não configurado.")
+        raise Exception("Servidor SMTP nÃ£o configurado.")
     
     host = cfg.smtp_server
     port = int(cfg.smtp_port)
@@ -95,7 +192,7 @@ def send_email_direct(subject, recipient_email, body):
     use_ssl = cfg.use_ssl
     
     if not host or not user_smtp or not pass_smtp:
-        raise Exception("Dados de SMTP (host/usuário/senha) incompletos no banco de dados.")
+        raise Exception("Dados de SMTP (host/usuÃ¡rio/senha) incompletos no banco de dados.")
     
     # Criar a mensagem
     message = MIMEMultipart()
@@ -121,7 +218,7 @@ def send_email_direct(subject, recipient_email, body):
 def register():
     # ... (unchanged logic)
     if User.query.count() > 0:
-        flash('O sistema já possui um administrador cadastrado.', 'error')
+        flash('O sistema jÃ¡ possui um administrador cadastrado.', 'error')
         return redirect(url_for('auth.login'))
     
     if request.method == 'POST':
@@ -129,7 +226,7 @@ def register():
         email = request.form.get('email')
         
         if User.query.filter_by(email=email).first():
-            flash('E-mail já cadastrado.', 'error')
+            flash('E-mail jÃ¡ cadastrado.', 'error')
             return redirect(url_for('auth.register'))
         
         temp_password = generate_temp_password()
@@ -157,11 +254,11 @@ def login():
         
         if user and user.check_password(password):
             login_user(user)
-            session['is_locked'] = False # Garantir que começa desbloqueado
+            session['is_locked'] = False # Garantir que comeÃ§a desbloqueado
             next_page = request.args.get('next')
             return redirect(next_page or url_for('main.dashboard'))
         else:
-            flash('E-mail ou senha inválidos.', 'error')
+            flash('E-mail ou senha invÃ¡lidos.', 'error')
             
     return render_template('auth/login.html')
 
@@ -207,11 +304,11 @@ def change_password():
         if not current_user.check_password(current_password):
             flash('Senha atual incorreta.', 'error')
         elif new_password != confirm_password:
-            flash('As senhas não coincidem.', 'error')
+            flash('As senhas nÃ£o coincidem.', 'error')
         elif len(new_password) < 6:
             flash('A senha deve ter pelo menos 6 caracteres.', 'error')
         elif not any(c.isalpha() for c in new_password) or not any(c.isdigit() for c in new_password):
-            flash('A senha deve conter letras e números.', 'error')
+            flash('A senha deve conter letras e nÃºmeros.', 'error')
         else:
             current_user.set_password(new_password)
             current_user.deve_alterar_senha = False
@@ -221,7 +318,7 @@ def change_password():
             
     return render_template('auth/change_password.html')
 
-# --- CONFIGURAÇÕES SMTP & RECUPERAÇÃO DE SENHA ---
+# --- CONFIGURAÃ‡Ã•ES SMTP & RECUPERAÃ‡ÃƒO DE SENHA ---
 
 @auth_bp.route('/forgot-password', methods=['GET', 'POST'])
 def forgot_password():
@@ -237,8 +334,8 @@ def forgot_password():
             
             # Enviar e-mail
             try:
-                body = f"Olá {user.nome},\n\nSua senha temporária é: {temp_password}\n\nPor favor, altere-a após o login."
-                send_email_direct("Recuperação de Senha - PRP Financeiro", email, body)
+                body = f"OlÃ¡ {user.nome},\n\nSua senha temporÃ¡ria Ã©: {temp_password}\n\nPor favor, altere-a apÃ³s o login."
+                send_email_direct("RecuperaÃ§Ã£o de Senha - PRP Financeiro", email, body)
                 flash('E-mail enviado com sucesso! Verifique sua caixa de entrada.', 'success')
             except Exception as e:
                 from ..models import ConfiguracaoSMTP
@@ -250,7 +347,7 @@ def forgot_password():
             
             return redirect(url_for('auth.login'))
         else:
-            flash('E-mail não encontrado.', 'error')
+            flash('E-mail nÃ£o encontrado.', 'error')
             
     return render_template('auth/forgot_password.html')
 
@@ -279,7 +376,7 @@ def manage_config():
             
             db.session.commit()
             refresh_mail_config() # Atualiza em tempo real
-            return {"success": True, "message": "Configurações SMTP salvas com sucesso!"}
+            return {"success": True, "message": "ConfiguraÃ§Ãµes SMTP salvas com sucesso!"}
         except Exception as e:
             db.session.rollback()
             return {"success": False, "message": str(e)}, 400
@@ -316,7 +413,7 @@ def list_users():
 @login_required
 def add_user():
     if not current_user.is_admin:
-        return {"success": False, "message": "Acesso negado. Apenas administradores podem criar usuários."}, 403
+        return {"success": False, "message": "Acesso negado. Apenas administradores podem criar usuÃ¡rios."}, 403
     
     data = request.get_json()
     nome = data.get('nome')
@@ -324,12 +421,12 @@ def add_user():
     is_admin = data.get('is_admin', False)
     
     if not nome or not email:
-        return {"success": False, "message": "Nome e E-mail são obrigatórios."}, 400
+        return {"success": False, "message": "Nome e E-mail sÃ£o obrigatÃ³rios."}, 400
     
     if User.query.filter_by(email=email).first():
-        return {"success": False, "message": "E-mail já cadastrado."}, 400
+        return {"success": False, "message": "E-mail jÃ¡ cadastrado."}, 400
     
-    # Gerar senha temporária
+    # Gerar senha temporÃ¡ria
     temp_pass = generate_temp_password(length=8)
     
     user = User(nome=nome, email=email, is_admin=is_admin, deve_alterar_senha=True)
@@ -340,17 +437,17 @@ def add_user():
     
     envio_email = False
     try:
-        body = f"Olá {nome},\n\nSua conta no PRP Financeiro foi criada.\n\nSua senha temporária é: {temp_pass}\n\nPor favor, altere-a no seu primeiro acesso."
+        body = f"OlÃ¡ {nome},\n\nSua conta no PRP Financeiro foi criada.\n\nSua senha temporÃ¡ria Ã©: {temp_pass}\n\nPor favor, altere-a no seu primeiro acesso."
         send_email_direct("Bem-vindo ao PRP Financeiro", email, body)
         envio_email = True
     except Exception as e:
         print(f"Erro ao enviar e-mail de boas-vindas: {e}")
 
-    message = f"Usuário {nome} cadastrado com sucesso!"
+    message = f"UsuÃ¡rio {nome} cadastrado com sucesso!"
     if envio_email:
-        message += " A senha temporária foi enviada para o e-mail do usuário."
+        message += " A senha temporÃ¡ria foi enviada para o e-mail do usuÃ¡rio."
     else:
-        message += " ATENÇÃO: O e-mail não pôde ser enviado. Verifique as configurações de SMTP."
+        message += " ATENÃ‡ÃƒO: O e-mail nÃ£o pÃ´de ser enviado. Verifique as configuraÃ§Ãµes de SMTP."
 
     return {
         "success": True, 
@@ -361,20 +458,20 @@ def add_user():
 @login_required
 def delete_user(user_id):
     if not current_user.is_admin:
-        return {"success": False, "message": "Acesso negado. Apenas administradores podem excluir usuários."}, 403
+        return {"success": False, "message": "Acesso negado. Apenas administradores podem excluir usuÃ¡rios."}, 403
     
     if current_user.id == user_id:
-        return {"success": False, "message": "Você não pode excluir sua própria conta."}, 400
+        return {"success": False, "message": "VocÃª nÃ£o pode excluir sua prÃ³pria conta."}, 400
         
     user = User.query.get_or_404(user_id)
     
     try:
         db.session.delete(user)
         db.session.commit()
-        return {"success": True, "message": f"Usuário {user.nome} excluído com sucesso!"}
+        return {"success": True, "message": f"UsuÃ¡rio {user.nome} excluÃ­do com sucesso!"}
     except Exception as e:
         db.session.rollback()
-        return {"success": False, "message": f"Erro ao excluir usuário: {str(e)}"}, 400
+        return {"success": False, "message": f"Erro ao excluir usuÃ¡rio: {str(e)}"}, 400
 
 @auth_bp.route('/api/users/<user_id>/resend-password', methods=['POST'])
 @login_required
@@ -384,7 +481,7 @@ def resend_user_password(user_id):
     
     user = User.query.get_or_404(user_id)
     
-    # Gerar nova senha temporária
+    # Gerar nova senha temporÃ¡ria
     temp_pass = generate_temp_password(length=8)
     user.set_password(temp_pass)
     user.deve_alterar_senha = True
@@ -394,7 +491,7 @@ def resend_user_password(user_id):
         
         # Enviar e-mail diretamente
         try:
-            body = f"Olá {user.nome},\n\nUma nova senha temporária foi gerada conforme solicitado.\n\nSua senha temporária é: {temp_pass}\n\nPor favor, altere-a no seu próximo acesso."
+            body = f"OlÃ¡ {user.nome},\n\nUma nova senha temporÃ¡ria foi gerada conforme solicitado.\n\nSua senha temporÃ¡ria Ã©: {temp_pass}\n\nPor favor, altere-a no seu prÃ³ximo acesso."
             send_email_direct("Sua nova senha - PRP Financeiro", user.email, body)
             return {"success": True, "message": f"Nova senha enviada para {user.email}"}
         except Exception as e:
@@ -403,7 +500,7 @@ def resend_user_password(user_id):
             host = cfg.smtp_server if cfg else "None"
             port = cfg.smtp_port if cfg else "None"
             debug_info = f" (Host: {host}:{port})"
-            return {"success": False, "message": f"Erro ao enviar e-mail: {str(e)}{debug_info}. Senha gerada (para cópia manual): {temp_pass}"}, 400
+            return {"success": False, "message": f"Erro ao enviar e-mail: {str(e)}{debug_info}. Senha gerada (para cÃ³pia manual): {temp_pass}"}, 400
             
     except Exception as e:
         db.session.rollback()
@@ -416,7 +513,7 @@ def export_backup():
         return {"success": False, "message": "Acesso negado."}, 403
 
     from ..config import Config
-    db_url = Config.get_sqlalchemy_uri()
+    db_url = _to_pg_tools_uri(Config.get_sqlalchemy_uri())
 
     temp_file = tempfile.NamedTemporaryFile(suffix='.backup', delete=False)
     temp_file.close()
@@ -435,7 +532,15 @@ def export_backup():
         ]
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode != 0:
-            raise Exception(result.stderr or result.stdout or 'Falha no pg_dump')
+            first_error = result.stderr or result.stdout or 'Falha no pg_dump'
+            retry_db_url = _fallback_local_db_url(db_url, first_error)
+            if retry_db_url and retry_db_url != db_url:
+                cmd[2] = retry_db_url
+                retry_result = subprocess.run(cmd, capture_output=True, text=True)
+                if retry_result.returncode != 0:
+                    raise Exception(retry_result.stderr or retry_result.stdout or first_error)
+            else:
+                raise Exception(first_error)
 
         with open(dump_path, 'rb') as f:
             memory_file = io.BytesIO(f.read())
@@ -452,7 +557,7 @@ def export_backup():
         if isinstance(e, FileNotFoundError):
             return {
                 "success": False,
-                "message": "Falha ao gerar backup: pg_dump não encontrado no servidor. Configure PG_DUMP_BIN ou instale PostgreSQL Client Tools."
+                "message": "Falha ao gerar backup: pg_dump nÃ£o encontrado no servidor. Configure PG_BIN_DIR (ou PG_DUMP_BIN) ou instale PostgreSQL Client Tools."
             }, 500
         return {"success": False, "message": f"Erro ao exportar backup Postgres: {str(e)}"}, 500
     finally:
@@ -477,14 +582,14 @@ def restore_backup():
 
     try:
         if not file.filename:
-            raise Exception('Nome de arquivo inválido.')
+            raise Exception('Nome de arquivo invÃ¡lido.')
 
         filename = file.filename.lower()
         if not (filename.endswith('.backup') or filename.endswith('.dump')):
             raise Exception('Formato nao suportado. Envie um backup Postgres (.backup ou .dump).')
 
         file.save(temp_file.name)
-        db_url = Config.get_sqlalchemy_uri()
+        db_url = _to_pg_tools_uri(Config.get_sqlalchemy_uri())
 
         db.session.remove()
         db.engine.dispose()
@@ -503,7 +608,15 @@ def restore_backup():
         ]
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode != 0:
-            raise Exception(result.stderr or result.stdout or 'Falha no pg_restore')
+            first_error = result.stderr or result.stdout or 'Falha no pg_restore'
+            retry_db_url = _fallback_local_db_url(db_url, first_error)
+            if retry_db_url and retry_db_url != db_url:
+                cmd[2] = retry_db_url
+                retry_result = subprocess.run(cmd, capture_output=True, text=True)
+                if retry_result.returncode != 0:
+                    raise Exception(retry_result.stderr or retry_result.stdout or first_error)
+            else:
+                raise Exception(first_error)
 
         Configuracao.set_valor('MAINTENANCE_MODE', 'false')
         return {"success": True, "message": "Backup Postgres restaurado com sucesso."}
@@ -522,10 +635,11 @@ def update_theme():
     tema = data.get('tema')
     
     if tema not in ['light', 'dark']:
-        return {"success": False, "message": "Tema inválido."}, 400
+        return {"success": False, "message": "Tema invÃ¡lido."}, 400
         
     current_user.tema = tema
     db.session.commit()
     return {"success": True, "tema": tema}
+
 
 
