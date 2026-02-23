@@ -1,6 +1,8 @@
 {
-    "version": "1.4.0",
-    "tag": "hml-v1.4.0",
-    "date": "2026-02-20T16:00:00Z",
-    "commit": "dev-example"
+    "version": "1.4.26",
+    "latest_version": "1.4.26",
+    "tag": "hml-v1.4.26",
+    "date": "2026-02-23T04:55:04Z",
+    "commit": "auto-version-sync",
+    "environment": "hml"
 }

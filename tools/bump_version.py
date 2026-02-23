@@ -1,43 +1,105 @@
-import re
+import json
 import os
+import re
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 
-VERSION_FILE = os.path.join(os.path.dirname(__file__), '..', 'app', 'version.py')
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+VERSION_FILE = os.path.join(ROOT_DIR, "app", "version.py")
 
-def bump_version():
-    if not os.path.exists(VERSION_FILE):
-        print(f"File {VERSION_FILE} not found. Creating a new one.")
-        content = '__version__ = "1.0.0"\n__build__ = "initial"\n'
-        with open(VERSION_FILE, 'w') as f:
-            f.write(content)
+MANIFESTS = {
+    "dev": os.path.join(ROOT_DIR, "manifests", "dev.json"),
+    "hml": os.path.join(ROOT_DIR, "manifests", "hml.json"),
+    "prod": os.path.join(ROOT_DIR, "manifests", "prod.json"),
+}
 
-    with open(VERSION_FILE, 'r') as f:
-        content = f.read()
+TAG_PREFIX = {
+    "dev": "dev-v",
+    "hml": "hml-v",
+    "prod": "prod-v",
+}
 
-    # Find __version__ = "X.Y.Z"
-    version_match = re.search(r'__version__\s*=\s*["\'](\d+)\.(\d+)\.(\d+)["\']', content)
-    if not version_match:
-        print("Could not find __version__ in file.")
-        return False
 
-    major, minor, patch = map(int, version_match.groups())
-    new_patch = patch + 1
-    new_version = f"{major}.{minor}.{new_patch}"
-    new_build = datetime.now().strftime("%Y%m%d%H%M")
+def _read_text(path):
+    with open(path, "r", encoding="utf-8") as f:
+        return f.read()
 
-    # Replace version and build
-    content = re.sub(r'__version__\s*=\s*["\']\d+\.\d+\.\d+["\']', f'__version__ = "{new_version}"', content)
-    content = re.sub(r'__build__\s*=\s*["\'].*?["\']', f'__build__ = "{new_build}"', content)
 
-    with open(VERSION_FILE, 'w') as f:
+def _write_text(path, content):
+    with open(path, "w", encoding="utf-8", newline="\n") as f:
         f.write(content)
 
-    print(f"Bumped version to {new_version} (Build: {new_build})")
-    return True
+
+def _parse_version(version_text):
+    match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)", version_text.strip())
+    if not match:
+        raise ValueError("Version must match X.Y.Z")
+    return tuple(map(int, match.groups()))
+
+
+def _read_current_version():
+    content = _read_text(VERSION_FILE)
+    match = re.search(r'__version__\s*=\s*["\'](\d+\.\d+\.\d+)["\']', content)
+    if not match:
+        raise RuntimeError(f"Could not find __version__ in {VERSION_FILE}")
+    return match.group(1)
+
+
+def _set_version_file(new_version):
+    content = _read_text(VERSION_FILE)
+    today_build = datetime.now(timezone.utc).strftime("%Y%m%d")
+
+    content = re.sub(
+        r'__version__\s*=\s*["\']\d+\.\d+\.\d+["\']',
+        f'__version__ = "{new_version}"',
+        content,
+    )
+    content = re.sub(
+        r'__build__\s*=\s*["\'].*?["\']',
+        f'__build__ = "{today_build}"',
+        content,
+    )
+    _write_text(VERSION_FILE, content)
+
+
+def _sync_manifest(env, version):
+    manifest_path = MANIFESTS[env]
+    payload = {
+        "version": version,
+        "latest_version": version,
+        "tag": f"{TAG_PREFIX[env]}{version}",
+        "date": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "commit": "auto-version-sync",
+        "environment": env,
+    }
+    _write_text(manifest_path, json.dumps(payload, indent=4, ensure_ascii=True) + "\n")
+
+
+def _next_patch_version(current_version):
+    major, minor, patch = _parse_version(current_version)
+    return f"{major}.{minor}.{patch + 1}"
+
+
+def main():
+    explicit_version = sys.argv[1].strip() if len(sys.argv) > 1 else None
+
+    current_version = _read_current_version()
+    if explicit_version:
+        _parse_version(explicit_version)
+        target_version = explicit_version
+    else:
+        target_version = _next_patch_version(current_version)
+
+    _set_version_file(target_version)
+    for env in ("dev", "hml", "prod"):
+        _sync_manifest(env, target_version)
+
+    print(f"Version synced successfully: {current_version} -> {target_version}")
+    print("Updated files:")
+    print(f"- {os.path.relpath(VERSION_FILE, ROOT_DIR)}")
+    for env in ("dev", "hml", "prod"):
+        print(f"- {os.path.relpath(MANIFESTS[env], ROOT_DIR)}")
+
 
 if __name__ == "__main__":
-    if bump_version():
-        sys.exit(0)
-    else:
-        sys.exit(1)
+    main()
