@@ -15,8 +15,8 @@ backup/
 
 # Ambiente e segredos
 .env
-.env.*
-!.env.prod.example
+#.env.*
+#!.env.prod.example
 instance/
 
 # Logs

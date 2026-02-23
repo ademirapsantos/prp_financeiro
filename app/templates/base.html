@@ -518,7 +518,7 @@
                                 <strong>ATENÇÃO:</strong> O
                                 processo de restauração irá <strong>APAGAR TODOS OS DADOS ATUAIS</strong> e
                                 substituí-los
-                                pelo conteúdo do arquivo de backup PostgreSQL (.backup ou .dump).
+                                pelo conteúdo do arquivo de backup PostgreSQL (.sql, .backup ou .dump).
                             </p>
 
                             <div style="display: flex; gap: 1rem; align-items: center;">
@@ -895,7 +895,7 @@
 
                     const blob = await res.blob();
                     const disposition = res.headers.get('Content-Disposition') || '';
-                    let filename = `backup_prp_${new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)}.backup`;
+            let filename = `backup_prp_dados_${new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)}.sql`;
                     const match = disposition.match(/filename="?([^"]+)"?/i);
                     if (match && match[1]) filename = match[1];
 
@@ -922,7 +922,7 @@
             }
             const fileInput = document.getElementById('restore-file');
             if (fileInput.files.length === 0) {
-                showToast("Selecione um arquivo de backup PostgreSQL (.backup ou .dump).", "warning");
+                showToast("Selecione um arquivo de backup PostgreSQL (.sql, .backup ou .dump).", "warning");
                 return false;
             }
 
