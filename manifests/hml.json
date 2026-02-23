@@ -1,8 +1,8 @@
 {
-    "version": "1.4.26",
-    "latest_version": "1.4.26",
-    "tag": "hml-v1.4.26",
-    "date": "2026-02-23T04:55:04Z",
+    "version": "1.4.27",
+    "latest_version": "1.4.27",
+    "tag": "hml-v1.4.27",
+    "date": "2026-02-23T05:34:31Z",
     "commit": "auto-version-sync",
     "environment": "hml"
 }

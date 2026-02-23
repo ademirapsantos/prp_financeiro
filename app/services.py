@@ -221,25 +221,20 @@ class FinancialService:
     def criar_titulo_receber(entidade, descricao, valor, data_vencimento):
         """
         Cria um título a receber e lança a provisão na contabilidade.
-        D: Clientes a Receber (Patrimonial da Entidade ou Default 1.5.01)
-        C: Receita (Resultado da Entidade ou conta_venda_id)
+        Regra simplificada:
+        - Exige apenas conta de categoria de receita (conta_resultado_id ou conta_venda_id).
+        - Não exige conta patrimonial da entidade para o cadastro do título.
         """
-        # 1. Resolver Contas
-        conta_p_id = entidade.conta_contabil_id # Patrimonial (Ativo)
-        conta_r_id = entidade.conta_resultado_id # Resultado (Receita)
+        # 1. Resolver conta de categoria (receita)
+        conta_r_id = entidade.conta_resultado_id
         
-        # Fallback para nova lógica simplificada
+        # Fallback para cliente (cadastro simplificado)
         if entidade.tipo == 'Cliente':
             if not conta_r_id:
                 conta_r_id = entidade.conta_venda_id
-            if not conta_p_id:
-                # Buscar conta padrão: Clientes a Receber (1.5.01)
-                c_padrao = ContaContabil.query.filter_by(codigo='1.5.01').first()
-                if c_padrao:
-                    conta_p_id = c_padrao.id
 
-        if not conta_p_id or not conta_r_id:
-            raise ValueError(f"Entidade '{entidade.nome}' não possui as contas automáticas (Patrimonial e Resultado) configuradas.")
+        if not conta_r_id:
+            raise ValueError(f"Entidade '{entidade.nome}' não possui conta de receita configurada.")
 
         # 2. Criar Título
         titulo = Titulo(
