@@ -233,4 +233,29 @@
         }
     </script>
     {% include 'contabilidade/dialog_parametros.html' %}
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('open_parametros') !== '1') return;
+
+            try {
+                await abrirParametros();
+                const focusParam = params.get('focus_param');
+                if (focusParam) {
+                    const target = document.querySelector(`#formParametros [name="${focusParam}"]`);
+                    if (target) {
+                        target.focus();
+                        target.style.outline = '2px solid var(--accent-color)';
+                        target.style.outlineOffset = '2px';
+                        setTimeout(() => {
+                            target.style.outline = '';
+                            target.style.outlineOffset = '';
+                        }, 2500);
+                    }
+                }
+            } catch (_) {
+                // abertura do modal já trata erro com toast
+            }
+        });
+    </script>
     {% endblock %}

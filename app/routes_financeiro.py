@@ -655,7 +655,15 @@ def editar_banco(banco_id):
             return redirect(url_for('financeiro.bancos'))
         except Exception as e:
             db.session.rollback()
-            flash(f"Erro ao atualizar banco: {str(e)}", "error")
+            error_msg = str(e)
+            if "Nenhuma conta de contrapartida (PL) encontrada" in error_msg:
+                flash(
+                    "Configure o parâmetro contábil 'Bancos e Caixa' para lançar ajuste/saldo inicial do banco.",
+                    "warning"
+                )
+                return redirect(url_for('main.balancete', open_parametros='1', focus_param='conta_ativo_banco'))
+
+            flash(f"Erro ao atualizar banco: {error_msg}", "error")
             return redirect(url_for('financeiro.bancos'))
 
     # Para edição, também carregar contas analíticas
