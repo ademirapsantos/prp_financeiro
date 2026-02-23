@@ -134,6 +134,9 @@
                         <a href="#" id="open-settings-btn">Configurações</a>
                         {% endif %}
                         <a href="{{ url_for('main.ajuda') }}">Ajuda</a>
+                        {% if current_user.is_admin %}
+                        <a href="{{ url_for('main.ajuda_implementacao_feature_db') }}">Manual Implementação</a>
+                        {% endif %}
                         <a href="{{ url_for('auth.lock') }}">Bloquear</a>
                         <div class="dropdown-divider"></div>
                         <a href="{{ url_for('auth.logout') }}" class="logout-link">Sair</a>

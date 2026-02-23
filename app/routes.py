@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, send_file, current_app, jsonify
+﻿from flask import Blueprint, render_template, request, redirect, url_for, send_file, current_app, jsonify
 import requests
 from flask_login import login_required, current_user
 import json
@@ -18,14 +18,14 @@ main_bp = Blueprint('main', __name__)
 @main_bp.before_app_request
 def check_maintenance():
     if Configuracao.is_maintenance():
-        # Permitir apenas rotas críticas, estáticos e endpoints de controle de update
+        # Permitir apenas rotas crÃ­ticas, estÃ¡ticos e endpoints de controle de update
         allowed_paths = [
             '/api/version', 
             '/api/system/latest', 
             '/api/system/update/status',
             '/api/system/update/finalize-token',
             '/api/system/maintenance/off',
-            '/api/system/maintenance/off-token', # Emergência
+            '/api/system/maintenance/off-token', # EmergÃªncia
             '/health', 
             '/static/', 
             '/login', 
@@ -33,7 +33,7 @@ def check_maintenance():
         ]
         if not any(request.path.startswith(p) for p in allowed_paths):
             if request.path.startswith('/api/'):
-                return jsonify({"status": "maintenance", "message": "Sistema em manutenção"}), 503
+                return jsonify({"status": "maintenance", "message": "Sistema em manutenÃ§Ã£o"}), 503
             return render_template('manutencao.html'), 503
 
 @main_bp.route('/health')
@@ -68,14 +68,14 @@ def dashboard():
     ano = request.args.get('ano', ano_atual, type=int)
     mes_filtro = request.args.get('mes', type=int)
 
-    # Determinar data limite para cálculos de saldo (Disponível/Ativos)
+    # Determinar data limite para cÃ¡lculos de saldo (DisponÃ­vel/Ativos)
     if mes_filtro:
         ultimo_dia = calendar.monthrange(ano, mes_filtro)[1]
         data_limite = datetime(ano, mes_filtro, ultimo_dia, 23, 59, 59)
     else:
         data_limite = datetime(ano, 12, 31, 23, 59, 59)
 
-    # 2. Calcular Disponível (Até a Data Limite)
+    # 2. Calcular DisponÃ­vel (AtÃ© a Data Limite)
     contas_disponivel_ids = db.session.query(ContaContabil.id).filter(
         or_(ContaContabil.codigo.like('1.1%'), ContaContabil.codigo.like('1.2%')),
         ~ContaContabil.codigo.like('1.1.05%'),
@@ -90,14 +90,14 @@ def dashboard():
      .filter(LivroDiario.data <= data_limite).first()
     disponivel = (res_disp.debitos or 0) - (res_disp.creditos or 0) if res_disp else 0
 
-    # 3. Métricas de Cartão (Sincronizadas com o Filtro)
+    # 3. MÃ©tricas de CartÃ£o (Sincronizadas com o Filtro)
     if mes_filtro:
-        # Se houver mês, mostramos o comportamento DO MÊS
-        # 3.1 Total Gasto no Mês (Fatura)
+        # Se houver mÃªs, mostramos o comportamento DO MÃŠS
+        # 3.1 Total Gasto no MÃªs (Fatura)
         cartao_limite_disponivel = db.session.query(func.sum(FaturaCartao.total))\
             .filter(extract('year', FaturaCartao.data_vencimento) == ano, 
                     extract('month', FaturaCartao.data_vencimento) == mes_filtro).scalar() or 0
-        cartao_label_limite = "Gasto no Mês"
+        cartao_label_limite = "Gasto no MÃªs"
         
         # 3.2 Saldo da Fatura Selecionada (Pendente de Pagamento)
         total_ciclo_aberto = db.session.query(func.sum(FaturaCartao.total - func.coalesce(FaturaCartao.total_pago, 0)))\
@@ -105,15 +105,15 @@ def dashboard():
                     extract('month', FaturaCartao.data_vencimento) == mes_filtro).scalar() or 0
         cartao_label_ciclo = "Fatura Pendente"
     else:
-        # Sem mês: mostramos o LIMITE ATUAL e as FATURAS EM ABERTO ATUAIS
+        # Sem mÃªs: mostramos o LIMITE ATUAL e as FATURAS EM ABERTO ATUAIS
         cartao_limite_disponivel = db.session.query(func.sum(CartaoCredito.limite_disponivel)).scalar() or 0
-        cartao_label_limite = "Limite Disponível"
+        cartao_label_limite = "Limite DisponÃ­vel"
         
         total_ciclo_aberto = db.session.query(func.sum(FaturaCartao.total - func.coalesce(FaturaCartao.total_pago, 0)))\
             .filter(FaturaCartao.status == 'aberta').scalar() or 0
         cartao_label_ciclo = "Fatura Atual"
 
-    # 4. Totais (A Receber / A Pagar) - Filtrados por Ano e Mês
+    # 4. Totais (A Receber / A Pagar) - Filtrados por Ano e MÃªs
     def get_total_titulos(tipo, mes=None):
         query = db.session.query(func.sum(Titulo.valor)).filter(
             Titulo.tipo == tipo,
@@ -126,10 +126,10 @@ def dashboard():
 
     total_a_receber = get_total_titulos(TipoTitulo.RECEBER.value, mes_filtro)
     
-    # A Pagar Original (Títulos)
+    # A Pagar Original (TÃ­tulos)
     total_a_pagar_titulos = get_total_titulos(TipoTitulo.PAGAR.value, mes_filtro)
     
-    # A Pagar Faturas Fechadas (Mês Selecionado ou Ano Inteiro)
+    # A Pagar Faturas Fechadas (MÃªs Selecionado ou Ano Inteiro)
     query_faturas_fechadas = db.session.query(func.sum(FaturaCartao.total - func.coalesce(FaturaCartao.total_pago, 0)))\
         .filter(FaturaCartao.status == 'fechada')\
         .filter(or_(FaturaCartao.situacao_pagamento != 'paga', FaturaCartao.total_pago < FaturaCartao.total))\
@@ -141,7 +141,7 @@ def dashboard():
     total_faturas_fechadas = query_faturas_fechadas.scalar() or 0
     total_a_pagar = total_a_pagar_titulos + total_faturas_fechadas
 
-    # 5. Patrimônio Líquido (Ativos na data - Dívidas na data)
+    # 5. PatrimÃ´nio LÃ­quido (Ativos na data - DÃ­vidas na data)
     res_ativos_total = db.session.query(
         func.sum(PartidaDiario.valor).filter(PartidaDiario.tipo == 'D').label('debitos'),
         func.sum(PartidaDiario.valor).filter(PartidaDiario.tipo == 'C').label('creditos')
@@ -152,7 +152,7 @@ def dashboard():
     total_ativos_regime_caixa = (res_ativos_total.debitos or 0) - (res_ativos_total.creditos or 0)
     patrimonio_liquido = total_ativos_regime_caixa - total_a_pagar
 
-    # 6. Dados para o Gráfico (Dinâmico: 12 meses ou Mês Selecionado)
+    # 6. Dados para o GrÃ¡fico (DinÃ¢mico: 12 meses ou MÃªs Selecionado)
     chart_data = {'recebido': [], 'pago': [], 'a_receber': [], 'a_pagar': []}
     chart_labels = []
     
@@ -180,7 +180,7 @@ def dashboard():
             extract('month', Titulo.data_vencimento) == m
         ).scalar() or 0
         
-        # A Pagar (Títulos + Faturas Fechadas)
+        # A Pagar (TÃ­tulos + Faturas Fechadas)
         a_pagar_titulos_m = db.session.query(func.sum(Titulo.valor)).filter(
             Titulo.tipo == TipoTitulo.PAGAR.value,
             Titulo.status == StatusTitulo.ABERTO.value,
@@ -288,11 +288,11 @@ def exportar_diario():
     ws = wb.active
     ws.title = "Livro Diario"
 
-    # Cabeçalhos
-    headers = ["Data", "ID", "Histórico", "Conta", "Débito", "Crédito"]
+    # CabeÃ§alhos
+    headers = ["Data", "ID", "HistÃ³rico", "Conta", "DÃ©bito", "CrÃ©dito"]
     ws.append(headers)
     
-    # Estilo Cabeçalho
+    # Estilo CabeÃ§alho
     header_fill = PatternFill(start_color="F1F5F9", end_color="F1F5F9", fill_type="solid")
     header_font = Font(bold=True)
     for cell in ws[1]:
@@ -302,7 +302,7 @@ def exportar_diario():
 
     # Dados
     for d in diarios:
-        # Linha do Lançamento (Cabeçalho do lançamento no Excel)
+        # Linha do LanÃ§amento (CabeÃ§alho do lanÃ§amento no Excel)
         ws.append([d.data.strftime('%d/%m/%Y'), d.id, d.historico, "", "", ""])
         current_row = ws.max_row
         for cell in ws[current_row]:
@@ -324,7 +324,7 @@ def exportar_diario():
             ]
             ws.append(row)
             
-            # Formatação de valores
+            # FormataÃ§Ã£o de valores
             row_idx = ws.max_row
             ws.cell(row=row_idx, column=5).number_format = '#,##0.00'
             ws.cell(row=row_idx, column=6).number_format = '#,##0.00'
@@ -350,7 +350,7 @@ def get_balancete_results(data_inicio, data_fim):
     # 1. Buscar todas as contas
     contas = ContaContabil.query.order_by(ContaContabil.codigo).all()
     
-    # 2. Buscar somatórios de todas as partidas para evitar N+1
+    # 2. Buscar somatÃ³rios de todas as partidas para evitar N+1
     res_ant_all = db.session.query(
         PartidaDiario.conta_id,
         func.sum(PartidaDiario.valor).filter(PartidaDiario.tipo == 'D').label('debitos'),
@@ -400,7 +400,7 @@ def get_balancete_results(data_inicio, data_fim):
             saldo_atu_deb = saldo_atual_net if saldo_atual_net > 0 else 0
             saldo_atu_cre = abs(saldo_atual_net) if saldo_atual_net < 0 else 0
         else:
-            # Natureza Credora: Saldo positivo é crédito
+            # Natureza Credora: Saldo positivo Ã© crÃ©dito
             saldo_anterior_net = cre_ant_total - deb_ant_total
             saldo_atual_net = saldo_anterior_net + cre_per_total - deb_per_total
             
@@ -447,7 +447,7 @@ def balancete():
 
     balancete_data = get_balancete_results(data_inicio, data_fim)
 
-    # Calcular totais das colunas (Soma de Nível 1 para evitar duplicidade)
+    # Calcular totais das colunas (Soma de NÃ­vel 1 para evitar duplicidade)
     totais = {
         'saldo_ant_deb': 0,
         'saldo_ant_cre': 0,
@@ -500,11 +500,11 @@ def exportar_balancete():
     ws = wb.active
     ws.title = "Balancete"
 
-    # Cabeçalhos
-    headers = ["Código", "Conta", "S. Anterior Devedor", "S. Anterior Credor", "Débitos (Período)", "Créditos (Período)", "S. Atual Devedor", "S. Atual Credor"]
+    # CabeÃ§alhos
+    headers = ["CÃ³digo", "Conta", "S. Anterior Devedor", "S. Anterior Credor", "DÃ©bitos (PerÃ­odo)", "CrÃ©ditos (PerÃ­odo)", "S. Atual Devedor", "S. Atual Credor"]
     ws.append(headers)
     
-    # Estilo Cabeçalho
+    # Estilo CabeÃ§alho
     header_fill = PatternFill(start_color="F1F5F9", end_color="F1F5F9", fill_type="solid")
     header_font = Font(bold=True)
     for cell in ws[1]:
@@ -526,7 +526,7 @@ def exportar_balancete():
         ]
         ws.append(row)
         
-        # Formatação por nível
+        # FormataÃ§Ã£o por nÃ­vel
         current_row = ws.max_row
         if item['nivel'] == 1:
             for cell in ws[current_row]:
@@ -565,7 +565,7 @@ def detalhamento(ano, mes, tipo):
     page = request.args.get('page', 1, type=int)
     per_page = 50
     
-    meses_nomes = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", 
+    meses_nomes = ["Janeiro", "Fevereiro", "MarÃ§o", "Abril", "Maio", "Junho", 
                    "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
     mes_nome = meses_nomes[mes - 1]
     
@@ -634,7 +634,7 @@ def detalhamento(ano, mes, tipo):
             extract('month', Titulo.data_vencimento) == mes
         ).scalar() or 0
         
-        # Somar faturas fechadas no mês
+        # Somar faturas fechadas no mÃªs
         total_faturas = db.session.query(func.sum(FaturaCartao.total - func.coalesce(FaturaCartao.total_pago, 0)))\
             .filter(FaturaCartao.status == 'fechada')\
             .filter(or_(FaturaCartao.situacao_pagamento != 'paga', FaturaCartao.total_pago < FaturaCartao.total))\
@@ -658,23 +658,38 @@ def detalhamento(ano, mes, tipo):
                          mes=mes, # Adicionado para facilitar links
                          mes_nome=mes_nome,
                          ano=ano,
-                         tipo=tipo, # Necessário para os links de paginação
+                         tipo=tipo, # NecessÃ¡rio para os links de paginaÃ§Ã£o
                          tipo_label=tipo_label)
 
 @main_bp.route('/ajuda')
 def ajuda():
-    import os
-    import markdown
-    from flask import current_app
     manual_path = os.path.join(current_app.root_path, '..', 'MANUAL_USUARIO.md')
+    return _render_markdown_manual(
+        manual_path=manual_path,
+        title='Manual do Usuario'
+    )
+
+
+@main_bp.route('/ajuda/implementacao-feature-db')
+def ajuda_implementacao_feature_db():
+    if not current_user.is_authenticated or not current_user.is_admin:
+        return redirect(url_for('main.dashboard'))
+
+    manual_path = os.path.join(current_app.root_path, '..', 'docs', 'MANUAL_IMPLEMENTACAO_FEATURE_DB.md')
+    return _render_markdown_manual(
+        manual_path=manual_path,
+        title='Manual de Implementacao (Feature com Banco)'
+    )
+
+
+def _render_markdown_manual(manual_path, title):
     try:
         with open(manual_path, 'r', encoding='utf-8') as f:
             text = f.read()
-            # Converte Markdown para HTML com suporte a tabelas e outras extensões comuns
             html = markdown.markdown(text, extensions=['tables', 'fenced_code', 'nl2br'])
-            return render_template('ajuda.html', manual_html=html)
+            return render_template('ajuda.html', manual_html=html, page_title=title)
     except FileNotFoundError:
-        return "Manual não encontrado.", 404
+        return 'Manual nao encontrado.', 404
 
 @main_bp.route('/api/dashboard/drilldown')
 def api_drilldown():
@@ -689,7 +704,7 @@ def api_drilldown():
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 50, type=int)
 
-    # Determinar data limite para cálculos de saldo (Disponível/Ativos)
+    # Determinar data limite para cÃ¡lculos de saldo (DisponÃ­vel/Ativos)
     if mes:
         ultimo_dia = calendar.monthrange(ano, mes)[1]
         data_limite = datetime(ano, mes, ultimo_dia, 23, 59, 59)
@@ -707,9 +722,9 @@ def api_drilldown():
 
     if tipo == 'patrimonio':
         # Detalhamento: Ativos (Exceto 1.5) - A Pagar (Regra Refinada)
-        data['title'] = 'Composição do Patrimônio Líquido (Ativos - Dívidas)'
+        data['title'] = 'ComposiÃ§Ã£o do PatrimÃ´nio LÃ­quido (Ativos - DÃ­vidas)'
         
-        # 1. Ativos (Cronológico até data_limite)
+        # 1. Ativos (CronolÃ³gico atÃ© data_limite)
         ativos = db.session.query(
             ContaContabil.codigo, 
             ContaContabil.nome,
@@ -729,7 +744,7 @@ def api_drilldown():
                     'tipo': 'Ativo'
                 })
 
-        # 2. Títulos a Pagar (No Ano, opcional Mês)
+        # 2. TÃ­tulos a Pagar (No Ano, opcional MÃªs)
         query_pagar = Titulo.query.filter(
             Titulo.tipo == TipoTitulo.PAGAR.value,
             Titulo.status == StatusTitulo.ABERTO.value,
@@ -743,10 +758,10 @@ def api_drilldown():
             all_items.append({
                 'label': f"{t.data_vencimento.strftime('%d/%m/%Y')} - {t.descricao} ({t.entidade.nome})",
                 'valor': float(-t.valor),
-                'tipo': 'A Pagar (Título)'
+                'tipo': 'A Pagar (TÃ­tulo)'
             })
             
-        # 3. Faturas Fechadas Não Pagas (No Ano, opcional Mês)
+        # 3. Faturas Fechadas NÃ£o Pagas (No Ano, opcional MÃªs)
         query_faturas = FaturaCartao.query.filter(FaturaCartao.status == 'fechada')\
             .filter(or_(FaturaCartao.situacao_pagamento != 'paga', FaturaCartao.total_pago < FaturaCartao.total))\
             .filter(extract('year', FaturaCartao.data_vencimento) == ano)
@@ -760,11 +775,11 @@ def api_drilldown():
             all_items.append({
                 'label': f"Fatura {f.cartao.nome} - Venc: {f.data_vencimento.strftime('%d/%m/%Y')}",
                 'valor': float(-saldo_f),
-                'tipo': 'A Pagar (Cartão Fechado)'
+                'tipo': 'A Pagar (CartÃ£o Fechado)'
             })
 
     elif tipo == 'disponivel':
-        data['title'] = 'Saldos em Contas Disponíveis'
+        data['title'] = 'Saldos em Contas DisponÃ­veis'
         
         contas_ids = db.session.query(ContaContabil.id).filter(
             or_(ContaContabil.codigo.like('1.1%'), ContaContabil.codigo.like('1.2%')),
@@ -791,7 +806,7 @@ def api_drilldown():
                 })
 
     elif tipo == 'a_receber':
-        data['title'] = f'Títulos a Receber'
+        data['title'] = f'TÃ­tulos a Receber'
         query = Titulo.query.filter(
             Titulo.tipo == TipoTitulo.RECEBER.value,
             Titulo.status == StatusTitulo.ABERTO.value,
@@ -808,9 +823,9 @@ def api_drilldown():
             })
 
     elif tipo == 'a_pagar':
-        data['title'] = f'Dívidas Totais'
+        data['title'] = f'DÃ­vidas Totais'
         
-        # 1. Títulos a Pagar
+        # 1. TÃ­tulos a Pagar
         query_titulos = Titulo.query.filter(
             Titulo.tipo == TipoTitulo.PAGAR.value,
             Titulo.status == StatusTitulo.ABERTO.value,
@@ -824,10 +839,10 @@ def api_drilldown():
             all_items.append({
                 'label': f"{t.data_vencimento.strftime('%d/%m/%Y')} - {t.descricao} ({t.entidade.nome})",
                 'valor': float(t.valor),
-                'tipo': 'Título'
+                'tipo': 'TÃ­tulo'
             })
             
-        # 2. Faturas Fechadas Não Pagas
+        # 2. Faturas Fechadas NÃ£o Pagas
         query_faturas = FaturaCartao.query.filter(FaturaCartao.status == 'fechada')\
             .filter(or_(FaturaCartao.situacao_pagamento != 'paga', FaturaCartao.total_pago < FaturaCartao.total))\
             .filter(extract('year', FaturaCartao.data_vencimento) == ano)
@@ -841,30 +856,30 @@ def api_drilldown():
             all_items.append({
                 'label': f"Fatura {f.cartao.nome} - Venc: {f.data_vencimento.strftime('%d/%m/%Y')}",
                 'valor': float(saldo),
-                'tipo': 'Cartão (Fatura Fechada)'
+                'tipo': 'CartÃ£o (Fatura Fechada)'
             })
 
     elif tipo == 'cartao_limite_disponivel':
         if mes:
-            data['title'] = f'Gasto no Cartão de Crédito ({mes}/{ano})'
+            data['title'] = f'Gasto no CartÃ£o de CrÃ©dito ({mes}/{ano})'
             faturas = FaturaCartao.query.filter(
                 extract('year', FaturaCartao.data_vencimento) == ano,
                 extract('month', FaturaCartao.data_vencimento) == mes
             ).all()
             for f in faturas:
                 all_items.append({
-                    'label': f"Cartão {f.cartao.nome} - Fatura Venc: {f.data_vencimento.strftime('%d/%m/%Y')}",
+                    'label': f"CartÃ£o {f.cartao.nome} - Fatura Venc: {f.data_vencimento.strftime('%d/%m/%Y')}",
                     'valor': float(f.total),
                     'tipo': f'Total Gasto: R$ {f.total:,.2f}'
                 })
         else:
-            data['title'] = 'Limite Disponível por Cartão (Total Atual)'
+            data['title'] = 'Limite DisponÃ­vel por CartÃ£o (Total Atual)'
             cartoes = CartaoCredito.query.filter_by(ativo=True).all()
             for c in cartoes:
                 all_items.append({
                     'label': f"{c.nome} (Limite Total: R$ {c.limite_total:,.2f})",
                     'valor': float(c.limite_disponivel or 0),
-                    'tipo': 'Limite Disponível'
+                    'tipo': 'Limite DisponÃ­vel'
                 })
 
     elif tipo == 'cartao_ciclo_aberto':
@@ -887,7 +902,7 @@ def api_drilldown():
                     'tipo': f'A Pagar: R$ {saldo_f:,.2f}'
                 })
 
-    # Paginação manual da lista consolidada
+    # PaginaÃ§Ã£o manual da lista consolidada
     total_items = len(all_items)
     total_valor = sum(i['valor'] for i in all_items)
     total_pages = math.ceil(total_items / per_page) if total_items > 0 else 1
@@ -920,9 +935,9 @@ def api_contabilidade_parametros():
             Configuracao.set_valor(chave, valor)
         return {"status": "success"}
 
-    # GET: Retornar contas analíticas e valores atuais
+    # GET: Retornar contas analÃ­ticas e valores atuais
     contas = ContaContabil.query.all()
-    # Somente contas analíticas (que não possuem subcontas)
+    # Somente contas analÃ­ticas (que nÃ£o possuem subcontas)
     analiticas = [{"id": c.id, "codigo": c.codigo, "nome": c.nome, "tipo": c.tipo} for c in contas if c.is_analitica]
     analiticas.sort(key=lambda x: x['codigo'])
 
@@ -940,10 +955,10 @@ def api_contabilidade_parametros():
         "valores": valores
     }
 
-# --- Módulo de Atualização e Notificações ---
+# --- MÃ³dulo de AtualizaÃ§Ã£o e NotificaÃ§Ãµes ---
 
 def parse_version(v_str):
-    """Converte string de versão (ex: '1.4.1') em tupla de inteiros para comparação."""
+    """Converte string de versÃ£o (ex: '1.4.1') em tupla de inteiros para comparaÃ§Ã£o."""
     try:
         return tuple(map(int, (v_str.strip().replace('v', '').split('.'))))
     except:
@@ -952,7 +967,7 @@ def parse_version(v_str):
 @main_bp.route('/api/system/latest')
 def system_latest():
     """
-    Retorna a versão mais recente do sistema disponível para o ambiente atual.
+    Retorna a versÃ£o mais recente do sistema disponÃ­vel para o ambiente atual.
     Suporta manifestos com chaves 'version' ou 'latest_version'.
     """
     repo = os.getenv('GITHUB_REPO', 'ademirapsantos/prp_financeiro')
@@ -962,7 +977,7 @@ def system_latest():
     manifest_file = os.getenv('MANIFEST_FILE')
     manifest_base_url = os.getenv('MANIFEST_BASE_URL')
     
-    # Fallback automático para URL se repositório for conhecido
+    # Fallback automÃ¡tico para URL se repositÃ³rio for conhecido
     if not manifest_base_url and repo:
         parts = repo.split("/")
         if len(parts) == 2:
@@ -980,12 +995,12 @@ def system_latest():
                         data = json.load(f)
                         source = f"file:{manifest_file}"
                 except json.JSONDecodeError:
-                    current_app.logger.exception(f"Erro de JSON inválido em MANIFEST_FILE {manifest_file}")
-                    return jsonify({"error": "manifest_invalid_json", "details": f"Arquivo {manifest_file} não é um JSON válido"}), 500
+                    current_app.logger.exception(f"Erro de JSON invÃ¡lido em MANIFEST_FILE {manifest_file}")
+                    return jsonify({"error": "manifest_invalid_json", "details": f"Arquivo {manifest_file} nÃ£o Ã© um JSON vÃ¡lido"}), 500
                 except Exception:
                     current_app.logger.exception(f"Erro ao ler MANIFEST_FILE {manifest_file}")
             else:
-                current_app.logger.warning(f"MANIFEST_FILE configurado mas não encontrado: {manifest_file}")
+                current_app.logger.warning(f"MANIFEST_FILE configurado mas nÃ£o encontrado: {manifest_file}")
 
         # 2. Tentar baixar da URL remota (Fonte principal ou Fallback)
         if not data and manifest_base_url:
@@ -996,14 +1011,14 @@ def system_latest():
                 if response.status_code == 200:
                     data = response.json()
                 else:
-                    current_app.logger.error(f"Manifest não encontrado na URL {manifest_url}. Status: {response.status_code}")
+                    current_app.logger.error(f"Manifest nÃ£o encontrado na URL {manifest_url}. Status: {response.status_code}")
             except json.JSONDecodeError:
-                current_app.logger.exception(f"Resposta remota não é um JSON válido: {manifest_url}")
-                return jsonify({"error": "manifest_invalid_json", "details": "A resposta da URL remota não é um JSON válido"}), 500
+                current_app.logger.exception(f"Resposta remota nÃ£o Ã© um JSON vÃ¡lido: {manifest_url}")
+                return jsonify({"error": "manifest_invalid_json", "details": "A resposta da URL remota nÃ£o Ã© um JSON vÃ¡lido"}), 500
             except Exception:
                 current_app.logger.exception(f"Erro ao baixar manifest de {manifest_url}")
 
-        # Se não encontrou de nenhuma forma e não é dev puro
+        # Se nÃ£o encontrou de nenhuma forma e nÃ£o Ã© dev puro
         if not data:
             if env == 'dev':
                 return jsonify({
@@ -1016,21 +1031,21 @@ def system_latest():
             
             return jsonify({
                 "error": "manifest_fetch_failed",
-                "details": "Não foi possível obter o manifesto de nenhuma fonte configurada."
+                "details": "NÃ£o foi possÃ­vel obter o manifesto de nenhuma fonte configurada."
             }), 500
 
-        # Extrair versão - Suporta 'version' ou 'latest_version'
+        # Extrair versÃ£o - Suporta 'version' ou 'latest_version'
         latest_version = data.get('version') or data.get('latest_version')
         
         if not latest_version:
             received_keys = list(data.keys())
-            current_app.logger.error(f"Manifesto com formato inválido. Chaves recebidas: {received_keys}")
+            current_app.logger.error(f"Manifesto com formato invÃ¡lido. Chaves recebidas: {received_keys}")
             return jsonify({
                 "error": "manifest_invalid_format", 
-                "details": f"Chave 'version' ou 'latest_version' não encontrada. Chaves recebidas: {received_keys}"
+                "details": f"Chave 'version' ou 'latest_version' nÃ£o encontrada. Chaves recebidas: {received_keys}"
             }), 500
 
-        # Comparação robusta SemVer
+        # ComparaÃ§Ã£o robusta SemVer
         current_v_tuple = parse_version(__version__)
         latest_v_tuple = parse_version(latest_version)
         is_new = latest_v_tuple > current_v_tuple
@@ -1051,7 +1066,7 @@ def system_latest():
         current_app.logger.exception("Erro fatal ao processar /api/system/latest")
         return jsonify({
             "error": "manifest_fetch_failed",
-            "details": "Ocorreu um erro interno ao processar a verificação de versão."
+            "details": "Ocorreu um erro interno ao processar a verificaÃ§Ã£o de versÃ£o."
         }), 500
 
 @main_bp.route('/api/system/update/start', methods=['POST'])
@@ -1064,7 +1079,7 @@ def system_update_start():
         return jsonify({"error": "Update already in progress"}), 400
         
     try:
-        # Pega a tag alvo do manifest antes de começar
+        # Pega a tag alvo do manifest antes de comeÃ§ar
         env = os.getenv('ENVIRONMENT', 'dev')
         repo = os.getenv('GITHUB_REPO', 'ademirapsantos/prp_financeiro')
         manifest_base_url = os.getenv('MANIFEST_BASE_URL')
@@ -1105,33 +1120,33 @@ def system_update_start():
         
         headers = {"Authorization": f"Bearer {token}"}
         
-        # Call the sidecar (assíncrono para não prender o gunicorn por 300s)
-        # Mas o updater atual é síncrono. Vamos tentar com timeout maior ou disparar em thread.
-        # Como o objetivo é ser robusto, vamos aguardar um pouco.
+        # Call the sidecar (assÃ­ncrono para nÃ£o prender o gunicorn por 300s)
+        # Mas o updater atual Ã© sÃ­ncrono. Vamos tentar com timeout maior ou disparar em thread.
+        # Como o objetivo Ã© ser robusto, vamos aguardar um pouco.
         try:
             # Aumentamos o timeout pois o updater faz pull e recreate
             response = requests.post(updater_url, headers=headers, timeout=300)
             
             if response.status_code == 200:
-                # Se for síncrono e retornar 200, já concluiu com sucesso
+                # Se for sÃ­ncrono e retornar 200, jÃ¡ concluiu com sucesso
                 Configuracao.set_valor('UPDATE_IN_PROGRESS', 'false')
                 Configuracao.set_valor('MAINTENANCE_MODE', 'false')
-                return jsonify({"status": "success", "message": "Update concluído com sucesso"})
+                return jsonify({"status": "success", "message": "Update concluÃ­do com sucesso"})
             else:
                 # Falhou
                 error_details = response.text
                 Configuracao.set_valor('UPDATE_IN_PROGRESS', 'false')
-                Configuracao.set_valor('MAINTENANCE_MODE', 'false') # Mesmo falhando, sai da manutenção se der erro no updater
+                Configuracao.set_valor('MAINTENANCE_MODE', 'false') # Mesmo falhando, sai da manutenÃ§Ã£o se der erro no updater
                 Configuracao.set_valor('UPDATE_LAST_ERROR', error_details)
                 return jsonify({"error": "updater_failed", "details": error_details}), response.status_code
         except requests.exceptions.Timeout:
-            # Se der timeout, talvez ainda esteja processando. Mantemos as flags e tela de manutenção cuida.
+            # Se der timeout, talvez ainda esteja processando. Mantemos as flags e tela de manutenÃ§Ã£o cuida.
             return jsonify({"status": "pending", "message": "Update em processamento (timeout na resposta)"})
         except requests.exceptions.ConnectionError:
             Configuracao.set_valor('UPDATE_IN_PROGRESS', 'false')
             Configuracao.set_valor('MAINTENANCE_MODE', 'false')
-            Configuracao.set_valor('UPDATE_LAST_ERROR', 'Falha ao conectar ao serviço updater')
-            return jsonify({"error": "updater_unreachable", "details": "Falha ao conectar ao serviço updater (DNS/Rede)"}), 502
+            Configuracao.set_valor('UPDATE_LAST_ERROR', 'Falha ao conectar ao serviÃ§o updater')
+            return jsonify({"error": "updater_unreachable", "details": "Falha ao conectar ao serviÃ§o updater (DNS/Rede)"}), 502
             
     except Exception as e:
         Configuracao.set_valor('UPDATE_IN_PROGRESS', 'false')
@@ -1150,13 +1165,13 @@ def api_system_update_status():
     target_tag = Configuracao.get_valor('UPDATE_TARGET_TAG')
     prev_tag = Configuracao.get_valor('UPDATE_PREV_TAG')
 
-    # Evita lock infinito: se passar do limite, libera manutenção e marca erro.
+    # Evita lock infinito: se passar do limite, libera manutenÃ§Ã£o e marca erro.
     if in_progress and started_at:
         try:
             started_dt = datetime.fromisoformat(started_at)
             max_minutes = int(os.getenv('UPDATE_MAX_MINUTES', '30'))
             if datetime.utcnow() - started_dt > timedelta(minutes=max_minutes):
-                timeout_msg = f"Update excedeu tempo máximo de {max_minutes} minutos e foi finalizado automaticamente."
+                timeout_msg = f"Update excedeu tempo mÃ¡ximo de {max_minutes} minutos e foi finalizado automaticamente."
                 Configuracao.set_valor('UPDATE_IN_PROGRESS', 'false')
                 Configuracao.set_valor('MAINTENANCE_MODE', 'false')
                 Configuracao.set_valor('UPDATE_LAST_ERROR', timeout_msg)
@@ -1178,7 +1193,7 @@ def api_system_update_status():
 
 @main_bp.route('/api/system/maintenance/off-token', methods=['POST'])
 def maintenance_off_token():
-    """Desliga manutenção via token (Emergency/Updater usage)."""
+    """Desliga manutenÃ§Ã£o via token (Emergency/Updater usage)."""
     token = request.headers.get('Authorization')
     expected = f"Bearer {os.getenv('UPDATE_TOKEN', 'change_me_token')}"
     if token != expected:
@@ -1186,7 +1201,7 @@ def maintenance_off_token():
     
     Configuracao.set_valor('MAINTENANCE_MODE', 'false')
     Configuracao.set_valor('UPDATE_IN_PROGRESS', 'false')
-    return jsonify({"status": "success", "message": "Manutenção desligada via token"})
+    return jsonify({"status": "success", "message": "ManutenÃ§Ã£o desligada via token"})
 
 @main_bp.route('/api/system/update/finalize-token', methods=['POST'])
 def api_system_update_finalize_token():
@@ -1205,7 +1220,7 @@ def api_system_update_finalize_token():
     Configuracao.set_valor('UPDATE_FINISHED_AT', datetime.utcnow().isoformat())
 
     if status in ('failed', 'error'):
-        Configuracao.set_valor('UPDATE_LAST_ERROR', error_message or 'Falha na atualização.')
+        Configuracao.set_valor('UPDATE_LAST_ERROR', error_message or 'Falha na atualizaÃ§Ã£o.')
     else:
         Configuracao.set_valor('UPDATE_LAST_ERROR', '')
 
@@ -1247,7 +1262,7 @@ def create_notification_api():
     tipo = data.get('tipo', 'INFO')
     payload = data.get('payload', {})
     
-    # Prevenção de duplicidade para UPDATE_AVAILABLE
+    # PrevenÃ§Ã£o de duplicidade para UPDATE_AVAILABLE
     if tipo == 'UPDATE_AVAILABLE' and payload.get('latest_version'):
         versao = payload.get('latest_version')
         existente = Notificacao.query.filter_by(

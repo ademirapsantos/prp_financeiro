@@ -1,6 +1,8 @@
 {
-    "version": "1.4.15",
-    "tag": "dev-v1.4.15",
-    "date": "2026-02-22T00:00:00Z",
-    "commit": "dev-manifest"
+    "version": "1.4.26",
+    "latest_version": "1.4.26",
+    "tag": "dev-v1.4.26",
+    "date": "2026-02-23T04:55:04Z",
+    "commit": "auto-version-sync",
+    "environment": "dev"
 }

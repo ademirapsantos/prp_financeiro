@@ -75,6 +75,9 @@ services:
       - DATABASE_URL=${DATABASE_URL_PROD}
       - APP_HOST=prp-financeiro-prod
       - APP_PORT=5000
+      - REQUIRES_DB_MIGRATION=${REQUIRES_DB_MIGRATION:-false}
+      - DB_MIGRATION_CMD=${DB_MIGRATION_CMD:-}
+      - DB_MIGRATION_TIMEOUT_SECONDS=${DB_MIGRATION_TIMEOUT_SECONDS:-300}
     networks:
       prp_net:
         aliases:
