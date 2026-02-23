@@ -12,6 +12,7 @@ from decimal import Decimal
 import secrets
 import string
 from urllib.parse import urlparse, urlunparse
+from sqlalchemy import text
 
 def _read_runtime_env_value(key):
     value = os.getenv(key)
@@ -139,6 +140,26 @@ def _fallback_local_db_url(db_url, error_text):
         new_netloc = f"127.0.0.1:{port}"
 
     return urlunparse((parsed.scheme, new_netloc, parsed.path, parsed.params, parsed.query, parsed.fragment))
+
+def _truncate_public_tables_for_sql_restore():
+    """
+    Limpa dados de todas as tabelas do schema public antes de restore .sql
+    (data-only), evitando conflito de chave única em base já populada.
+    """
+    protected_tables = {'alembic_version'}
+    with db.engine.begin() as conn:
+        rows = conn.execute(text("""
+            SELECT tablename
+            FROM pg_tables
+            WHERE schemaname = 'public'
+        """)).fetchall()
+
+        table_names = [r[0] for r in rows if r[0] not in protected_tables]
+        if not table_names:
+            return
+
+        quoted_tables = ', '.join([f'"{name.replace(chr(34), chr(34) * 2)}"' for name in table_names])
+        conn.execute(text(f"TRUNCATE TABLE {quoted_tables} RESTART IDENTITY CASCADE"))
 
 def refresh_mail_config():
     """Atualiza as configuraÃ§Ãµes do Flask-Mail e da instÃ¢ncia global mail."""
@@ -603,6 +624,7 @@ def restore_backup():
         db.engine.dispose()
         is_sql_backup = filename.endswith('.sql')
         if is_sql_backup:
+            _truncate_public_tables_for_sql_restore()
             psql_bin = _resolve_pg_bin('psql')
             cmd = [
                 psql_bin,
