@@ -887,9 +887,7 @@
                         try {
                             const data = await res.json();
                             if (data && data.message) {
-                                msg = data.message.includes('pg_dump')
-                                    ? 'Falha ao gerar backup: pg_dump não encontrado no servidor.'
-                                    : data.message;
+                                msg = data.message;
                             }
                         } catch (_) { }
                         throw new Error(msg);
