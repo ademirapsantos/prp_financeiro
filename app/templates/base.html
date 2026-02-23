@@ -4,8 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PRP Financeiro</title>
-    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='img/favicon.svg') }}">
-    <link rel="alternate icon" type="image/png" href="{{ url_for('static', filename='img/logo01.png') }}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='img/logo01.png') }}?v=2">
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='img/favicon.svg') }}?v=2">
+    <link rel="shortcut icon" type="image/png" href="{{ url_for('static', filename='img/logo01.png') }}?v=2">
     <link
         href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto+Mono:wght@500&display=swap"
         rel="stylesheet">
@@ -517,7 +518,7 @@
                                 <strong>ATENÇÃO:</strong> O
                                 processo de restauração irá <strong>APAGAR TODOS OS DADOS ATUAIS</strong> e
                                 substituí-los
-                                pelo conteúdo do arquivo de backup PostgreSQL (.backup ou .dump).
+                                pelo conteúdo do arquivo de backup PostgreSQL (.sql, .backup ou .dump).
                             </p>
 
                             <div style="display: flex; gap: 1rem; align-items: center;">
@@ -886,9 +887,7 @@
                         try {
                             const data = await res.json();
                             if (data && data.message) {
-                                msg = data.message.includes('pg_dump')
-                                    ? 'Falha ao gerar backup: pg_dump não encontrado no servidor.'
-                                    : data.message;
+                                msg = data.message;
                             }
                         } catch (_) { }
                         throw new Error(msg);
@@ -896,7 +895,7 @@
 
                     const blob = await res.blob();
                     const disposition = res.headers.get('Content-Disposition') || '';
-                    let filename = `backup_prp_${new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)}.backup`;
+            let filename = `backup_prp_dados_${new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)}.sql`;
                     const match = disposition.match(/filename="?([^"]+)"?/i);
                     if (match && match[1]) filename = match[1];
 
@@ -923,7 +922,7 @@
             }
             const fileInput = document.getElementById('restore-file');
             if (fileInput.files.length === 0) {
-                showToast("Selecione um arquivo de backup PostgreSQL (.backup ou .dump).", "warning");
+                showToast("Selecione um arquivo de backup PostgreSQL (.sql, .backup ou .dump).", "warning");
                 return false;
             }
 

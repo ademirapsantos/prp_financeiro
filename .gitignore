@@ -19,5 +19,8 @@ backup/
 !.env.prod.example
 instance/
 
+# Artefatos locais do Docker/Buildx
+.docker-tmp/
+
 # Logs
 *.log

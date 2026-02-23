@@ -10,22 +10,30 @@ class Config:
             os.makedirs(directory)
 
     @staticmethod
-    def _read_env_file_value(key):
-        env_file = os.path.join(Config.ROOT_DIR, '.env')
-        if not os.path.exists(env_file):
-            return None
+    def _env_file_candidates():
+        env_name = (os.getenv('ENVIRONMENT', 'dev') or 'dev').strip().lower()
+        return [
+            os.path.join(Config.ROOT_DIR, f'.env.{env_name}'),
+            os.path.join(Config.ROOT_DIR, '.env'),
+        ]
 
-        try:
-            with open(env_file, 'r', encoding='utf-8') as f:
-                for line in f:
-                    line = line.strip()
-                    if not line or line.startswith('#') or '=' not in line:
-                        continue
-                    k, v = line.split('=', 1)
-                    if k.strip() == key:
-                        return v.strip()
-        except Exception:
-            return None
+    @staticmethod
+    def _read_env_file_value(key):
+        for env_file in Config._env_file_candidates():
+            if not os.path.exists(env_file):
+                continue
+
+            try:
+                with open(env_file, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        line = line.strip()
+                        if not line or line.startswith('#') or '=' not in line:
+                            continue
+                        k, v = line.split('=', 1)
+                        if k.strip() == key:
+                            return v.strip()
+            except Exception:
+                continue
         return None
 
     @staticmethod

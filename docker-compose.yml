@@ -32,6 +32,9 @@ services:
       - FLASK_ENV=development
       - SECRET_KEY=${SECRET_KEY:-prod_key_change_me}
       - DATABASE_URL=${DATABASE_URL_TEST:-postgresql://prp_user:zH23LJGicTj9SR@prp-postgres-test:5432/prp_financeiro}
+      - PG_BIN_DIR=${PG_BIN_DIR:-}
+      - PG_DUMP_BIN=${PG_DUMP_BIN:-}
+      - PG_RESTORE_BIN=${PG_RESTORE_BIN:-}
     depends_on:
       prp-postgres-test:
         condition: service_healthy
