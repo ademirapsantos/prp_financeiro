@@ -1,10 +1,10 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 
 {% block content %}
 <div class="full-height-page">
     <div class="header"
         style="margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center;">
-        <h1>Manual do Usuário</h1>
+        <h1>{{ page_title or 'Manual do Usuario' }}</h1>
         <a href="{{ url_for('main.dashboard') }}" class="btn"
             style="background-color: var(--bg-muted); color: var(--text-muted); border: 1px solid var(--border-color);">
             Voltar ao Dashboard

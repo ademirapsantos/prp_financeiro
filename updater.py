@@ -24,6 +24,12 @@ KEEP_IMAGES = int(os.getenv('KEEP_IMAGES', '3'))
 APP_FINALIZE_URL = os.getenv('APP_FINALIZE_URL', f'http://{APP_HOST}:{APP_PORT}/api/system/update/finalize-token')
 UPDATER_HEALTH_ATTEMPTS = int(os.getenv('UPDATER_HEALTH_ATTEMPTS', '15'))
 UPDATER_HEALTH_SLEEP_SECONDS = int(os.getenv('UPDATER_HEALTH_SLEEP_SECONDS', '10'))
+REQUIRES_DB_MIGRATION_DEFAULT = os.getenv('REQUIRES_DB_MIGRATION', 'false').strip().lower() in ('1', 'true', 'yes', 'on')
+DB_MIGRATION_CMD = os.getenv(
+    'DB_MIGRATION_CMD',
+    "python -c \"from app import create_app; create_app()\""
+)
+DB_MIGRATION_TIMEOUT_SECONDS = int(os.getenv('DB_MIGRATION_TIMEOUT_SECONDS', '300'))
 
 # Caminhos de Arquivos
 DATA_DIR = os.path.join(PROJECT_DIR, 'data')
@@ -63,12 +69,20 @@ def get_database_url():
     """Resolve DATABASE_URL do ambiente atual."""
     direct = os.getenv('DATABASE_URL')
     if direct:
-        return direct
+        return _normalize_db_url(direct)
     env_key = f'DATABASE_URL_{ENVIRONMENT.upper()}'
     from_file = _read_env_value(env_key)
     if from_file:
-        return from_file
+        return _normalize_db_url(from_file)
     return None
+
+def _normalize_db_url(db_url):
+    """Converte URL SQLAlchemy para formato aceito por pg_dump/pg_restore."""
+    if not db_url:
+        return db_url
+    if db_url.startswith('postgresql+psycopg://'):
+        return db_url.replace('postgresql+psycopg://', 'postgresql://', 1)
+    return db_url
 
 def create_backup():
     """Cria backup lógico do PostgreSQL usando pg_dump."""
@@ -153,6 +167,50 @@ def run_docker_command(cmd_args):
         error_msg = result.stderr or result.stdout
         raise Exception(f"Docker command failed: {error_msg}")
     return result.stdout
+
+def run_docker_exec(service_name, shell_cmd, timeout_seconds=300):
+    """Executa comando shell dentro do container de serviço."""
+    full_cmd = [
+        "docker", "compose", "-p", PROJECT_NAME, "-f", COMPOSE_FILE,
+        "exec", "-T", service_name, "sh", "-lc", shell_cmd
+    ]
+    result = subprocess.run(full_cmd, cwd=PROJECT_DIR, capture_output=True, text=True, timeout=timeout_seconds)
+    if result.returncode != 0:
+        error_msg = result.stderr or result.stdout
+        raise Exception(f"Docker exec failed: {error_msg}")
+    return result.stdout
+
+def run_database_migration():
+    """Executa etapa de migração no serviço da app."""
+    log_event("db_migration_start", {"service": SERVICE_NAME, "cmd": DB_MIGRATION_CMD})
+    output = run_docker_exec(SERVICE_NAME, DB_MIGRATION_CMD, timeout_seconds=DB_MIGRATION_TIMEOUT_SECONDS)
+    log_event("db_migration_success", {"output": output[-2000:] if output else ""})
+    return True
+
+def restore_backup(backup_file):
+    """Restaura backup custom do PostgreSQL para rollback de schema/data."""
+    if not backup_file or not os.path.exists(backup_file):
+        raise Exception("Backup file not found for restore")
+
+    db_url = get_database_url()
+    if not db_url:
+        raise Exception("DATABASE_URL not configured for restore")
+
+    cmd = [
+        "pg_restore",
+        "--dbname", db_url,
+        "--clean",
+        "--if-exists",
+        "--no-owner",
+        "--no-privileges",
+        "--single-transaction",
+        backup_file,
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise Exception(result.stderr or result.stdout or "pg_restore failed")
+    log_event("backup_restored", {"path": backup_file})
+    return True
 
 def check_container_health():
     """Verifica se o app está respondendo /health via HTTP dentro da rede do docker."""
@@ -244,6 +302,10 @@ def perform_update():
     previous_tag = None
     target_tag = None
     env_tag_switched = False
+    backup_file = None
+    requires_db_migration = REQUIRES_DB_MIGRATION_DEFAULT
+    migration_attempted = False
+
     try:
         # 1. Lock
         with open(LOCK_FILE, 'w') as f:
@@ -257,6 +319,7 @@ def perform_update():
         res.raise_for_status()
         manifest = res.json()
         target_tag = manifest.get('tag')
+        requires_db_migration = bool(manifest.get('requires_db_migration', REQUIRES_DB_MIGRATION_DEFAULT))
         
         if not target_tag:
             raise Exception("Manifest does not contain a 'tag' key")
@@ -265,10 +328,18 @@ def perform_update():
         log_event("target_version", {"tag": target_tag, "previous_tag": previous_tag})
         
         # 2.5 Backup preventivo
-        create_backup()
+        backup_file = create_backup()
+        if requires_db_migration and not backup_file:
+            raise Exception("Backup is required for DB migration but could not be created")
         
         # Salva estado antes de alterar
-        save_state({"previous_tag": previous_tag, "target_tag": target_tag, "timestamp": datetime.now().isoformat()})
+        save_state({
+            "previous_tag": previous_tag,
+            "target_tag": target_tag,
+            "timestamp": datetime.now().isoformat(),
+            "requires_db_migration": requires_db_migration,
+            "backup_file": backup_file,
+        })
         
         # 3. Pull and Deploy
         set_env_tag(target_tag)
@@ -277,7 +348,11 @@ def perform_update():
         run_docker_command(["pull", SERVICE_NAME])
         run_docker_command(["up", "-d", "--no-deps", "--force-recreate", SERVICE_NAME])
         log_event("deploy_started")
-        
+
+        if requires_db_migration:
+            migration_attempted = True
+            run_database_migration()
+
         # 4. Health Check
         is_healthy = check_container_health()
         
@@ -294,6 +369,8 @@ def perform_update():
             if previous_tag:
                 set_env_tag(previous_tag)
                 run_docker_command(["up", "-d", "--no-deps", "--force-recreate", SERVICE_NAME])
+                if migration_attempted and backup_file:
+                    restore_backup(backup_file)
                 log_event("rollback_completed", {"restored_tag": previous_tag})
                 finalize_update_state("failed", "App unhealthy after update. Rollback performed.")
                 os.remove(LOCK_FILE)
@@ -311,6 +388,8 @@ def perform_update():
             try:
                 set_env_tag(previous_tag)
                 run_docker_command(["up", "-d", "--no-deps", "--force-recreate", SERVICE_NAME])
+                if migration_attempted and backup_file:
+                    restore_backup(backup_file)
                 log_event("rollback_after_exception", {"restored_tag": previous_tag, "failed_target_tag": target_tag})
             except Exception as rb_error:
                 log_event("rollback_after_exception_failed", {"error": str(rb_error)})
