@@ -554,6 +554,7 @@ def export_backup():
             download_name=filename
         )
     except Exception as e:
+        current_app.logger.exception("Falha no export de backup PostgreSQL")
         if isinstance(e, FileNotFoundError):
             return {
                 "success": False,
