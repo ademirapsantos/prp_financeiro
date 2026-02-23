@@ -14,6 +14,8 @@ RUN apt-get update && apt-get install -y \
     curl \
     postgresql-client \
     build-essential \
+    && pg_dump --version \
+    && pg_restore --version \
     && rm -rf /var/lib/apt/lists/*
 
 # Configurar diretório de trabalho
