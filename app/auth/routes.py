@@ -57,7 +57,12 @@ def _resolve_pg_bin(binary_name):
         if os.path.exists(candidate):
             return candidate
 
-    env_key = 'PG_DUMP_BIN' if binary_name == 'pg_dump' else 'PG_RESTORE_BIN'
+    env_key_map = {
+        'pg_dump': 'PG_DUMP_BIN',
+        'pg_restore': 'PG_RESTORE_BIN',
+        'psql': 'PSQL_BIN',
+    }
+    env_key = env_key_map.get(binary_name)
     explicit = _read_runtime_env_value(env_key)
     if explicit:
         if os.path.exists(explicit):
@@ -515,7 +520,7 @@ def export_backup():
     from ..config import Config
     db_url = _to_pg_tools_uri(Config.get_sqlalchemy_uri())
 
-    temp_file = tempfile.NamedTemporaryFile(suffix='.backup', delete=False)
+    temp_file = tempfile.NamedTemporaryFile(suffix='.sql', delete=False)
     temp_file.close()
     dump_path = temp_file.name
 
@@ -524,7 +529,9 @@ def export_backup():
         cmd = [
             pg_dump_bin,
             '--dbname', db_url,
-            '--format=custom',
+            '--format=plain',
+            '--data-only',
+            '--inserts',
             '--no-owner',
             '--no-privileges',
             '--verbose',
@@ -546,10 +553,10 @@ def export_backup():
             memory_file = io.BytesIO(f.read())
         memory_file.seek(0)
 
-        filename = f"backup_prp_{datetime.now().strftime('%Y%m%d_%H%M%S')}.backup"
+        filename = f"backup_prp_dados_{datetime.now().strftime('%Y%m%d_%H%M%S')}.sql"
         return send_file(
             memory_file,
-            mimetype='application/octet-stream',
+            mimetype='application/sql',
             as_attachment=True,
             download_name=filename
         )
@@ -558,7 +565,7 @@ def export_backup():
         if isinstance(e, FileNotFoundError):
             return {
                 "success": False,
-                "message": "Falha ao gerar backup: pg_dump nÃ£o encontrado no servidor. Configure PG_BIN_DIR (ou PG_DUMP_BIN) ou instale PostgreSQL Client Tools."
+                "message": "Falha ao gerar backup: pg_dump nao encontrado no servidor. Configure PG_BIN_DIR (ou PG_DUMP_BIN) ou instale PostgreSQL Client Tools."
             }, 500
         return {"success": False, "message": f"Erro ao exportar backup Postgres: {str(e)}"}, 500
     finally:
@@ -586,30 +593,39 @@ def restore_backup():
             raise Exception('Nome de arquivo invÃ¡lido.')
 
         filename = file.filename.lower()
-        if not (filename.endswith('.backup') or filename.endswith('.dump')):
-            raise Exception('Formato nao suportado. Envie um backup Postgres (.backup ou .dump).')
+        if not (filename.endswith('.backup') or filename.endswith('.dump') or filename.endswith('.sql')):
+            raise Exception('Formato nao suportado. Envie um backup Postgres (.backup, .dump ou .sql).')
 
         file.save(temp_file.name)
         db_url = _to_pg_tools_uri(Config.get_sqlalchemy_uri())
 
         db.session.remove()
         db.engine.dispose()
-        pg_restore_bin = _resolve_pg_bin('pg_restore')
-
-        cmd = [
-            pg_restore_bin,
-            '--dbname', db_url,
-            '--clean',
-            '--if-exists',
-            '--no-owner',
-            '--no-privileges',
-            '--single-transaction',
-            '--verbose',
-            temp_file.name,
-        ]
+        is_sql_backup = filename.endswith('.sql')
+        if is_sql_backup:
+            psql_bin = _resolve_pg_bin('psql')
+            cmd = [
+                psql_bin,
+                '--dbname', db_url,
+                '-v', 'ON_ERROR_STOP=1',
+                '-f', temp_file.name,
+            ]
+        else:
+            pg_restore_bin = _resolve_pg_bin('pg_restore')
+            cmd = [
+                pg_restore_bin,
+                '--dbname', db_url,
+                '--clean',
+                '--if-exists',
+                '--no-owner',
+                '--no-privileges',
+                '--single-transaction',
+                '--verbose',
+                temp_file.name,
+            ]
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode != 0:
-            first_error = result.stderr or result.stdout or 'Falha no pg_restore'
+            first_error = result.stderr or result.stdout or ('Falha no psql' if is_sql_backup else 'Falha no pg_restore')
             retry_db_url = _fallback_local_db_url(db_url, first_error)
             if retry_db_url and retry_db_url != db_url:
                 cmd[2] = retry_db_url

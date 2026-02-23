@@ -8,13 +8,21 @@ ENV PYTHONDONTWRITEBYTECODE=1
 
 # Instalar dependências do sistema
 RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    gnupg \
+    lsb-release \
     python3 \
     python3-pip \
     python3-dev \
     curl \
-    postgresql-client \
     build-essential \
+    && install -d /etc/apt/keyrings \
+    && curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /etc/apt/keyrings/postgresql.gpg \
+    && chmod 644 /etc/apt/keyrings/postgresql.gpg \
+    && echo "deb [signed-by=/etc/apt/keyrings/postgresql.gpg] http://apt.postgresql.org/pub/repos/apt $(. /etc/os-release && echo $VERSION_CODENAME)-pgdg main" > /etc/apt/sources.list.d/pgdg.list \
+    && apt-get update && apt-get install -y postgresql-client-16 \
     && pg_dump --version \
+    && psql --version \
     && pg_restore --version \
     && rm -rf /var/lib/apt/lists/*
 
