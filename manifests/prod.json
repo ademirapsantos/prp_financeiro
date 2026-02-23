@@ -1,6 +1,8 @@
 {
-    "version": "1.4.0",
-    "tag": "v1.4.0",
-    "date": "2026-02-20T16:00:00Z",
-    "commit": "main-example"
+    "version": "1.4.24",
+    "latest_version": "1.4.24",
+    "tag": "prod-v1.4.24",
+    "date": "2026-02-23T03:56:03Z",
+    "commit": "auto-version-sync",
+    "environment": "prod"
 }
