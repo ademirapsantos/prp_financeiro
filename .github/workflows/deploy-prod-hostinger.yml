@@ -1,0 +1,85 @@
+name: Deploy PROD (Hostinger VM Fixa)
+
+on:
+  workflow_dispatch:
+    inputs:
+      app_tag:
+        description: "Tag da imagem principal (ex: prod-latest ou prod-v1.2.3)"
+        required: true
+        default: "prod-latest"
+      updater_tag:
+        description: "Tag da imagem updater (ex: prod-latest ou prod-v1.2.3)"
+        required: true
+        default: "prod-latest"
+      run_prune:
+        description: "Executar limpeza Docker no final"
+        required: true
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH na VM PROD
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.HOSTINGER_PROD_HOST }}
+          username: ${{ secrets.HOSTINGER_PROD_USER }}
+          key: ${{ secrets.HOSTINGER_PROD_SSH_KEY }}
+          script_stop: true
+          command_timeout: 25m
+          script: |
+            set -euo pipefail
+
+            PROJECT_DIR="${HOSTINGER_PROJECT_DIR:-/srv/prp}"
+            cd "$PROJECT_DIR"
+
+            if [ ! -f ".env" ]; then
+              echo "Arquivo .env nao encontrado em $PROJECT_DIR"
+              exit 1
+            fi
+
+            APP_IMAGE="ghcr.io/${{ github.repository }}:${{ inputs.app_tag }}"
+            UPDATER_IMAGE="ghcr.io/ademirapsantos/prp_financeiro_updater:${{ inputs.updater_tag }}"
+
+            cp .env ".env.bak.$(date +%Y%m%d%H%M%S)"
+
+            if grep -q '^PRP_IMAGE_PROD=' .env; then
+              sed -i "s|^PRP_IMAGE_PROD=.*|PRP_IMAGE_PROD=${APP_IMAGE}|" .env
+            else
+              echo "PRP_IMAGE_PROD=${APP_IMAGE}" >> .env
+            fi
+
+            if grep -q '^UPDATER_IMAGE_PROD=' .env; then
+              sed -i "s|^UPDATER_IMAGE_PROD=.*|UPDATER_IMAGE_PROD=${UPDATER_IMAGE}|" .env
+            else
+              echo "UPDATER_IMAGE_PROD=${UPDATER_IMAGE}" >> .env
+            fi
+
+            docker compose -f docker-compose.prod.yml -f docker-compose.prod.override.yml pull prp-financeiro-prod prp-updater-prod
+            docker compose -f docker-compose.prod.yml -f docker-compose.prod.override.yml up -d --remove-orphans
+
+            for i in $(seq 1 30); do
+              if curl -fsS "http://127.0.0.1:5000/health" > /dev/null; then
+                echo "Healthcheck OK"
+                break
+              fi
+              if [ "$i" -eq 30 ]; then
+                echo "Healthcheck falhou apos deploy"
+                docker compose -f docker-compose.prod.yml -f docker-compose.prod.override.yml logs --tail=200 prp-financeiro-prod
+                exit 1
+              fi
+              sleep 5
+            done
+
+            if [ "${{ inputs.run_prune }}" = "true" ]; then
+              docker image prune -af
+              docker container prune -f
+            fi

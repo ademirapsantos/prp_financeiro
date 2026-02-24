@@ -1,0 +1,69 @@
+name: Maintenance PROD (Hostinger VM Fixa)
+
+on:
+  workflow_dispatch:
+    inputs:
+      prune_images:
+        description: "Limpar imagens nao usadas"
+        required: true
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+      prune_containers:
+        description: "Limpar containers parados"
+        required: true
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+      prune_volumes:
+        description: "Limpar volumes nao usados (use com cuidado)"
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+  schedule:
+    - cron: "30 3 * * 0"
+
+permissions:
+  contents: read
+
+jobs:
+  maintenance:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Manutencao via SSH na VM PROD
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.HOSTINGER_PROD_HOST }}
+          username: ${{ secrets.HOSTINGER_PROD_USER }}
+          key: ${{ secrets.HOSTINGER_PROD_SSH_KEY }}
+          script_stop: true
+          command_timeout: 20m
+          script: |
+            set -euo pipefail
+
+            docker system df
+
+            PRUNE_IMAGES="${{ github.event.inputs.prune_images || 'true' }}"
+            PRUNE_CONTAINERS="${{ github.event.inputs.prune_containers || 'true' }}"
+            PRUNE_VOLUMES="${{ github.event.inputs.prune_volumes || 'false' }}"
+
+            if [ "$PRUNE_CONTAINERS" = "true" ]; then
+              docker container prune -f
+            fi
+
+            if [ "$PRUNE_IMAGES" = "true" ]; then
+              docker image prune -af
+            fi
+
+            if [ "$PRUNE_VOLUMES" = "true" ]; then
+              docker volume prune -f
+            fi
+
+            docker system df
