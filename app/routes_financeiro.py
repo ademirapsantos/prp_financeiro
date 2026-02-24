@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app
 from datetime import datetime, timedelta
 from decimal import Decimal
 from sqlalchemy import func
@@ -9,6 +9,26 @@ from flask_login import current_user, login_required
 financeiro_bp = Blueprint('financeiro', __name__, url_prefix='/financeiro')
 
 from sqlalchemy.orm import joinedload
+
+
+def _parse_decimal_form(value, default='0'):
+    """Converte número vindo de formulário aceitando vazio, vírgula e ponto."""
+    raw = (value or '').strip()
+    if not raw:
+        raw = default
+
+    # Se tiver vírgula e ponto, assume formato pt-BR: 1.234,56
+    if ',' in raw and '.' in raw:
+        raw = raw.replace('.', '').replace(',', '.')
+    elif '.' in raw:
+        # Se todos os grupos após o primeiro tiverem 3 dígitos, trata ponto como milhar.
+        grupos = raw.split('.')
+        if len(grupos) > 1 and all(g.isdigit() for g in grupos) and all(len(g) == 3 for g in grupos[1:]):
+            raw = ''.join(grupos)
+    elif ',' in raw:
+        raw = raw.replace(',', '.')
+
+    return Decimal(raw)
 
 @financeiro_bp.route('/titulos')
 def titulos():
@@ -164,14 +184,17 @@ def cadastrar_cartao():
     conta_contabil_id = request.form.get('conta_contabil_id')
     
     try:
+        limite_decimal = _parse_decimal_form(limite)
+        perc_emergencial_decimal = _parse_decimal_form(request.form.get('perc_emergencial'), default='0')
+
         novo_cartao = CartaoCredito(
             user_id=current_user.id,
             banco_id=banco_id,
             nome=nome,
             bandeira=bandeira,
-            limite_total=Decimal(limite.replace('.', '').replace(',', '.')),
-            limite_disponivel=Decimal(limite.replace('.', '').replace(',', '.')), # Inicializa limite disponível
-            perc_limite_emergencial=Decimal(request.form.get('perc_emergencial', '0').replace('.', '').replace(',', '.')),
+            limite_total=limite_decimal,
+            limite_disponivel=limite_decimal, # Inicializa limite disponível
+            perc_limite_emergencial=perc_emergencial_decimal,
             limite_emergencial_ativo=bool(request.form.get('emergencial_ativo')),
             dia_fechamento=int(fechamento),
             dia_vencimento=int(vencimento),
@@ -188,7 +211,10 @@ def cadastrar_cartao():
         flash('Cartão cadastrado com sucesso!', 'success')
     except Exception as e:
         db.session.rollback()
+        current_app.logger.exception("Falha ao cadastrar cartão (banco_id=%s, user_id=%s)", banco_id, current_user.id)
         flash(f'Erro ao cadastrar cartão: {str(e)}', 'error')
+    
+    return redirect(url_for('financeiro.detalhes_banco', banco_id=banco_id))
         
 @financeiro_bp.route('/editar_cartao/<cartao_id>', methods=['POST'])
 @login_required
@@ -200,13 +226,11 @@ def editar_cartao(cartao_id):
     conta_contabil_id = request.form.get('conta_contabil_id')
     
     try:
-        # Remove pontos de milhar e substitui vírgula decimal por ponto para conversão Decimal
-        limite_processado = limite.replace('.', '').replace(',', '.')
-        cartao.limite_total = Decimal(limite_processado)
+        cartao.limite_total = _parse_decimal_form(limite)
         cartao.dia_fechamento = int(fechamento)
         cartao.dia_vencimento = int(vencimento)
         cartao.conta_contabil_id = conta_contabil_id
-        cartao.perc_limite_emergencial = Decimal(request.form.get('perc_emergencial', '0').replace(',', '.'))
+        cartao.perc_limite_emergencial = _parse_decimal_form(request.form.get('perc_emergencial'), default='0')
         cartao.limite_emergencial_ativo = bool(request.form.get('emergencial_ativo'))
         
         # Ajustar limite disponível se necessário
