@@ -1,8 +1,8 @@
 {
-    "version": "1.4.30",
-    "latest_version": "1.4.30",
-    "tag": "prod-v1.4.30",
-    "date": "2026-02-24T14:11:58Z",
+    "version": "1.4.31",
+    "latest_version": "1.4.31",
+    "tag": "prod-v1.4.31",
+    "date": "2026-02-24T14:54:55Z",
     "commit": "auto-version-sync",
     "environment": "prod"
 }
