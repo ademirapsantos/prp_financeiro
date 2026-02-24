@@ -151,7 +151,6 @@
                     <thead
                         style="position: sticky; top: 0; z-index: 10; background-color: var(--table-header-bg); border-bottom: 2px solid var(--border-color);">
                         <tr style="text-align: left;">
-                            <th style="padding: 1rem;">ID</th>
                             <th style="padding: 1rem;">Vencimento</th>
                             <th style="padding: 1rem;">Descrição</th>
                             <th style="padding: 1rem;">Entidade</th>
@@ -163,8 +162,7 @@
                     </thead>
                     <tbody>
                         {% for t in titulos %}
-                        <tr>
-                            <td>{{ t.id }}</td>
+                        <tr data-id="{{ t.id }}">
                             <td>{{ t.data_vencimento.strftime('%d/%m/%Y') }}</td>
                             <td>
                                 <div style="font-weight: 600; color: var(--text-main);">{{ t.descricao }}</div>
