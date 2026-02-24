@@ -1,8 +1,8 @@
 {
-    "version": "1.4.28",
-    "latest_version": "1.4.28",
-    "tag": "dev-v1.4.28",
-    "date": "2026-02-23T06:10:47Z",
+    "version": "1.4.29",
+    "latest_version": "1.4.29",
+    "tag": "dev-v1.4.29",
+    "date": "2026-02-24T04:31:48Z",
     "commit": "auto-version-sync",
     "environment": "dev"
 }

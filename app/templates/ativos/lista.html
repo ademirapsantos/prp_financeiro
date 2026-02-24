@@ -53,7 +53,6 @@
                     <thead
                         style="position: sticky; top: 0; z-index: 10; background-color: #f8fafc; border-bottom: 2px solid #e2e8f0;">
                         <tr>
-                            <th>ID</th>
                             <th>Descrição</th>
                             <th>Tipo</th>
                             <th>Valor Atual</th>
@@ -64,8 +63,7 @@
                     </thead>
                     <tbody>
                         {% for a in ativos %}
-                        <tr>
-                            <td>{{ a.id }}</td>
+                        <tr data-id="{{ a.id }}">
                             <td>{{ a.descricao }}</td>
                             <td>{{ a.tipo }}</td>
                             <td>R$ {{ "{:,.2f}".format(a.valor_atual).replace(",", "X").replace(".", ",").replace("X",
