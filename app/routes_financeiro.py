@@ -189,6 +189,8 @@ def cadastrar_cartao():
     except Exception as e:
         db.session.rollback()
         flash(f'Erro ao cadastrar cartão: {str(e)}', 'error')
+    
+    return redirect(url_for('financeiro.detalhes_banco', banco_id=banco_id))
         
 @financeiro_bp.route('/editar_cartao/<cartao_id>', methods=['POST'])
 @login_required
