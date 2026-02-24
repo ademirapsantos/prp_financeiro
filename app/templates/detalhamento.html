@@ -20,7 +20,6 @@
                 <thead
                     style="position: sticky; top: 0; z-index: 10; background-color: var(--table-header-bg); border-bottom: 2px solid var(--border-color);">
                     <tr style="text-align: left;">
-                        <th style="padding: 1rem;">ID</th>
                         <th style="padding: 1rem;">Vencimento</th>
                         <th style="padding: 1rem;">Descrição</th>
                         <th style="padding: 1rem;">Entidade</th>
@@ -37,8 +36,7 @@
                 </thead>
                 <tbody>
                     {% for t in titulos %}
-                    <tr style="border-bottom: 1px solid var(--border-color); transition: background-color 0.2s;">
-                        <td style="padding: 0.75rem 1rem;">{{ t.id }}</td>
+                    <tr data-id="{{ t.id }}" style="border-bottom: 1px solid var(--border-color); transition: background-color 0.2s;">
                         <td style="padding: 0.75rem 1rem;">{{ t.data_vencimento.strftime('%d/%m/%Y') }}</td>
                         <td style="padding: 0.75rem 1rem;">
                             <div style="font-weight: 600; color: var(--text-main);">{{ t.descricao }}</div>
@@ -89,13 +87,12 @@
 
                     {% if faturas_detalhe %}
                     <tr style="background-color: var(--bg-muted); font-weight: bold;">
-                        <td colspan="{{ 8 if tipo_label == 'A Pagar' else 7 }}"
+                        <td colspan="{{ 7 if tipo_label in ['Recebido', 'Pago', 'A Pagar'] else 6 }}"
                             style="padding: 0.5rem 1rem; font-size: 0.8rem; text-transform: uppercase; color: var(--text-muted);">
                             Faturas de Cartão (Fechadas)</td>
                     </tr>
                     {% for f in faturas_detalhe %}
-                    <tr style="border-bottom: 1px solid var(--border-color); border-left: 4px solid #f59e0b;">
-                        <td style="padding: 0.75rem 1rem;">F-{{ f.id }}</td>
+                    <tr data-id="{{ f.id }}" style="border-bottom: 1px solid var(--border-color); border-left: 4px solid #f59e0b;">
                         <td style="padding: 0.75rem 1rem;">{{ f.data_vencimento.strftime('%d/%m/%Y') }}</td>
                         <td style="padding: 0.75rem 1rem;">
                             <div style="font-weight: 600; color: var(--text-main);">Fatura {{ f.cartao.nome }}</div>
@@ -124,7 +121,7 @@
                 <tfoot
                     style="position: sticky; bottom: 0; background-color: var(--table-header-bg); font-weight: 700; border-top: 2px solid var(--border-color); z-index: 5;">
                     <tr>
-                        <td colspan="{{ 6 if tipo_label in ['Recebido', 'Pago'] else 5 }}"
+                        <td colspan="{{ 5 if tipo_label in ['Recebido', 'Pago'] else 4 }}"
                             style="padding: 1rem; text-align: right; color: var(--text-muted);">Total Geral (Mês):</td>
                         <td style="padding: 1rem; text-align: right; font-size: 1.1rem; color: var(--text-main);">
                             R$ {{ "{:,.2f}".format(total).replace(",", "X").replace(".", ",").replace("X", ".") }}

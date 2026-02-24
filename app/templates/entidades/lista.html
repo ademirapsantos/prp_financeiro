@@ -50,7 +50,6 @@
                     <thead
                         style="position: sticky; top: 0; z-index: 10; background-color: #f8fafc; border-bottom: 2px solid #e2e8f0;">
                         <tr>
-                            <th>ID</th>
                             <th>Nome</th>
                             <th>Tipo</th>
                             <th>Documento</th>
@@ -61,8 +60,7 @@
                     </thead>
                     <tbody>
                         {% for e in entidades %}
-                        <tr>
-                            <td>{{ e.id }}</td>
+                        <tr data-id="{{ e.id }}">
                             <td>{{ e.nome }}</td>
                             <td>
                                 <span style="padding: 2px 6px; border-radius: 4px; 
