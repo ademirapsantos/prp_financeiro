@@ -112,7 +112,7 @@
                         </td>
                         <td style="padding: 0.75rem 1rem; font-size: 0.8rem; color: #64748b;">{{ c.natureza }}</td>
                         <td style="padding: 0.75rem 1rem; text-align: center;">
-                            <button onclick="openContaModal({{ c.id }})" class="btn"
+                            <button type="button" onclick='openContaModal({{ c.id|tojson }})' class="btn"
                                 style="padding: 0.25rem 0.5rem; font-size: 0.75rem; background-color: #e2e8f0; color: #475569; border-radius: 4px;">Editar</button>
                         </td>
                     </tr>
@@ -175,7 +175,8 @@
                 </div>
 
                 <div style="margin-top: 2rem; display: flex; gap: 1rem; justify-content: flex-end;">
-                    <button type="button" class="btn btn-secondary" onclick="closeContaModal()">Cancelar</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeContaModal()"
+                        style="background-color: var(--bg-muted); color: var(--text-main); border: 1px solid var(--border-color);">Cancelar</button>
                     <button type="submit" class="btn btn-primary" id="btn-save-conta">Salvar</button>
                 </div>
             </form>
