@@ -133,12 +133,12 @@
                         {% if current_user.is_admin %}
                         <a href="#" id="open-settings-btn">Configurações</a>
                         {% endif %}
-                        <a href="{{ url_for('main.ajuda') }}">Ajuda</a>
-                        {% if current_user.is_admin %}
-                        <a href="{{ url_for('main.ajuda_implementacao_feature_db') }}">Manual Implementação</a>
-                        {% endif %}
-                        <a href="{{ url_for('auth.lock') }}">Bloquear</a>
                         <div class="dropdown-divider"></div>
+                        <a href="{{ url_for('main.manual_usuario') }}">Manual do Usuário</a>
+                        <a href="{{ url_for('main.manual_tecnico') }}">Manual Técnico</a>
+                        <a href="{{ url_for('main.manual_regras') }}">Regras de Negócio Oficiais</a>
+                        <div class="dropdown-divider"></div>
+                        <a href="{{ url_for('auth.lock') }}">Bloquear</a>
                         <a href="{{ url_for('auth.logout') }}" class="logout-link">Sair</a>
                     </div>
                 </div>
