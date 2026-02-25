@@ -661,13 +661,36 @@ def detalhamento(ano, mes, tipo):
                          tipo=tipo, # NecessÃ¡rio para os links de paginaÃ§Ã£o
                          tipo_label=tipo_label)
 
-@main_bp.route('/ajuda')
-def ajuda():
-    manual_path = os.path.join(current_app.root_path, '..', 'MANUAL_USUARIO.md')
+@main_bp.route('/manual/usuario')
+def manual_usuario():
+    manual_path = os.path.join(current_app.root_path, '..', 'manual_usuario.md')
     return _render_markdown_manual(
         manual_path=manual_path,
-        title='Manual do Usuario'
+        title='Manual do Usuário'
     )
+
+
+@main_bp.route('/manual/tecnico')
+def manual_tecnico():
+    manual_path = os.path.join(current_app.root_path, '..', 'manual_tecnico.md')
+    return _render_markdown_manual(
+        manual_path=manual_path,
+        title='Manual Técnico'
+    )
+
+
+@main_bp.route('/manual/regras')
+def manual_regras():
+    manual_path = os.path.join(current_app.root_path, '..', 'regras_de_negocio_oficial.md')
+    return _render_markdown_manual(
+        manual_path=manual_path,
+        title='Regras de Negócio Oficiais'
+    )
+
+
+@main_bp.route('/ajuda')
+def ajuda():
+    return redirect(url_for('main.manual_usuario'))
 
 
 @main_bp.route('/ajuda/implementacao-feature-db')
@@ -686,7 +709,11 @@ def _render_markdown_manual(manual_path, title):
     try:
         with open(manual_path, 'r', encoding='utf-8') as f:
             text = f.read()
-            html = markdown.markdown(text, extensions=['tables', 'fenced_code', 'nl2br'])
+            html = markdown.markdown(
+                text,
+                extensions=['tables', 'fenced_code', 'nl2br', 'toc', 'attr_list'],
+                extension_configs={'toc': {'permalink': False}}
+            )
             return render_template('ajuda.html', manual_html=html, page_title=title)
     except FileNotFoundError:
         return 'Manual nao encontrado.', 404
