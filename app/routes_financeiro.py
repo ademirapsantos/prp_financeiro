@@ -30,6 +30,20 @@ def _parse_decimal_form(value, default='0'):
 
     return Decimal(raw)
 
+
+def _titulo_esta_pago(titulo):
+    return (titulo.status or '').strip().lower() == StatusTitulo.PAGO.value.lower()
+
+
+def _build_titulo_copy_defaults(titulo):
+    return {
+        'copied_from_id': titulo.id,
+        'entidade_id': titulo.entidade_id,
+        'descricao': titulo.descricao,
+        'valor': str(titulo.valor),
+        'data_vencimento': titulo.data_vencimento.strftime('%Y-%m-%d'),
+    }
+
 @financeiro_bp.route('/titulos')
 def titulos():
     # Capturar filtros
@@ -365,6 +379,34 @@ def liquidar_titulo_route(titulo_id):
         
     hoje = datetime.utcnow().strftime('%Y-%m-%d')
     return render_template('financeiro/liquidar_form.html', titulo=titulo, bancos=bancos, hoje=hoje)
+
+
+@financeiro_bp.route('/titulos/<titulo_id>/copiar', methods=['GET'])
+def copiar_titulo(titulo_id):
+    next_url = request.args.get('next') or url_for('financeiro.titulos')
+    titulo = db.session.get(Titulo, titulo_id)
+
+    if not titulo:
+        flash("Título não encontrado.", "error")
+        return redirect(next_url)
+
+    if not _titulo_esta_pago(titulo):
+        flash("Só é permitido copiar títulos com status Pago.", "warning")
+        return redirect(next_url)
+
+    defaults = _build_titulo_copy_defaults(titulo)
+    defaults['next'] = next_url
+
+    if titulo.tipo == TipoTitulo.RECEBER.value:
+        flash("Título copiado. Revise os campos e salve para criar um novo registro.", "info")
+        return redirect(url_for('financeiro.nova_venda', **defaults))
+
+    if titulo.tipo == TipoTitulo.PAGAR.value:
+        flash("Título copiado. Revise os campos e salve para criar um novo registro.", "info")
+        return redirect(url_for('financeiro.novo_pagamento', **defaults))
+
+    flash("Tipo de título inválido para cópia.", "error")
+    return redirect(next_url)
 
 @financeiro_bp.route('/transferencia', methods=['GET', 'POST'])
 def transferencia():
@@ -795,7 +837,14 @@ def nova_venda():
         flash("Nenhum Cliente cadastrado. Cadastre um cliente antes de realizar uma venda.", "info")
     
     hoje = datetime.utcnow().strftime('%Y-%m-%d')
-    return render_template('financeiro/venda_form.html', clientes=clientes, hoje=hoje, next_url=next_url)
+    defaults = {
+        'copied_from_id': request.args.get('copied_from_id', ''),
+        'entidade_id': request.args.get('entidade_id', ''),
+        'descricao': request.args.get('descricao', ''),
+        'valor': request.args.get('valor', ''),
+        'data_vencimento': request.args.get('data_vencimento') or hoje
+    }
+    return render_template('financeiro/venda_form.html', clientes=clientes, hoje=hoje, next_url=next_url, defaults=defaults)
 
 @financeiro_bp.route('/pagamento', methods=['GET', 'POST'])
 def novo_pagamento():
@@ -824,7 +873,14 @@ def novo_pagamento():
         flash("Nenhum Fornecedor cadastrado.", "info")
     
     hoje = datetime.utcnow().strftime('%Y-%m-%d')
-    return render_template('financeiro/pagamento_form.html', fornecedores=fornecedores, hoje=hoje, next_url=next_url)
+    defaults = {
+        'copied_from_id': request.args.get('copied_from_id', ''),
+        'entidade_id': request.args.get('entidade_id', ''),
+        'descricao': request.args.get('descricao', ''),
+        'valor': request.args.get('valor', ''),
+        'data_vencimento': request.args.get('data_vencimento') or hoje
+    }
+    return render_template('financeiro/pagamento_form.html', fornecedores=fornecedores, hoje=hoje, next_url=next_url, defaults=defaults)
 
 @financeiro_bp.route('/movimentacao-outros', methods=['GET', 'POST'])
 def movimentacao_outros():
