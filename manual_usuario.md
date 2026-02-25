@@ -1,165 +1,505 @@
-# 📔 Manual do Usuário - PRP Financeiro
+﻿# Manual do Usuário - PRP Financeiro
 
-Seja bem-vindo ao **PRP Financeiro**! Este manual foi criado para ajudar você a dominar suas finanças pessoais ou empresariais de forma simples, organizada e com a precisão de um contador profissional, mas sem complicações.
+## Índice
 
----
+1. [Apresentação do Sistema](#1-apresentacao-do-sistema)
+2. [Navegação Geral](#2-navegacao-geral)
+3. [Módulos Detalhados](#3-modulos-detalhados)
+4. [Operações Passo a Passo](#4-operacoes-passo-a-passo)
+5. [Boas Práticas](#5-boas-praticas)
 
-## 1. Visão Geral
+## 1. Apresentação do Sistema {#1-apresentacao-do-sistema}
 
-O **PRP (Personal Resource Planning)** é uma ferramenta completa para quem deseja ter controle total sobre o seu dinheiro. Diferente de uma planilha comum, o PRP utiliza inteligência contábil para garantir que nenhum centavo se perca.
+### 1.1 Finalidade
 
-**Com o PRP, você controla:**
-- **Bancos:** Seus saldos reais em cada conta.
-- **Contas a Pagar e Receber:** Organize seus boletos e ganhos futuros.
-- **Cartão de Crédito:** Controle faturas, limites e compras parceladas.
-- **Ativos:** Gerencie seus bens (casa, carro) e investimentos.
-- **Contabilidade Automática:** O sistema faz os registros contábeis por trás das cenas enquanto você apenas lança suas contas.
+O PRP Financeiro é um sistema web para gestão financeira e contábil integrada, com controle de:
 
----
+- contas a pagar e a receber (títulos);
+- liquidação e estorno com rastreabilidade;
+- plano de contas e parâmetros contábeis;
+- ativos (bens, bancos/caixa e investimentos);
+- cartões de crédito e faturas;
+- relatórios contábeis (Livro Diário e Balancete).
 
-## 2. Como começar em 15 minutos (Guia Rápido)
+O sistema registra eventos financeiros com reflexo no Livro Diário por partidas dobradas, respeitando regras de natureza contábil e contas analíticas.
 
-Siga este checklist inicial para deixar tudo pronto:
+### 1.2 Público-alvo
 
-1.  **[ ] Confirmar Contas Contábeis:** O sistema já vem com uma estrutura básica. Verifique em **Entidades** ou **Parâmetros** se as categorias fazem sentido para você.
-2.  **[ ] Cadastrar Bancos:** Vá ao menu **Bancos** e registre as contas que você usa (ex: Santander, Nubank).
-3.  **[ ] Cadastrar Entidades:** No menu **Entidades**, cadastre as pessoas ou empresas com quem você transaciona (ex: "Energia Elétrica", "Supermercado", "Seu Empregador"). Isso é essencial para que o sistema saiba onde classificar cada gasto.
-4.  **[ ] Lançar um Título:** Vá em **Financeiro** e registre uma conta que você tem a pagar este mês.
-5.  **[ ] Liquidar (Pagar):** No mesmo menu, clique para pagar (liquidar) o título que você acabou de criar.
-6.  **[ ] Ver o Resultado:** Volte ao **Dashboard** para ver como seu "Patrimônio" mudou e confira no menu **Contabilidade > Livro Diário** o registro automático que o sistema criou.
+- usuários operacionais financeiros (lançamentos, liquidação, conferência);
+- gestores (acompanhamento de posição financeira e indicadores);
+- contabilidade interna (balancete, diário, consistência de contas);
+- administradores do sistema (usuários, SMTP, backup/restore e atualização).
 
----
+### 1.3 Conceito contábil adotado
 
-## 3. Conceitos Básicos (Para Leigos)
+O sistema opera com lógica de competência para geração e manutenção de títulos (contas a pagar/receber) e reconhece a movimentação de caixa/bancos no momento da liquidação. Na prática operacional:
 
-Para usar o sistema como um mestre, você só precisa entender estes 4 conceitos:
+- criação de título gera obrigação/direito em aberto;
+- liquidação baixa o título e registra movimentação financeira com lançamentos contábeis;
+- estorno executa reversões com regras de segurança temporal.
 
--   **Título:** É uma "promessa" ou documento. Um boleto que chegou é um **Título a Pagar**. Um valor que você combinou receber é um **Título a Receber**.
--   **Liquidação:** É o ato de pagar ou receber de verdade. No PRP, você primeiro cria o título e depois "liquida" quando o dinheiro sai ou entra no banco.
--   **Competência:** É o mês ao qual o gasto "pertence". Exemplo: Você usou o cartão em Janeiro, mas só paga em Fevereiro. A *competência* é Janeiro. O sistema cuida disso para você.
--   **Contabilidade Automática:** Cada vez que você paga algo, o sistema faz dois lançamentos (as "partidas dobradas"): tira dinheiro do seu Banco e registra que você teve uma Despesa. Isso mantém o balanço sempre correto.
+### 1.4 Arquitetura resumida (App + Banco + Updater)
 
----
+- App: aplicação Flask (web + regras de negócio + templates).
+- Banco: PostgreSQL.
+- Updater: serviço HTTP separado para atualização controlada da aplicação, com lock, backup, health check e rollback.
 
-## 4. Dashboard
+## 2. Navegação Geral {#2-navegacao-geral}
 
-O Dashboard é o seu painel de controle. Veja o que cada card informa:
+### 2.1 Estrutura da interface
 
-| Card | O que significa |
-| :--- | :--- |
-| **Patrimônio Líquido** | A soma de tudo que você tem (Dinheiro + Ativos) menos o que você deve. |
-| **Disponível (Bancos)** | Quanto dinheiro você tem em mãos agora em todas as suas contas bancárias. |
-| **A Receber** | Dinheiro que está para entrar (salários, vendas, etc.). |
-| **A Pagar** | Total das suas dívidas próximas, incluindo faturas de cartão já fechadas. |
-| **Cartão - Limite** | Quanto você ainda pode gastar no seu cartão de crédito hoje. |
-| **Cartão - Ciclo Aberto**| Quanto você já gastou na fatura atual que ainda não fechou. |
+A navegação principal é organizada por módulos funcionais, incluindo:
 
-> [!TIP]
-> Use o filtro de **Mês/Ano** no topo para analisar períodos específicos. Lembre-se: "Pago" significa que o dinheiro saiu do banco, não necessariamente que foi a data da compra no cartão.
+- Dashboard;
+- Financeiro;
+- Contabilidade;
+- Entidades;
+- Ativos;
+- Plano de Contas;
+- Administração (usuários, SMTP, backup/restore, bloqueio de tela, senha).
 
----
+### 2.2 Conceito de módulos
 
-## 5. Financeiro (Títulos)
+Cada módulo concentra um domínio:
 
-Aqui é onde o dia a dia acontece.
+- Financeiro: ciclo de títulos, liquidação, estorno, bancos/cartões.
+- Contabilidade: diário, balancete, parâmetros e visões analíticas.
+- Cadastros base: entidades, ativos e contas contábeis.
 
-### Como lançar um título
-Clique em **Novo Título**, escolha se é **A Pagar** ou **A Receber**, coloque o valor, a data de vencimento e a **Entidade** (ex: Fornecedor de Internet).
+## 3. Módulos Detalhados {#3-modulos-detalhados}
 
-### Como liquidar (Pagar/Receber)
-Na lista de títulos, clique no botão de ação da linha desejada e escolha "Liquidar". Você deve informar de qual **Banco** o dinheiro saiu.
+### 3.1 Dashboard
 
-### Descontos na Liquidação
-Se você pagar uma conta com desconto (ex: pagou R$ 90 em um boleto de R$ 100):
-- No campo **Valor Desconto**, coloque R$ 10.
-- O **Valor Líquido** será atualizado para R$ 90.
-- O sistema registrará automaticamente um "Desconto Obtido" (Receita) de R$ 10 para que sua contabilidade não fique com buracos.
+Finalidade:
 
----
+- apresentar visão consolidada de receitas, despesas, saldos e indicadores do período.
 
-## 6. Bancos
+Quando usar:
 
-O menu **Bancos** gerencia suas "carteiras" de dinheiro.
-- **Cadastro:** Coloque o nome do banco e o saldo inicial (se houver).
-- **Saldo:** O saldo é atualizado instantaneamente toda vez que você liquida um título ou paga uma fatura de cartão.
+- monitoramento gerencial diário e fechamento mensal.
 
----
+Relação com outros módulos:
 
-## 7. Cartão de Crédito
+- consolida dados de títulos, diário e cartões/faturas.
 
-O cartão de crédito no PRP é inteligente e segue o fluxo real dos bancos.
+Particularidades:
 
-### Configuração
-Ao cadastrar um cartão, informe:
-- **Fechamento:** O dia que a fatura "vira" (ex: dia 5).
-- **Vencimento:** O dia que você paga o boleto da fatura (ex: dia 15).
-- **Limite:** Seu limite total.
+- possui APIs de drilldown e leitura de métricas.
 
-### Como funciona a Fatura
-- **Fatura Aberta:** É onde entram suas compras atuais.
-- **Fatura Fechada:** Quando chega o dia do fechamento, o sistema "trava" essas compras e as prepara para pagamento. Compras feitas após esse dia caem automaticamente na próxima fatura.
+Restrições:
 
-### Registro de Compras
-- **À Vista:** Registre a compra e escolha o cartão. O limite disponível cai na hora.
-- **Parcelada:** O sistema é incrível aqui! Se você comprar algo de R$ 300 em 3x, ele criará automaticamente as faturas de R$ 100 para os próximos meses, reduzindo o limite total disponível hoje.
+- depende de parametrização contábil e lançamentos existentes.
 
-### Pagamento da Fatura
-1. Vá em Cartão de Crédito e localize a **Fatura Fechada**.
-2. Clique em Pagar.
-3. Se houver **Encargos** (juros ou taxas), preencha o campo específico.
-   - **Atenção:** O pagamento do "Principal" devolve seu limite de crédito. O pagamento de "Encargos" é uma despesa e não aumenta seu limite.
+Impacto contábil:
 
----
+- não gera lançamento; apenas consulta/analisa dados já registrados.
 
-## 8. Entidades (O "Cérebro" do Sistema)
+### 3.2 Financeiro
 
-Cadastrar Entidades (Clientes e Fornecedores) poupa seu tempo.
-- Ao cadastrar, você pode definir uma **Conta Contábil Padrão**.
-- **Exemplo:** Cadastre a "Padaria" e vincule à conta de despesa "Alimentação". Sempre que lançar um título para a Padaria, o sistema já saberá que é um gasto com comida!
+Finalidade:
 
----
+- gerir contas a receber/pagar, liquidações, estornos, transferências, bancos e cartões.
 
-## 9. Ativos e Investimentos
+Quando usar:
 
-Gerencie o que você possui de valor durável.
-- **Compra de Ativo:** Se você comprar um notebook parcelado, o sistema cria o Ativo e gera os Títulos a Pagar automaticamente.
-- **Venda de Ativo:** Ao vender, o sistema calcula se você teve lucro ou prejuízo e registra no seu patrimônio.
-- **Investimentos:** Acompanhe o valor investido e veja como ele compõe seu Patrimônio Líquido no Dashboard.
+- operação diária de caixa e contas.
 
----
+Relação com outros módulos:
 
-## 10. Contabilidade (Para Leigos)
+- utiliza Entidades, Ativos (bancos/caixa), Plano de Contas e Contabilidade.
 
-Você não precisa ser contador, mas é bom entender onde as coisas ficam:
-- **Plano de Contas:** É a lista organizada de "caixinhas" onde o dinheiro é classificado (Ativos, Dívidas, Receitas, Gastos).
-- **Livro Diário:** É o diário de bordo. Se quiser saber por que seu saldo mudou no dia 10, olhe o Diário.
-- **Parâmetros (⚙️):** Fica no topo da tela de Contabilidade. Aqui você define, por exemplo:
-  - `CONTA_DESCONTO_OBTIDO_ID`: Onde o sistema guarda os descontos que você ganhou.
-  - `CONTA_DESCONTO_CONCEDIDO_ID`: Onde guarda os descontos que você deu para alguém.
+Particularidades:
 
----
+- títulos em abas de pendentes/pagas;
+- filtros por período, tipo e entidade;
+- bloqueios de estorno por prazo;
+- ação “Copiar” disponível apenas para títulos pagos.
 
-## 11. Resolução de Problemas (FAQ)
+Restrições:
 
-- **"Paguei a fatura, mas o limite não voltou totalmente"**
-  - Provavelmente uma parte do pagamento foi de **Encargos/Juros**. Somente o valor do "Principal" (as compras) recompõe o limite.
-- **"Meu desconto deu erro de conta não configurada"**
-  - Vá em **Contabilidade > ⚙️ Parâmetros** e verifique se as contas de Desconto Obtido/Concedido estão selecionadas corretamente.
-- **"Por que a compra no cartão não aparece como 'Pago' no Dashboard?"**
-  - No Dashboard, "Pago" refere-se a dinheiro saindo do banco. Compras no cartão só viram "Pagamento" quando você paga o boleto da fatura. No momento da compra, elas aparecem no "Ciclo Aberto".
-- **"Cadastrei errado, como corrijo?"**
-  - A maioria das telas permite **Estornar** ou **Excluir**. Se estornar, o sistema faz o lançamento inverso para anular o erro com segurança.
+- liquidação exige conta bancária/caixa;
+- cópia bloqueada para título não pago;
+- estorno bloqueado quando ultrapassados limites de 20 dias (título pago) e 60 dias (emissão).
 
----
+Impacto contábil:
 
-## 12. Glossário
+- criação de título: registro de obrigação/direito em aberto;
+- liquidação: baixa financeira e contábil;
+- estorno: reversão de baixa e cancelamento.
 
-- **Ativo:** Tudo que você tem (Dinheiro, Casa, Carro, Ações).
-- **Passivo:** Suas dívidas (Empréstimos, Faturas, Boletos).
-- **Receita:** Dinheiro que entra aumentando sua riqueza (Salário, Juros recebidos).
-- **Despesa:** Gastos que não retornam (Aluguel, Comida, Juros pagos).
-- **Patrimônio Líquido:** Ativos menos Passivos. É o que "sobra" de verdade para você.
-- **Estorno:** Cancelamento de um lançamento feito errado, voltando o estado anterior.
+### 3.3 Contabilidade
 
----
-*PRP Financeiro - Controle total, decisão inteligente.*
+Finalidade:
+
+- consulta e exportação do Livro Diário e Balancete;
+- configuração de parâmetros contábeis.
+
+Quando usar:
+
+- conferência contábil, auditoria e fechamento.
+
+Relação com outros módulos:
+
+- recebe lançamentos de financeiro, ativos e cartões.
+
+Particularidades:
+
+- exportação para Excel em Diário e Balancete.
+
+Restrições:
+
+- depende da integridade do plano de contas e das partidas.
+
+Impacto contábil:
+
+- módulo de consulta e parametrização; não cria títulos diretamente.
+
+### 3.4 Entidades
+
+Finalidade:
+
+- cadastro de cliente, fornecedor e outros.
+
+Quando usar:
+
+- antes de gerar títulos, compras, vendas e operações correlatas.
+
+Relação com outros módulos:
+
+- títulos e ativos dependem de entidade vinculada;
+- mapeamento de contas por tipo de entidade.
+
+Particularidades:
+
+- campos de conta de compra/venda variam conforme tipo da entidade.
+
+Restrições:
+
+- para operações financeiras completas, entidade precisa ter contas compatíveis.
+
+Impacto contábil:
+
+- cadastro em si não lança diário; influencia lançamentos futuros.
+
+### 3.5 Ativos
+
+Finalidade:
+
+- registrar ativos (incluindo banco/caixa e investimentos), compra, venda e recompra.
+
+Quando usar:
+
+- controle patrimonial e financeiro de ativos.
+
+Relação com outros módulos:
+
+- bancos/caixa são usados na liquidação de títulos;
+- compras/vendas geram títulos e lançamentos.
+
+Particularidades:
+
+- sincroniza `valor_atual` pelo saldo real da conta contábil no diário.
+
+Restrições:
+
+- venda/recompra seguem regras por tipo do ativo.
+
+Impacto contábil:
+
+- operações em ativos refletem no patrimônio, resultado e financeiro conforme a natureza do evento.
+
+### 3.6 Plano de Contas
+
+Finalidade:
+
+- manter contas contábeis com código, tipo, natureza e hierarquia.
+
+Quando usar:
+
+- implantação e manutenção contábil do sistema.
+
+Relação com outros módulos:
+
+- base para lançamentos em todos os fluxos financeiros/contábeis.
+
+Particularidades:
+
+- prevenção de duplicidade de código por restrição de integridade.
+
+Restrições:
+
+- contas analíticas são exigidas nas rotinas de lançamento.
+
+Impacto contábil:
+
+- estruturação correta determina consistência de diário e balancete.
+
+### 3.7 Administração
+
+Finalidade:
+
+- autenticação, usuários, troca de senha, bloqueio de tela, SMTP, backup/restore.
+
+Quando usar:
+
+- governança de acesso e operação de manutenção.
+
+Relação com outros módulos:
+
+- transversal a toda aplicação.
+
+Particularidades:
+
+- API de tema da interface;
+- endpoints de backup e restauração.
+
+Restrições:
+
+- ações administrativas requerem autenticação e permissões.
+
+Impacto contábil:
+
+- sem impacto direto de lançamento, mas afeta continuidade operacional e segurança.
+
+## 4. Operações Passo a Passo {#4-operacoes-passo-a-passo}
+
+### 4.1 Criar Título (Receita)
+
+O que o usuário faz:
+
+1. Acessa `Financeiro > + Nova Venda`.
+2. Informa cliente, descrição, valor e vencimento.
+3. Clica em `Registrar Venda`.
+
+O que o sistema faz:
+
+1. Valida dados enviados.
+2. Busca a entidade cliente.
+3. Executa criação de título a receber (`Tipo = Receber`, `Status = Aberto`).
+4. Persiste o novo registro e retorna mensagem de sucesso.
+
+Impacto contábil:
+
+- cria direito a receber em aberto para posterior baixa/liquidação.
+
+O que não pode ser feito:
+
+- registrar sem cliente válido;
+- registrar com dados obrigatórios ausentes.
+
+### 4.2 Criar Título (Despesa)
+
+O que o usuário faz:
+
+1. Acessa `Financeiro > + Novo Pagamento`.
+2. Informa fornecedor, descrição, valor e vencimento.
+3. Clica em `Registrar Pagamento`.
+
+O que o sistema faz:
+
+1. Valida dados enviados.
+2. Busca a entidade fornecedora.
+3. Executa criação de título a pagar (`Tipo = Pagar`, `Status = Aberto`).
+4. Persiste o novo registro e retorna mensagem de sucesso.
+
+Impacto contábil:
+
+- cria obrigação a pagar em aberto para posterior baixa/liquidação.
+
+O que não pode ser feito:
+
+- registrar sem fornecedor válido;
+- registrar com dados obrigatórios ausentes.
+
+### 4.3 Liquidar Título
+
+O que o usuário faz:
+
+1. Na lista de títulos pendentes, clica em `Liquidar`.
+2. Informa conta bancária/caixa, data de pagamento e desconto (quando aplicável).
+3. Confirma a liquidação.
+
+O que o sistema faz:
+
+1. Valida existência do título e da conta financeira.
+2. Executa rotina de liquidação financeira.
+3. Atualiza status do título para pago, grava data de liquidação.
+4. Registra transação financeira de baixa.
+5. Registra lançamentos contábeis correspondentes no diário.
+
+Impacto contábil:
+
+- baixa obrigação/direito e reconhece movimento em banco/caixa.
+
+O que não pode ser feito:
+
+- liquidar sem banco/caixa cadastrado;
+- liquidar título inexistente.
+
+### 4.4 Editar Título
+
+Situação atual implementada:
+
+- não existe rota/tela dedicada para edição direta de título já cadastrado.
+- o sistema atual oferece criação, liquidação, estorno e cópia (para título pago).
+
+Orientação operacional:
+
+- para ajuste de dados, utiliza-se o fluxo operacional existente conforme caso (novo lançamento, liquidação, estorno, cópia).
+
+### 4.5 Copiar Título Pago
+
+O que o usuário faz:
+
+1. Na aba de títulos pagos, clica em `Copiar`.
+2. É redirecionado para `Nova Venda` (se origem for Receber) ou `Novo Pagamento` (se origem for Pagar).
+3. Revisa campos pré-preenchidos.
+4. Salva para criar novo título.
+
+O que o sistema faz:
+
+1. Valida que o título existe.
+2. Valida que o status é `Pago`.
+3. Monta valores padrão com base no título original:
+   - entidade;
+   - descrição;
+   - valor;
+   - data de vencimento;
+   - referência interna de origem (`copied_from_id`) para controle de UI.
+4. Redireciona para o formulário de novo título com defaults.
+5. Ao salvar, cria novo título (novo UUID) em aberto.
+
+Impacto contábil:
+
+- a ação de “copiar” não replica baixa nem transações financeiras do título de origem;
+- impacto contábil ocorre somente quando o novo título for liquidado.
+
+O que não pode ser feito:
+
+- copiar título em aberto ou cancelado;
+- usar o fluxo de cópia para alterar o título original.
+
+### 4.6 Criar Entidade
+
+O que o usuário faz:
+
+1. Acessa `Entidades > Nova`.
+2. Informa nome, tipo, documento e contas conforme tipo.
+3. Salva cadastro.
+
+O que o sistema faz:
+
+1. Cria nova entidade com campos de conta conforme regra do tipo:
+   - fornecedor: conta de compra;
+   - cliente: conta de venda;
+   - outros: conta de compra e venda.
+2. Persiste no banco e retorna sucesso.
+
+Impacto contábil:
+
+- sem lançamento imediato; habilita consistência de lançamentos futuros.
+
+O que não pode ser feito:
+
+- depender de mapeamento contábil inexistente para fluxos que exigem conta vinculada.
+
+### 4.7 Criar Ativo
+
+O que o usuário faz:
+
+1. Acessa `Ativos > Novo`.
+2. Informa dados do ativo e fornecedor.
+3. Seleciona tipo do ativo e conta contábil.
+4. Salva.
+
+O que o sistema faz:
+
+1. Para investimento: executa compra de investimento com regras específicas.
+2. Para demais tipos: executa compra de imobilizado, podendo gerar parcelamento.
+3. Registra eventos financeiros/contábeis conforme serviço de ativos.
+
+Impacto contábil:
+
+- reconhecimento patrimonial do ativo e obrigações/direitos correlatos.
+
+O que não pode ser feito:
+
+- concluir compra com dados essenciais ausentes.
+
+### 4.8 Configurar Parâmetros Contábeis
+
+O que o usuário faz:
+
+1. Acessa área de contabilidade/configuração.
+2. Define contas de parâmetros usadas pelas rotinas contábeis.
+3. Salva parâmetros.
+
+O que o sistema faz:
+
+1. Persiste configurações globais.
+2. Passa a utilizar esses vínculos nas rotinas automáticas de lançamento.
+
+Impacto contábil:
+
+- altera o destino contábil dos lançamentos futuros.
+
+O que não pode ser feito:
+
+- esperar consistência contábil sem parametrização adequada.
+
+### 4.9 Gerar Relatórios
+
+Relatórios implementados:
+
+- Livro Diário (`/contabilidade/diario` + exportação Excel);
+- Balancete (`/contabilidade/balancete` + exportação Excel).
+
+O que o usuário faz:
+
+1. Seleciona período.
+2. Consulta dados.
+3. Exporta para `.xlsx` quando necessário.
+
+O que o sistema faz:
+
+1. Executa consultas por período.
+2. Consolida saldos/debitos/créditos conforme regra de cada relatório.
+3. Gera arquivo de exportação.
+
+Impacto contábil:
+
+- não altera dados; evidencia a escrituração já registrada.
+
+O que não pode ser feito:
+
+- gerar resultado consistente sem base de lançamentos válida no período.
+
+## 5. Boas Práticas {#5-boas-praticas}
+
+### 5.1 Organização financeira
+
+- padronizar descrições/históricos para facilitar auditoria;
+- manter entidades e contas atualizadas antes dos lançamentos;
+- revisar títulos em aberto por vencimento.
+
+### 5.2 Uso correto de categorias e contas
+
+- usar contas analíticas para operações que geram lançamento;
+- evitar uso de contas incompatíveis com a natureza da operação.
+
+### 5.3 Uso correto de regime
+
+- tratar criação de título como reconhecimento de obrigação/direito;
+- tratar liquidação como baixa financeira efetiva.
+
+### 5.4 Cuidados ao liquidar títulos
+
+- conferir banco/caixa selecionado e data de pagamento;
+- validar desconto aplicado;
+- evitar liquidação duplicada do mesmo título.
+
+### 5.5 Evitar distorções no balancete
+
+- não misturar contas de natureza distinta;
+- manter plano de contas coerente (código, tipo, natureza);
+- usar estorno apenas dentro das regras temporais implementadas.
