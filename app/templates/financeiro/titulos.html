@@ -195,6 +195,14 @@
                                     style="padding: 0.25rem 0.5rem; font-size: 0.8rem;">Liquidar</a>
                                 {% endif %}
 
+                                {% if t.status in ['Pago', 'PAGO'] %}
+                                <a href="{{ url_for('financeiro.copiar_titulo', titulo_id=t.id, next=request.url) }}"
+                                    class="btn"
+                                    style="padding: 0.25rem 0.5rem; font-size: 0.8rem; background-color: #e0f2fe; color: #075985; border: 1px solid #bae6fd;">
+                                    Copiar
+                                </a>
+                                {% endif %}
+
                                 {% if t.status != 'Cancelado' and t.status != 'CANCELADO' %}
                                 {# Lógica de Bloqueio de Estorno #}
                                 {% set bloqueado = false %}
