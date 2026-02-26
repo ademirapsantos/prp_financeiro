@@ -2,6 +2,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from datetime import datetime, timedelta
 from decimal import Decimal
 from sqlalchemy import func
+from urllib.parse import urlsplit
 from .models import Titulo, Ativo, ContaContabil, TipoConta, TipoTitulo, StatusTitulo, PartidaDiario, LivroDiario, Entidade, TipoEntidade, TipoAtivo, Configuracao, db, CartaoCredito, TransacaoCartao, FaturaCartao
 from .services import FinancialService
 from flask_login import current_user, login_required
@@ -29,6 +30,17 @@ def _parse_decimal_form(value, default='0'):
         raw = raw.replace(',', '.')
 
     return Decimal(raw)
+
+
+def _safe_internal_url(target):
+    if not target:
+        return None
+    parsed = urlsplit(target)
+    if parsed.scheme or parsed.netloc:
+        return None
+    if not target.startswith('/'):
+        return None
+    return target
 
 
 def _titulo_esta_pago(titulo):
@@ -140,6 +152,8 @@ def detalhes_banco(banco_id):
     faturas = FaturaCartao.query.filter(FaturaCartao.card_id.in_(card_ids)).order_by(FaturaCartao.competencia.desc()).all()
     
     fatura_id = request.args.get('fatura_id')
+    fatura_pagamento_id = request.args.get('fatura_pagamento_id')
+    open_payment_modal = request.args.get('open_payment') == '1'
     fatura_selecionada = None
     
     if fatura_id:
@@ -173,12 +187,19 @@ def detalhes_banco(banco_id):
     ).order_by(FaturaCartao.data_vencimento.asc()).all()
     # Filtrar faturas_pagamento para garantir que total_pago < total (considerando Decimal)
     faturas_pagamento = [f for f in faturas_pagamento if (f.total_pago or 0) < f.total]
+    selected_fatura_pagamento_id = fatura_pagamento_id or fatura_id
+    if selected_fatura_pagamento_id:
+        selected_fatura_pagamento_id = str(selected_fatura_pagamento_id)
+        if not any(str(f.id) == selected_fatura_pagamento_id for f in faturas_pagamento):
+            selected_fatura_pagamento_id = None
     
     return render_template('financeiro/detalhes_banco.html', 
                          banco=banco, 
                          cartoes=cartoes,
                          faturas=faturas,
                          faturas_pagamento=faturas_pagamento,
+                         selected_fatura_pagamento_id=selected_fatura_pagamento_id,
+                         open_payment_modal=open_payment_modal,
                          fatura_selecionada=fatura_selecionada,
                          categorias=categorias,
                          contas_passivo=contas_passivo,
@@ -330,6 +351,8 @@ def pagar_fatura_cartao():
     
     fatura = FaturaCartao.query.get_or_404(fatura_id)
     cartao = fatura.cartao
+    fallback_url = url_for('financeiro.detalhes_banco', banco_id=cartao.banco_id)
+    next_url = _safe_internal_url(request.form.get('next_url')) or fallback_url
 
     try:
         from .services import CreditCardService
@@ -347,14 +370,15 @@ def pagar_fatura_cartao():
         db.session.rollback()
         flash(f'Erro ao realizar pagamento: {str(e)}', 'error')
         
-    return redirect(url_for('financeiro.detalhes_banco', banco_id=cartao.banco_id))
+    return redirect(next_url)
 
 @financeiro_bp.route('/liquidar/<titulo_id>', methods=['GET', 'POST'])
 def liquidar_titulo_route(titulo_id):
+    next_url = _safe_internal_url(request.args.get('next')) or _safe_internal_url(request.form.get('next_url')) or url_for('financeiro.titulos')
     titulo = db.session.get(Titulo, titulo_id)
     if not titulo:
         flash("Título não encontrado.", "error")
-        return redirect(url_for('financeiro.titulos'))
+        return redirect(next_url)
 
     if request.method == 'POST':
         try:
@@ -366,19 +390,20 @@ def liquidar_titulo_route(titulo_id):
             FinancialService.liquidar_titulo(titulo, banco_id, data_pagamento, valor_desconto=valor_desconto_dec)
             db.session.commit()
             flash(f"Título '{titulo.descricao}' liquidado com sucesso!", "success")
-            return redirect(url_for('financeiro.titulos'))
+            return redirect(next_url)
         except Exception as e:
             db.session.rollback()
             flash(f"Erro ao liquidar título: {str(e)}", "error")
+            return redirect(next_url)
 
     # GET: Mostrar formulário
     bancos = Ativo.query.filter_by(tipo='Banco').all()
     if not bancos:
         flash("Nenhuma conta bancária/caixa encontrada. Cadastre um banco antes de liquidar.", "warning")
-        return redirect(url_for('financeiro.bancos'))
+        return redirect(next_url)
         
     hoje = datetime.utcnow().strftime('%Y-%m-%d')
-    return render_template('financeiro/liquidar_form.html', titulo=titulo, bancos=bancos, hoje=hoje)
+    return render_template('financeiro/liquidar_form.html', titulo=titulo, bancos=bancos, hoje=hoje, next_url=next_url)
 
 
 @financeiro_bp.route('/titulos/<titulo_id>/copiar', methods=['GET'])

@@ -4,7 +4,7 @@
         <div class="modal-header"
             style="background-color: var(--bg-muted); padding: 1.2rem 1.5rem; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
             <h2 style="margin: 0; font-size: 1.25rem; display: flex; align-items: center; gap: 0.75rem;">
-                <span style="font-size: 1.5rem;">âš™ï¸</span> ParÃ¢metros de Contabilidade
+                <span style="font-size: 1.5rem;">⚙️</span> Parâmetros de Contabilidade
             </h2>
             <span class="close" onclick="fecharParametros()"
                 style="cursor: pointer; font-size: 1.5rem; color: var(--text-muted);">&times;</span>
@@ -12,7 +12,7 @@
 
         <div class="modal-body" style="padding: 1.5rem; max-height: 70vh; overflow-y: auto;">
             <form id="formParametros">
-                <!-- SeÃ§Ã£o 1: Ganhos e Perdas -->
+                <!-- Seção 1: Ganhos e Perdas -->
                 <div style="margin-bottom: 2rem;">
                     <h3
                         style="font-size: 0.9rem; text-transform: uppercase; color: var(--text-muted); margin-bottom: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; letter-spacing: 0.05em;">
@@ -29,33 +29,33 @@
                     </div>
                     <div class="form-group">
                         <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Conta de
-                            PrejuÃ­zo/Perda:</label>
+                            Prejuízo/Perda:</label>
                         <select name="conta_prejuizo_venda" class="form-control select-contas"
                             style="width: 100%; padding: 0.6rem;"></select>
                         <small
                             style="display: block; color: var(--text-muted); font-size: 0.85rem; margin-top: 0.25rem;">
-                            Conta de Despesa usada automaticamente quando houver prejuÃ­zo na venda de ativos.
+                            Conta de Despesa usada automaticamente quando houver prejuízo na venda de ativos.
                         </small>
                     </div>
                 </div>
 
-                <!-- SeÃ§Ã£o 2: Contas Patrimoniais PadrÃ£o -->
+                <!-- Seção 2: Contas Patrimoniais Padrão -->
                 <div>
                     <h3
                         style="font-size: 0.9rem; text-transform: uppercase; color: var(--text-muted); margin-bottom: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; letter-spacing: 0.05em;">
-                        Contas Patrimoniais PadrÃ£o</h3>
+                        Contas Patrimoniais Padrão</h3>
                     <div class="form-group" style="margin-bottom: 1rem;">
                         <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Contrapartida PL - Bancos e Caixa:</label>
                         <select name="conta_ativo_banco" class="form-control select-contas"
                             style="width: 100%; padding: 0.6rem;"></select>
                     </div>
                     <div class="form-group" style="margin-bottom: 1rem;">
-                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Contrapartida PL - VeÃ­culos:</label>
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Contrapartida PL - Veículos:</label>
                         <select name="conta_ativo_veiculo" class="form-control select-contas"
                             style="width: 100%; padding: 0.6rem;"></select>
                     </div>
                     <div class="form-group" style="margin-bottom: 1rem;">
-                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Contrapartida PL - ImÃ³veis:</label>
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Contrapartida PL - Imóveis:</label>
                         <select name="conta_ativo_imovel" class="form-control select-contas"
                             style="width: 100%; padding: 0.6rem;"></select>
                     </div>
@@ -71,7 +71,7 @@
                     </div>
                 </div>
 
-                <!-- SeÃ§Ã£o 3: Descontos -->
+                <!-- Seção 3: Descontos -->
                 <div>
                     <h3
                         style="font-size: 0.9rem; text-transform: uppercase; color: var(--text-muted); margin-bottom: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; letter-spacing: 0.05em; margin-top: 2rem;">
@@ -83,7 +83,7 @@
                             style="width: 100%; padding: 0.6rem;"></select>
                         <small
                             style="display: block; color: var(--text-muted); font-size: 0.85rem; margin-top: 0.25rem;">Conta
-                            contÃ¡bil utilizada para registrar descontos obtidos em pagamentos antecipados.</small>
+                            contábil utilizada para registrar descontos obtidos em pagamentos antecipados.</small>
                     </div>
                     <div class="form-group">
                         <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Conta de Descontos
@@ -92,7 +92,7 @@
                             style="width: 100%; padding: 0.6rem;"></select>
                         <small
                             style="display: block; color: var(--text-muted); font-size: 0.85rem; margin-top: 0.25rem;">Conta
-                            contÃ¡bil utilizada para registrar descontos concedidos em recebimentos antecipados.</small>
+                            contábil utilizada para registrar descontos concedidos em recebimentos antecipados.</small>
                     </div>
                 </div>
             </form>
@@ -102,7 +102,7 @@
             style="padding: 1.2rem 1.5rem; background-color: var(--bg-muted); border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; gap: 0.75rem;">
             <button type="button" class="btn" onclick="fecharParametros()"
                 style="background-color: transparent; border: 1px solid var(--border-color);">Cancelar</button>
-            <button type="button" class="btn btn-primary" onclick="salvarParametros()">Salvar ConfiguraÃ§Ãµes</button>
+            <button type="button" class="btn btn-primary" onclick="salvarParametros()">Salvar Configurações</button>
         </div>
     </div>
 </div>
@@ -125,7 +125,7 @@
             const data = await response.json();
             contasAnaliticas = data.contas;
 
-            // Popular os selects com filtros especÃ­ficos
+            // Popular os selects com filtros específicos
             const selects = document.querySelectorAll('.select-contas');
             selects.forEach(select => {
                 select.innerHTML = '<option value="">-- Selecione uma conta --</option>';
@@ -153,8 +153,8 @@
                 });
             });
         } catch (e) {
-            console.error("Erro ao carregar parÃ¢metros", e);
-            showToast("Erro ao carregar configuraÃ§Ãµes contÃ¡beis.", "error");
+            console.error("Erro ao carregar parâmetros", e);
+            showToast("Erro ao carregar configurações contábeis.", "error");
         }
     }
 
@@ -177,12 +177,12 @@
 
             if (response.ok) {
                 fecharParametros();
-                showToast('ConfiguraÃ§Ãµes salvas com sucesso!', 'success');
+                showToast('Configurações salvas com sucesso!', 'success');
             } else {
                 throw new Error("Erro ao salvar");
             }
         } catch (e) {
-            showToast("Erro ao salvar configuraÃ§Ãµes.", "error");
+            showToast("Erro ao salvar configurações.", "error");
         }
     }
 
