@@ -59,7 +59,7 @@ def api_version():
 
 @main_bp.route('/')
 def dashboard():
-    from .models import TransacaoFinanceira, TipoTitulo, StatusTitulo, TipoTransacao, CartaoCredito, FaturaCartao, LivroDiario, PartidaDiario, ContaContabil
+    from .models import TransacaoFinanceira, TipoTitulo, StatusTitulo, TipoTransacao, CartaoCredito, FaturaCartao, LivroDiario, PartidaDiario, ContaContabil, TipoConta, Ativo, TipoAtivo
     from sqlalchemy import extract, or_
     import calendar
 
@@ -97,7 +97,7 @@ def dashboard():
         cartao_limite_disponivel = db.session.query(func.sum(FaturaCartao.total))\
             .filter(extract('year', FaturaCartao.data_vencimento) == ano, 
                     extract('month', FaturaCartao.data_vencimento) == mes_filtro).scalar() or 0
-        cartao_label_limite = "Gasto no MÃªs"
+        cartao_label_limite = "Gasto no Mês"
         
         # 3.2 Saldo da Fatura Selecionada (Pendente de Pagamento)
         total_ciclo_aberto = db.session.query(func.sum(FaturaCartao.total - func.coalesce(FaturaCartao.total_pago, 0)))\
@@ -107,7 +107,7 @@ def dashboard():
     else:
         # Sem mÃªs: mostramos o LIMITE ATUAL e as FATURAS EM ABERTO ATUAIS
         cartao_limite_disponivel = db.session.query(func.sum(CartaoCredito.limite_disponivel)).scalar() or 0
-        cartao_label_limite = "Limite DisponÃ­vel"
+        cartao_label_limite = "Limite Disponível"
         
         total_ciclo_aberto = db.session.query(func.sum(FaturaCartao.total - func.coalesce(FaturaCartao.total_pago, 0)))\
             .filter(FaturaCartao.status == 'aberta').scalar() or 0
@@ -202,6 +202,12 @@ def dashboard():
         chart_data['a_pagar'].append(float(a_pagar_total_m))
 
     anos_disponiveis = list(range(2025, 2151))
+    hoje_str = datetime.utcnow().strftime('%Y-%m-%d')
+    bancos_pagamento = Ativo.query.filter_by(tipo=TipoAtivo.BANCO.value).all()
+    categorias_despesa = [
+        c for c in ContaContabil.query.filter_by(tipo=TipoConta.DESPESA.value).order_by(ContaContabil.codigo).all()
+        if c.is_analitica
+    ]
 
     return render_template('dashboard.html', 
                          patrimonio_liquido=patrimonio_liquido,
@@ -216,7 +222,10 @@ def dashboard():
                          chart_labels=chart_labels,
                          ano_selecionado=ano,
                          mes_selecionado=mes_filtro,
-                         anos_disponiveis=anos_disponiveis)
+                         anos_disponiveis=anos_disponiveis,
+                         hoje_str=hoje_str,
+                         bancos_pagamento=bancos_pagamento,
+                         categorias_despesa=categorias_despesa)
 
 @main_bp.route('/contabilidade/diario')
 def diario():
@@ -730,6 +739,10 @@ def api_drilldown():
     mes = request.args.get('mes', type=int)
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 50, type=int)
+    dashboard_next_params = {'ano': ano}
+    if mes:
+        dashboard_next_params['mes'] = mes
+    dashboard_next_url = url_for('main.dashboard', **dashboard_next_params)
 
     # Determinar data limite para cÃ¡lculos de saldo (DisponÃ­vel/Ativos)
     if mes:
@@ -749,7 +762,7 @@ def api_drilldown():
 
     if tipo == 'patrimonio':
         # Detalhamento: Ativos (Exceto 1.5) - A Pagar (Regra Refinada)
-        data['title'] = 'ComposiÃ§Ã£o do PatrimÃ´nio LÃ­quido (Ativos - DÃ­vidas)'
+        data['title'] = 'Composição do Patrimônio Líquido (Ativos - Dívidas)'
         
         # 1. Ativos (CronolÃ³gico atÃ© data_limite)
         ativos = db.session.query(
@@ -785,7 +798,7 @@ def api_drilldown():
             all_items.append({
                 'label': f"{t.data_vencimento.strftime('%d/%m/%Y')} - {t.descricao} ({t.entidade.nome})",
                 'valor': float(-t.valor),
-                'tipo': 'A Pagar (TÃ­tulo)'
+                'tipo': 'A Pagar (Título)'
             })
             
         # 3. Faturas Fechadas NÃ£o Pagas (No Ano, opcional MÃªs)
@@ -802,11 +815,11 @@ def api_drilldown():
             all_items.append({
                 'label': f"Fatura {f.cartao.nome} - Venc: {f.data_vencimento.strftime('%d/%m/%Y')}",
                 'valor': float(-saldo_f),
-                'tipo': 'A Pagar (CartÃ£o Fechado)'
+                'tipo': 'A Pagar (Cartão Fechado)'
             })
 
     elif tipo == 'disponivel':
-        data['title'] = 'Saldos em Contas DisponÃ­veis'
+        data['title'] = 'Saldos em Contas Disponíveis'
         
         contas_ids = db.session.query(ContaContabil.id).filter(
             or_(ContaContabil.codigo.like('1.1%'), ContaContabil.codigo.like('1.2%')),
@@ -833,7 +846,7 @@ def api_drilldown():
                 })
 
     elif tipo == 'a_receber':
-        data['title'] = f'TÃ­tulos a Receber'
+        data['title'] = f'Títulos a Receber'
         query = Titulo.query.filter(
             Titulo.tipo == TipoTitulo.RECEBER.value,
             Titulo.status == StatusTitulo.ABERTO.value,
@@ -846,11 +859,14 @@ def api_drilldown():
         for t in titulos:
             all_items.append({
                 'label': f"{t.data_vencimento.strftime('%d/%m/%Y')} - {t.descricao} ({t.entidade.nome})",
-                'valor': float(t.valor)
+                'valor': float(t.valor),
+                'action_type': 'liquidar_titulo',
+                'action_label': 'Liquidar',
+                'action_url': url_for('financeiro.liquidar_titulo_route', titulo_id=t.id, next=dashboard_next_url)
             })
 
     elif tipo == 'a_pagar':
-        data['title'] = f'DÃ­vidas Totais'
+        data['title'] = f'Dívidas Totais'
         
         # 1. TÃ­tulos a Pagar
         query_titulos = Titulo.query.filter(
@@ -866,7 +882,10 @@ def api_drilldown():
             all_items.append({
                 'label': f"{t.data_vencimento.strftime('%d/%m/%Y')} - {t.descricao} ({t.entidade.nome})",
                 'valor': float(t.valor),
-                'tipo': 'TÃ­tulo'
+                'tipo': 'Título',
+                'action_type': 'liquidar_titulo',
+                'action_label': 'Liquidar',
+                'action_url': url_for('financeiro.liquidar_titulo_route', titulo_id=t.id, next=dashboard_next_url)
             })
             
         # 2. Faturas Fechadas NÃ£o Pagas
@@ -883,30 +902,38 @@ def api_drilldown():
             all_items.append({
                 'label': f"Fatura {f.cartao.nome} - Venc: {f.data_vencimento.strftime('%d/%m/%Y')}",
                 'valor': float(saldo),
-                'tipo': 'CartÃ£o (Fatura Fechada)'
+                'tipo': 'Cartão (Fatura Fechada)',
+                'action_type': 'pagar_fatura',
+                'action_label': 'Liquidar',
+                'fatura_id': f.id,
+                'fatura_total': float(f.total or 0),
+                'fatura_total_pago': float(f.total_pago or 0),
+                'fatura_competencia': f.competencia,
+                'fatura_cartao_nome': f.cartao.nome,
+                'fatura_vencimento': f.data_vencimento.strftime('%d/%m/%Y')
             })
 
     elif tipo == 'cartao_limite_disponivel':
         if mes:
-            data['title'] = f'Gasto no CartÃ£o de CrÃ©dito ({mes}/{ano})'
+            data['title'] = f'Gasto no Cartão de Crédito ({mes}/{ano})'
             faturas = FaturaCartao.query.filter(
                 extract('year', FaturaCartao.data_vencimento) == ano,
                 extract('month', FaturaCartao.data_vencimento) == mes
             ).all()
             for f in faturas:
                 all_items.append({
-                    'label': f"CartÃ£o {f.cartao.nome} - Fatura Venc: {f.data_vencimento.strftime('%d/%m/%Y')}",
+                    'label': f"Cartão {f.cartao.nome} - Fatura Venc: {f.data_vencimento.strftime('%d/%m/%Y')}",
                     'valor': float(f.total),
                     'tipo': f'Total Gasto: R$ {f.total:,.2f}'
                 })
         else:
-            data['title'] = 'Limite DisponÃ­vel por CartÃ£o (Total Atual)'
+            data['title'] = 'Limite Disponível por Cartão (Total Atual)'
             cartoes = CartaoCredito.query.filter_by(ativo=True).all()
             for c in cartoes:
                 all_items.append({
                     'label': f"{c.nome} (Limite Total: R$ {c.limite_total:,.2f})",
                     'valor': float(c.limite_disponivel or 0),
-                    'tipo': 'Limite DisponÃ­vel'
+                    'tipo': 'Limite Disponível'
                 })
 
     elif tipo == 'cartao_ciclo_aberto':
@@ -926,7 +953,18 @@ def api_drilldown():
                 all_items.append({
                     'label': f"Fatura {f.cartao.nome} ({f.competencia})",
                     'valor': float(saldo_f),
-                    'tipo': f'A Pagar: R$ {saldo_f:,.2f}'
+                    'tipo': f'A Pagar: R$ {saldo_f:,.2f}',
+                    'action_type': 'pagar_fatura',
+                    'action_label': 'Liquidar',
+                    # Dados para abrir o modal de pagamento no próprio dashboard.
+                    'fatura_id': f.id,
+                    'fatura_total': float(f.total or 0),
+                    'fatura_total_pago': float(f.total_pago or 0),
+                    'fatura_competencia': f.competencia,
+                    'fatura_cartao_nome': f.cartao.nome,
+                    'fatura_vencimento': f.data_vencimento.strftime('%d/%m/%Y'),
+                    # Mantém o comportamento já implementado de clique na linha neste card.
+                    'allow_row_pay_click': True
                 })
 
     # PaginaÃ§Ã£o manual da lista consolidada
