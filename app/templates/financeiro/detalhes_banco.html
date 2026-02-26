@@ -277,6 +277,7 @@
                 onclick="document.getElementById('pagamento-fatura-modal').classList.remove('show')">&times;</button>
         </div>
         <form action="{{ url_for('financeiro.pagar_fatura_cartao') }}" method="POST">
+            <input type="hidden" name="next_url" value="{{ url_for('financeiro.detalhes_banco', banco_id=banco.id, fatura_id=(fatura_selecionada.id if fatura_selecionada else None)) }}">
             <div style="margin-bottom: 1rem;">
                 <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Selecione a Fatura
                     Pendente</label>
@@ -285,7 +286,7 @@
                     <option value="">Selecione uma fatura...</option>
                     {% for fat in faturas_pagamento %}
                     <option value="{{ fat.id }}" data-total="{{ fat.total }}" data-pago="{{ fat.total_pago or 0 }}"
-                        data-competencia="{{ fat.competencia }}">
+                        data-competencia="{{ fat.competencia }}" {% if selected_fatura_pagamento_id and selected_fatura_pagamento_id == (fat.id|string) %}selected{% endif %}>
                         {{ fat.cartao.nome }} - {{ fat.competencia }} (Vence {{ fat.data_vencimento.strftime('%d/%m')
                         }})
                     </option>
@@ -648,6 +649,17 @@
 
         modal.classList.add('show');
     }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const openPaymentModal = {{ 'true' if open_payment_modal else 'false' }};
+        if (!openPaymentModal) return;
+
+        const modal = document.getElementById('pagamento-fatura-modal');
+        if (!modal) return;
+
+        modal.classList.add('show');
+        atualizarDadosFatura();
+    });
 </script>
 
 <style>

@@ -74,6 +74,105 @@
     </div>
 </div>
 
+<!-- Modal: Pagamento de Fatura (Dashboard) -->
+<div id="dashboard-payment-modal"
+    style="display: none; position: fixed; z-index: 10002; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); align-items: center; justify-content: center;">
+    <div class="card"
+        style="width: 560px; max-height: 88vh; padding: 0; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);">
+        <div
+            style="padding: 1.2rem 1.5rem; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; background-color: var(--table-header-bg);">
+            <h2 style="margin: 0; font-size: 1.1rem; color: var(--text-main);">Pagar Fatura de Cartão</h2>
+            <button onclick="fecharPagamentoDashboard()"
+                style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-muted);">&times;</button>
+        </div>
+        <div style="padding: 1.25rem 1.5rem; overflow-y: auto;">
+            <form action="{{ url_for('financeiro.pagar_fatura_cartao') }}" method="POST">
+                <input type="hidden" id="dashboard-fatura-id" name="fatura_id" />
+                <input type="hidden" name="next_url"
+                    value="{{ url_for('main.dashboard', ano=ano_selecionado, mes=mes_selecionado) }}">
+
+                <div
+                    style="padding: 1rem; background: var(--bg-muted); border-radius: 6px; margin-bottom: 1rem; font-size: 0.9rem;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.3rem;">
+                        <span>Cartão/Fatura:</span>
+                        <strong id="dashboard-fatura-identificacao">-</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.3rem;">
+                        <span>Vencimento:</span>
+                        <strong id="dashboard-fatura-vencimento">-</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.3rem;">
+                        <span>Total da Fatura:</span>
+                        <strong id="dashboard-fatura-total">R$ 0,00</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.3rem;">
+                        <span>Já Pago:</span>
+                        <strong id="dashboard-fatura-pago" style="color: #16a34a;">R$ 0,00</strong>
+                    </div>
+                    <div
+                        style="display: flex; justify-content: space-between; border-top: 1px solid var(--border-color); padding-top: 0.3rem; margin-top: 0.3rem;">
+                        <span>Saldo devedor:</span>
+                        <strong id="dashboard-fatura-aberto" style="color: var(--error-color);">R$ 0,00</strong>
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 1rem;">
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Conta de Origem (Saída de
+                        Recurso)</label>
+                    <select name="banco_ativo_id" required
+                        style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 6px;">
+                        {% for b in bancos_pagamento %}
+                        <option value="{{ b.id }}">{{ b.nome }} - Saldo: R$ {{
+                            "{:,.2f}".format(b.valor_atual or 0).replace(",", "X").replace(".", ",").replace("X", ".")
+                            }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                    <div>
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Valor da Fatura
+                            (Principal)</label>
+                        <input type="text" name="valor_fatura" id="dashboard-valor-fatura" required placeholder="0,00"
+                            style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 6px;">
+                    </div>
+                    <div>
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Encargos/Juros
+                            (Opcional)</label>
+                        <input type="text" name="valor_encargos" id="dashboard-valor-encargos" value="0,00"
+                            style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 6px;">
+                    </div>
+                </div>
+
+                <div id="dashboard-campo-conta-encargos" style="display: none; margin-bottom: 1rem;">
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Conta de Despesa
+                        (Encargos)</label>
+                    <select name="conta_encargos_id"
+                        style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 6px;">
+                        <option value="">Selecione a categoria de encargos...</option>
+                        {% for cat in categorias_despesa %}
+                        <option value="{{ cat.id }}">{{ cat.codigo }} - {{ cat.nome }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div style="margin-bottom: 1.25rem;">
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Data do Pagamento</label>
+                    <input type="date" name="data_pagamento" required value="{{ hoje_str }}"
+                        style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 6px;">
+                </div>
+
+                <div style="display: flex; gap: 0.75rem; justify-content: flex-end;">
+                    <button type="button" class="btn" onclick="fecharPagamentoDashboard()"
+                        style="background-color: var(--bg-muted); color: var(--text-muted);">Cancelar</button>
+                    <button type="submit" class="btn btn-primary"
+                        style="background-color: #16a34a; border-color: #16a34a;">Confirmar Pagamento</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <!-- Cards de Indicadores -->
 <div
     style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 0.5rem; flex-shrink: 0; margin-bottom: var(--spacing-lg);">
@@ -190,6 +289,13 @@
         return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor);
     }
 
+    function escapeHtmlAttr(value) {
+        return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/"/g, '&quot;')
+            .replace(/</g, '&lt;');
+    }
+
     async function abrirDrilldown(tipo, page = 1) {
         const modal = document.getElementById('modalDrilldown');
         const title = document.getElementById('drilldownTitle');
@@ -230,17 +336,39 @@
                 html += '<tr style="text-align: left;">';
                 html += '<th style="padding: 0.75rem; border-bottom: 2px solid var(--border-color); font-weight: 700; position: sticky; top: 0; background-color: var(--table-header-bg); z-index: 10;">Descrição</th>';
                 html += '<th style="padding: 0.75rem; border-bottom: 2px solid var(--border-color); text-align: right; font-weight: 700; position: sticky; top: 0; background-color: var(--table-header-bg); z-index: 10;">Valor</th>';
+                html += '<th style="padding: 0.75rem; border-bottom: 2px solid var(--border-color); text-align: center; font-weight: 700; position: sticky; top: 0; background-color: var(--table-header-bg); z-index: 10;">Ação</th>';
                 html += '</tr></thead><tbody>';
 
                 data.items.forEach(item => {
                     const isNegative = item.valor < 0;
-                    html += '<tr style="border-bottom: 1px solid var(--border-color);">' +
-                        '<td style="padding: 0.75rem; font-size: 0.9rem; border-bottom: 1px solid var(--border-color);">' +
+                    const hasPagamentoFatura = !!item.fatura_id;
+                    const rowPayClick = !!item.allow_row_pay_click;
+                    const rowClass = rowPayClick ? 'drilldown-fatura-item' : '';
+                    const rowCursor = rowPayClick ? 'cursor: pointer;' : '';
+                    const faturaAttrs = hasPagamentoFatura
+                        ? 'data-fatura-id="' + escapeHtmlAttr(item.fatura_id) + '" data-fatura-total="' + escapeHtmlAttr(item.fatura_total || 0) + '" data-fatura-pago="' + escapeHtmlAttr(item.fatura_total_pago || 0) + '" data-fatura-competencia="' + escapeHtmlAttr(item.fatura_competencia || '') + '" data-fatura-cartao="' + escapeHtmlAttr(item.fatura_cartao_nome || '') + '" data-fatura-vencimento="' + escapeHtmlAttr(item.fatura_vencimento || '') + '"'
+                        : '';
+                    const ctaPagamento = rowPayClick
+                        ? '<br><small style="color: var(--primary-color); font-weight: 600;">Clique para pagar esta fatura</small>'
+                        : '';
+                    let actionHtml = '<span style="color: var(--text-muted); font-size: 0.8rem;">-</span>';
+                    if (item.action_type === 'liquidar_titulo' && item.action_url) {
+                        actionHtml = '<a href="' + escapeHtmlAttr(item.action_url) + '" class="btn" onclick="event.stopPropagation()" style="padding: 0.35rem 0.6rem; font-size: 0.78rem; background: #16a34a; color: #fff; border: 1px solid #16a34a;">' + escapeHtmlAttr(item.action_label || 'Liquidar') + '</a>';
+                    } else if (item.action_type === 'pagar_fatura' && hasPagamentoFatura) {
+                        actionHtml = '<button type="button" class="btn" onclick="event.stopPropagation(); abrirPagamentoDashboardFromButton(this)" ' + faturaAttrs + ' style="padding: 0.35rem 0.6rem; font-size: 0.78rem; background: #16a34a; color: #fff; border: 1px solid #16a34a;">' + escapeHtmlAttr(item.action_label || 'Liquidar') + '</button>';
+                    }
+
+                    html += '<tr class="' + rowClass + '" ' + faturaAttrs + ' style="border-bottom: 1px solid var(--border-color); ' + rowCursor + '">' +
+                        '<td style="padding: 0.75rem; font-size: 0.9rem; border-bottom: 1px solid var(--border-color); ' + rowCursor + '">' +
                         item.label +
                         (item.tipo ? '<br><small style="color: var(--text-muted);">' + item.tipo + '</small>' : '') +
+                        ctaPagamento +
                         '</td>' +
-                        '<td style="padding: 0.75rem; text-align: right; font-weight: 600; color: ' + (isNegative ? 'var(--danger-color)' : 'var(--text-main)') + '; border-bottom: 1px solid var(--border-color);">' +
+                        '<td style="padding: 0.75rem; text-align: right; font-weight: 600; color: ' + (isNegative ? 'var(--danger-color)' : 'var(--text-main)') + '; border-bottom: 1px solid var(--border-color); ' + rowCursor + '">' +
                         formatarMoeda(item.valor) +
+                        '</td>' +
+                        '<td style="padding: 0.75rem; text-align: center; border-bottom: 1px solid var(--border-color);">' +
+                        actionHtml +
                         '</td>' +
                         '</tr>';
                 });
@@ -248,6 +376,7 @@
                 html += '</tbody></table>';
 
                 content.innerHTML = html;
+                bindDashboardFaturaClicks();
 
                 // Adicionar Controles de Paginação no Rodapé Fixo
                 if (data.pagination && data.pagination.total_pages > 1) {
@@ -284,12 +413,86 @@
         if (modal) modal.style.display = 'none';
     }
 
+    function bindDashboardFaturaClicks() {
+        const linhas = document.querySelectorAll('#drilldownContent tr.drilldown-fatura-item');
+        linhas.forEach((linha) => {
+            linha.addEventListener('click', function () {
+                abrirPagamentoDashboard({
+                    id: linha.getAttribute('data-fatura-id'),
+                    total: parseFloat(linha.getAttribute('data-fatura-total') || '0'),
+                    pago: parseFloat(linha.getAttribute('data-fatura-pago') || '0'),
+                    competencia: linha.getAttribute('data-fatura-competencia') || '',
+                    cartao: linha.getAttribute('data-fatura-cartao') || '',
+                    vencimento: linha.getAttribute('data-fatura-vencimento') || ''
+                });
+            });
+        });
+    }
+
+    function abrirPagamentoDashboardFromButton(btn) {
+        if (!btn) return;
+        abrirPagamentoDashboard({
+            id: btn.getAttribute('data-fatura-id'),
+            total: parseFloat(btn.getAttribute('data-fatura-total') || '0'),
+            pago: parseFloat(btn.getAttribute('data-fatura-pago') || '0'),
+            competencia: btn.getAttribute('data-fatura-competencia') || '',
+            cartao: btn.getAttribute('data-fatura-cartao') || '',
+            vencimento: btn.getAttribute('data-fatura-vencimento') || ''
+        });
+    }
+
+    function abrirPagamentoDashboard(fatura) {
+        const modal = document.getElementById('dashboard-payment-modal');
+        if (!modal || !fatura || !fatura.id) return;
+
+        const aberto = Math.max(0, (fatura.total || 0) - (fatura.pago || 0));
+
+        document.getElementById('dashboard-fatura-id').value = fatura.id;
+        document.getElementById('dashboard-fatura-identificacao').innerText = `${fatura.cartao} (${fatura.competencia})`;
+        document.getElementById('dashboard-fatura-vencimento').innerText = fatura.vencimento || '-';
+        document.getElementById('dashboard-fatura-total').innerText = formatarMoeda(fatura.total || 0);
+        document.getElementById('dashboard-fatura-pago').innerText = formatarMoeda(fatura.pago || 0);
+        document.getElementById('dashboard-fatura-aberto').innerText = formatarMoeda(aberto);
+        document.getElementById('dashboard-valor-fatura').value = aberto.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+
+        const encargosInput = document.getElementById('dashboard-valor-encargos');
+        if (encargosInput) encargosInput.value = '0,00';
+        toggleContaEncargosDashboard();
+
+        modal.style.display = 'flex';
+    }
+
+    function fecharPagamentoDashboard() {
+        const modal = document.getElementById('dashboard-payment-modal');
+        if (modal) modal.style.display = 'none';
+    }
+
+    function toggleContaEncargosDashboard() {
+        const input = document.getElementById('dashboard-valor-encargos');
+        const container = document.getElementById('dashboard-campo-conta-encargos');
+        if (!input || !container) return;
+
+        const val = (input.value || '').replace('.', '').replace(',', '.');
+        container.style.display = parseFloat(val) > 0 ? 'block' : 'none';
+    }
+
     window.onclick = function (event) {
         const modal = document.getElementById('modalDrilldown');
+        const paymentModal = document.getElementById('dashboard-payment-modal');
         if (event.target == modal) {
             fecharDrilldown();
         }
+        if (event.target == paymentModal) {
+            fecharPagamentoDashboard();
+        }
     };
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const encargosInput = document.getElementById('dashboard-valor-encargos');
+        if (encargosInput) {
+            encargosInput.addEventListener('input', toggleContaEncargosDashboard);
+        }
+    });
 
     // Inicializar gráfico
     (function () {
