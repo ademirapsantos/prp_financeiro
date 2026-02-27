@@ -1,8 +1,8 @@
 {
-  "version": "1.4.35",
-  "latest_version": "1.4.35",
-  "tag": "prod-v1.4.35",
-  "commit": "7607ee2b2e2abe2a7ece53bc019b70a24ddf59cd",
-  "date": "2026-02-26T18:21:40Z",
+  "version": "1.4.36",
+  "latest_version": "1.4.36",
+  "tag": "prod-v1.4.36",
+  "commit": "21039afac8cb0aad1461b316c735e33a1439bfc9",
+  "date": "2026-02-27T16:23:15Z",
   "environment": "prod"
 }
