@@ -697,6 +697,15 @@ def manual_regras():
     )
 
 
+@main_bp.route('/manual/mobile')
+def manual_mobile():
+    manual_path = os.path.join(current_app.root_path, '..', 'manual_mobile.md')
+    return _render_markdown_manual(
+        manual_path=manual_path,
+        title='Manual do App Mobile'
+    )
+
+
 @main_bp.route('/ajuda')
 def ajuda():
     return redirect(url_for('main.manual_usuario'))

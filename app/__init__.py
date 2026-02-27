@@ -99,6 +99,9 @@ def create_app():
     from .routes_contas import contas_bp
     app.register_blueprint(contas_bp)
 
+    from .routes_mobile import mobile_bp
+    app.register_blueprint(mobile_bp)
+
     from .auth import auth_bp
     app.register_blueprint(auth_bp)
 
@@ -118,6 +121,8 @@ def create_app():
             '/api/system/maintenance/off-token',
             '/api/system/update/finalize-token'
         }
+        if request.path.startswith('/api/mobile/'):
+            return
         if request.path in public_paths:
             return
 
