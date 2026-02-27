@@ -59,8 +59,8 @@ services:
     image: ${UPDATER_IMAGE_PROD}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - /srv/prp:/srv/prp
-      - /srv/prp/data:/srv/prp/data
+      - ${PRP_ROOT_DIR:-./runtime}:/srv/prp
+      - ${PRP_ROOT_DIR:-./runtime}/data:/srv/prp/data
     environment:
       - PROJECT_DIR=/srv/prp
       - COMPOSE_FILE=docker-compose.prod.yml

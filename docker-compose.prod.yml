@@ -6,7 +6,7 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     volumes:
-      - /srv/prp/postgres:/var/lib/postgresql/data
+      - ${PRP_ROOT_DIR:-./runtime}/postgres:/var/lib/postgresql/data
     environment:
       - POSTGRES_DB=${POSTGRES_DB_PROD}
       - POSTGRES_USER=${POSTGRES_USER_PROD}
@@ -23,10 +23,10 @@ services:
     image: ${PRP_IMAGE_PROD}
     command: ["gunicorn", "--bind", "0.0.0.0:5000", "--timeout", "120", "--graceful-timeout", "120", "--keep-alive", "5", "--access-logfile", "-", "--error-logfile", "-", "run:app"]
     ports:
-      - "127.0.0.1:5000:5000"
+      - "${APP_BIND_IP:-127.0.0.1}:5000:5000"
     volumes:
-      - /srv/prp/data:/app/data
-      - /srv/prp/manifests:/app/manifests:ro
+      - ${PRP_ROOT_DIR:-./runtime}/data:/app/data
+      - ${PRP_ROOT_DIR:-./runtime}/manifests:/app/manifests:ro
     environment:
       - FLASK_ENV=production
       - SECRET_KEY=${SECRET_KEY}
@@ -54,11 +54,11 @@ services:
   prp-updater-prod:
     image: ${UPDATER_IMAGE_PROD}
     ports:
-      - "127.0.0.1:5025:5005"
+      - "${APP_BIND_IP:-127.0.0.1}:5025:5005"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - /srv/prp:/srv/prp
-      - /srv/prp/data:/srv/prp/data
+      - ${PRP_ROOT_DIR:-./runtime}:/srv/prp
+      - ${PRP_ROOT_DIR:-./runtime}/data:/srv/prp/data
     environment:
       - UPDATE_TOKEN=${UPDATE_TOKEN}
       - COMPOSE_FILE=docker-compose.prod.yml
