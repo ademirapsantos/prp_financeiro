@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../auth/auth_controller.dart';
@@ -51,9 +52,24 @@ class _HomePageState extends ConsumerState<HomePage> {
             ],
           ),
           IconButton(
-            tooltip: 'Sair',
-            onPressed: () => ref.read(authControllerProvider.notifier).logout(),
-            icon: const Icon(Icons.logout),
+            tooltip: 'Fechar app',
+            onPressed: () => SystemNavigator.pop(),
+            icon: const Icon(Icons.close),
+          ),
+          PopupMenuButton<String>(
+            tooltip: 'Conta',
+            icon: const Icon(Icons.more_vert),
+            onSelected: (value) async {
+              if (value == 'logout') {
+                await ref.read(authControllerProvider.notifier).logout();
+              }
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(
+                value: 'logout',
+                child: Text('Encerrar sessao'),
+              ),
+            ],
           ),
         ],
       ),
