@@ -44,7 +44,9 @@ class AuthController extends AsyncNotifier<MobileSession?> {
     try {
       final token = await SecureStorage.readToken();
       if (token == null || token.isEmpty) {
-        throw Exception('Nenhuma sessao salva para login biometrico.');
+        throw Exception(
+          'Nenhuma sessao salva para biometria. Entre com email e senha uma vez.',
+        );
       }
 
       final biometricEnabled = await SecureStorage.readBiometricEnabled();
