@@ -10,7 +10,7 @@ class AccountingService:
         return Decimal(valor).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
     
     @staticmethod
-    def _validar_natureza_conta(conta, tipo_partida):
+    def _validar_natureza_conta(conta, tipo_partida, permitir_estorno=False):
         """
         Valida se a conta pode receber Débito ou Crédito.
         Contas de Resultado (Receitas e Despesas) são rígidas.
@@ -19,17 +19,17 @@ class AccountingService:
         tipo = conta.tipo
         
         # Regras para Contas de Resultado (Nominais)
-        if tipo == TipoConta.RECEITA.value and tipo_partida == 'D':
+        if tipo == TipoConta.RECEITA.value and tipo_partida == 'D' and not permitir_estorno:
             raise ValueError(f"Conta de Receita {conta.codigo} não aceita Débito (Natureza Credora).")
         
-        if tipo == TipoConta.DESPESA.value and tipo_partida == 'C':
+        if tipo == TipoConta.DESPESA.value and tipo_partida == 'C' and not permitir_estorno:
             raise ValueError(f"Conta de Despesa {conta.codigo} não aceita Crédito (Natureza Devedora).")
         
         # Contas Patrimoniais: Ativo, Passivo e PL aceitam D e C.
         pass
 
     @staticmethod
-    def criar_lancamento(historico, data, partidas):
+    def criar_lancamento(historico, data, partidas, permitir_estorno=False):
         """
         Cria um lançamento no Livro Diário com validação de Partida Dobrada e Domínio Contábil.
         partidas: Lista de dicionarios {'conta_id': int, 'tipo': 'D'/'C', 'valor': Decimal}
@@ -73,7 +73,7 @@ class AccountingService:
                 raise ValueError(f"Conta {conta.codigo} ({conta.nome}) é SINTÉTICA e não aceita lançamentos.")
             
             # Validação de Natureza (Regras de Domínio)
-            AccountingService._validar_natureza_conta(conta, p['tipo'])
+            AccountingService._validar_natureza_conta(conta, p['tipo'], permitir_estorno=permitir_estorno)
 
             partida = PartidaDiario(
                 diario_id=diario.id, 
@@ -176,7 +176,8 @@ class AccountingService:
         return AccountingService.criar_lancamento(
             historico=f"ESTORNO LIQ: {titulo.descricao} (ID: {titulo.id})",
             data=datetime.utcnow(),
-            partidas=partidas
+            partidas=partidas,
+            permitir_estorno=True
         )
 
 class FinancialService:
@@ -1113,7 +1114,8 @@ class CreditCardService:
         diario = AccountingService.criar_lancamento(
             historico=f"ESTORNO: Compra Cartão {cartao.nome} - {transacao.descricao}",
             data=datetime.utcnow(),
-            partidas=partidas
+            partidas=partidas,
+            permitir_estorno=True
         )
         
         # 2. Registrar Transação Financeira de Estorno
