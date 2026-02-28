@@ -38,19 +38,21 @@
         {% else %}
         <div style="display: flex; flex-direction: column; gap: 0.75rem;">
             {% for cartao in cartoes %}
-            <div class="card-item"
+            <div class="card-item js-cartao-card"
                 style="padding: 1rem; border: 1px solid var(--border-color); border-radius: 8px; cursor: pointer; transition: all 0.2s;"
-                onclick="abrirModalEdicaoCartao({
-                    id: {{ cartao.id }},
-                    nome: '{{ cartao.nome }}',
-                    bandeira: '{{ cartao.bandeira }}',
-                    limite: {{ cartao.limite_total|default(0) }},
-                    fechamento: {{ cartao.dia_fechamento|default(0) }},
-                    vencimento: {{ cartao.dia_vencimento|default(0) }},
-                    conta_id: {{ cartao.conta_contabil_id|default(0) }},
-                    emergencial_ativo: {{ 'true' if cartao.limite_emergencial_ativo else 'false' }},
-                    perc_emergencial: {{ cartao.perc_limite_emergencial|default(0) }}
-                })">
+                role="button"
+                tabindex="0"
+                data-cartao='{{ {
+                    "id": cartao.id,
+                    "nome": cartao.nome,
+                    "bandeira": cartao.bandeira,
+                    "limite": cartao.limite_total|default(0)|float,
+                    "fechamento": cartao.dia_fechamento|default(0),
+                    "vencimento": cartao.dia_vencimento|default(0),
+                    "conta_id": cartao.conta_contabil_id|default(0),
+                    "emergencial_ativo": cartao.limite_emergencial_ativo,
+                    "perc_emergencial": cartao.perc_limite_emergencial|default(0)|float
+                }|tojson|forceescape }}'>
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
                     <span style="font-weight: 600;">{{ cartao.nome }}</span>
                     <span style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">{{
@@ -651,6 +653,22 @@
     }
 
     document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('.js-cartao-card').forEach(function (card) {
+            function openCardModal() {
+                const payload = card.dataset.cartao;
+                if (!payload) return;
+                abrirModalEdicaoCartao(JSON.parse(payload));
+            }
+
+            card.addEventListener('click', openCardModal);
+            card.addEventListener('keydown', function (event) {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    openCardModal();
+                }
+            });
+        });
+
         const openPaymentModal = {{ 'true' if open_payment_modal else 'false' }};
         if (!openPaymentModal) return;
 
