@@ -75,3 +75,11 @@ services:
       options:
         max-size: "10m"
         max-file: "5"
+
+  prp-pgadmin-prod:
+    mem_limit: 200m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
