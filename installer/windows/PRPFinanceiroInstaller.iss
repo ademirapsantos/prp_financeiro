@@ -43,7 +43,7 @@ Name: "{autodesktop}\Instalar PRP Financeiro"; Filename: "{app}\installer\window
 Filename: "{app}\installer\windows\instalar_prp.bat"; Description: "Executar instalacao agora"; Flags: postinstall shellexec skipifsilent
 
 [UninstallRun]
-Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""if (Get-Command docker -ErrorAction SilentlyContinue) { docker compose --env-file '{app}\.env.prod' -f '{app}\docker-compose.prod.yml' -f '{app}\docker-compose.prod.override.yml' down }"""; RunOnceId: "PRPComposeDown"; Flags: runhidden
+Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""if (Get-Command docker -ErrorAction SilentlyContinue) {{ docker compose --env-file '{app}\.env.prod' -f '{app}\docker-compose.prod.yml' -f '{app}\docker-compose.prod.override.yml' down }}"""; RunOnceId: "PRPComposeDown"; Flags: runhidden
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}\runtime"

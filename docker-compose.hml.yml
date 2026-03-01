@@ -76,3 +76,19 @@ services:
       - DB_MIGRATION_CMD=${DB_MIGRATION_CMD:-}
       - DB_MIGRATION_TIMEOUT_SECONDS=${DB_MIGRATION_TIMEOUT_SECONDS:-300}
     restart: always
+
+  prp-pgadmin-hml:
+    image: dpage/pgadmin4:latest
+    ports:
+      - "${PGADMIN_BIND_IP_HML:-127.0.0.1}:${PGADMIN_PORT_HML:-5051}:80"
+    volumes:
+      - ./data/hml/pgadmin:/var/lib/pgadmin
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=${PGADMIN_DEFAULT_EMAIL_HML:-admin@prp.local}
+      - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_DEFAULT_PASSWORD_HML:-troque_essa_senha}
+      - PGADMIN_CONFIG_ENHANCED_COOKIE_PROTECTION=True
+      - PGADMIN_CONFIG_LOGIN_BANNER="PRP Financeiro - Homologacao"
+    depends_on:
+      prp-postgres-hml:
+        condition: service_healthy
+    restart: always
