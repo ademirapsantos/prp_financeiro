@@ -84,6 +84,24 @@ services:
           - prp-updater
     restart: unless-stopped
 
+  prp-pgadmin-prod:
+    image: dpage/pgadmin4:latest
+    restart: unless-stopped
+    ports:
+      - "${APP_BIND_IP:-127.0.0.1}:${PGADMIN_PORT_PROD:-5050}:80"
+    volumes:
+      - ${PRP_ROOT_DIR:-./runtime}/pgadmin:/var/lib/pgadmin
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=${PGADMIN_DEFAULT_EMAIL_PROD}
+      - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_DEFAULT_PASSWORD_PROD}
+      - PGADMIN_CONFIG_ENHANCED_COOKIE_PROTECTION=True
+      - PGADMIN_CONFIG_LOGIN_BANNER="PRP Financeiro - Producao"
+    depends_on:
+      prp-postgres-prod:
+        condition: service_healthy
+    networks:
+      - prp_net
+
 networks:
   prp_net:
     name: prp_net
