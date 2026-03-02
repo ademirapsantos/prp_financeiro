@@ -13,6 +13,7 @@ def lista():
     per_page = 50
     descricao = request.args.get('descricao', '')
     conta_contabil_id = request.args.get('conta_contabil_id', '')
+    tipo = request.args.get('tipo', '')
 
     query = Ativo.query
 
@@ -21,15 +22,19 @@ def lista():
     
     if conta_contabil_id:
         query = query.filter(Ativo.conta_contabil_id == conta_contabil_id)
+
+    if tipo:
+        query = query.filter(Ativo.tipo == tipo)
     
     pagination = query.order_by(Ativo.data_aquisicao.desc(), Ativo.id.desc()).paginate(page=page, per_page=per_page, error_out=False)
     ativos_raw = pagination.items
     
-    # Calcular saldo real para cada ativo da página e sincronizar valor_atual
+    # Sincronizar saldo apenas para bancos. Os demais ativos podem compartilhar
+    # a mesma conta contábil, então usar o saldo agregado da conta distorce o ativo.
     ativos = []
     for a in ativos_raw:
         saldo = float(a.valor_atual)
-        if a.conta_contabil_id:
+        if a.tipo == TipoAtivo.BANCO.value and a.conta_contabil_id:
             res = db.session.query(
                 func.sum(PartidaDiario.valor).filter(PartidaDiario.tipo == 'D').label('debitos'),
                 func.sum(PartidaDiario.valor).filter(PartidaDiario.tipo == 'C').label('creditos')
@@ -62,13 +67,15 @@ def lista():
     
     filtros = {
         'descricao': descricao,
-        'conta_contabil_id': conta_contabil_id
+        'conta_contabil_id': conta_contabil_id,
+        'tipo': tipo
     }
     
     return render_template('ativos/lista.html', 
                          ativos=ativos, 
                          pagination=pagination,
                          contas_ativo=contas_ativo,
+                         tipos_ativo=TipoAtivo,
                          compradores=compradores,
                          today=today,
                          filtros=filtros)
