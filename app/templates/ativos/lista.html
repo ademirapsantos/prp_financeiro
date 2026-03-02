@@ -185,6 +185,18 @@
             {% endif %}
         </div>
         {% endif %}
+        {% if mostrar_totalizador %}
+        <div
+            style="padding: 0 1.5rem 1rem; display: flex; justify-content: flex-end; background: var(--table-header-bg); flex-shrink: 0;">
+            <div
+                style="display: flex; align-items: center; gap: 0.6rem; padding: 0.55rem 0.9rem; border-radius: 8px; background: rgba(15, 23, 42, 0.32); border: 1px solid rgba(148, 163, 184, 0.22);">
+                <span
+                    style="font-size: 0.8rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.04em;">Totalizador</span>
+                <span style="font-size: 1rem; font-weight: 800; color: #f8fafc;">R$ {{ "{:,.2f}".format(totalizador_valor or
+                    0).replace(",", "X").replace(".", ",").replace("X", ".") }}</span>
+            </div>
+        </div>
+        {% endif %}
     </div>
 </div>
 

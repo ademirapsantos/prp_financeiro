@@ -1,4 +1,5 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash
+from sqlalchemy import func
 from .models import Entidade, TipoEntidade, ContaContabil, db
 
 entidades_bp = Blueprint('entidades', __name__, url_prefix='/entidades')
@@ -8,24 +9,45 @@ def lista():
     page = request.args.get('page', 1, type=int)
     per_page = 50
     nome = request.args.get('nome', '')
-    tipo = request.args.get('tipo', '')
-    
+    tipo = request.args.get('tipo', TipoEntidade.CLIENTE.value)
+
+    tipos_disponiveis = [tipo_enum.value for tipo_enum in TipoEntidade]
+    if tipo not in tipos_disponiveis:
+        tipo = TipoEntidade.CLIENTE.value
+
     query = Entidade.query
-    
+
     if nome:
         query = query.filter(Entidade.nome.ilike(f"%{nome}%"))
-    
-    if tipo:
-        query = query.filter(Entidade.tipo == tipo)
-        
+
+    query = query.filter(Entidade.tipo == tipo)
+
+    contagens_por_tipo_raw = (
+        db.session.query(Entidade.tipo, func.count(Entidade.id))
+        .group_by(Entidade.tipo)
+        .all()
+    )
+    contagens_por_tipo = {tipo_nome: total for tipo_nome, total in contagens_por_tipo_raw}
+    abas_tipo = [
+        {
+            'label': tipo_nome,
+            'value': tipo_nome,
+            'count': contagens_por_tipo.get(tipo_nome, 0),
+            'active': tipo == tipo_nome,
+        }
+        for tipo_nome in tipos_disponiveis
+    ]
+
     pagination = query.order_by(Entidade.nome).paginate(page=page, per_page=per_page, error_out=False)
     entidades = pagination.items
-    
-    return render_template('entidades/lista.html', 
-                         entidades=entidades, 
-                         pagination=pagination,
-                         filtros={'nome': nome, 'tipo': tipo},
-                         tipos_entidade=TipoEntidade)
+
+    return render_template(
+        'entidades/lista.html',
+        entidades=entidades,
+        pagination=pagination,
+        filtros={'nome': nome, 'tipo': tipo},
+        abas_tipo=abas_tipo,
+    )
 
 @entidades_bp.route('/nova', methods=['GET', 'POST'])
 def nova():
