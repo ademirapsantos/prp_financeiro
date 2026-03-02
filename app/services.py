@@ -521,6 +521,46 @@ class FinancialService:
 
 class AssetService:
     @staticmethod
+    def _obter_titulos_compra_ativo(ativo):
+        return Titulo.query.filter(
+            (Titulo.ativo_id == ativo.id) |
+            (Titulo.descricao.like(f"Aquis. Ativo: {ativo.descricao}%"))
+        ).all()
+
+    @staticmethod
+    def _obter_compra_investimento(ativo):
+        valor_compra = AccountingService._normalizar_valor(ativo.valor_atual)
+        diarios = LivroDiario.query.filter(
+            LivroDiario.historico.like(f"Compra Investimento: {ativo.descricao}%")
+        ).order_by(LivroDiario.data.desc(), LivroDiario.id.desc()).all()
+
+        for diario in diarios:
+            transacao = db.session.get(TransacaoFinanceira, diario.transacao_id) if diario.transacao_id else None
+            if not transacao or transacao.tipo != TipoTransacao.AQUISICAO.value:
+                continue
+
+            if AccountingService._normalizar_valor(transacao.valor) != valor_compra:
+                continue
+
+            banco = transacao.ativo
+            if not banco or not banco.conta_contabil_id:
+                continue
+
+            partidas = {
+                (partida.conta_id, partida.tipo, AccountingService._normalizar_valor(partida.valor))
+                for partida in diario.partidas
+            }
+            partidas_esperadas = {
+                (ativo.conta_contabil_id, 'D', valor_compra),
+                (banco.conta_contabil_id, 'C', valor_compra)
+            }
+
+            if partidas_esperadas.issubset(partidas):
+                return diario, transacao, banco
+
+        return None, None, None
+
+    @staticmethod
     def comprar_ativo_imobilizado(descricao, valor, entidade_fornecedor, data_aquisicao, conta_ativo_id, tipo_ativo, 
                                  num_parcelas=1, data_primeiro_vencimento=None, valor_juros=0):
         """
@@ -585,10 +625,27 @@ class AssetService:
         if not ativo:
             return False, "Ativo não encontrado."
 
-        titulos_vinculados = Titulo.query.filter(
-            (Titulo.ativo_id == ativo.id) | 
-            (Titulo.descricao.like(f"Aquis. Ativo: {ativo.descricao}%"))
-        ).all()
+        titulos_vinculados = AssetService._obter_titulos_compra_ativo(ativo)
+
+        if ativo.tipo == TipoAtivo.INVESTIMENTO.value:
+            if titulos_vinculados:
+                return False, "NÃ£o Ã© permitido estornar investimento que jÃ¡ possua tÃ­tulos vinculados. Estorne as movimentaÃ§Ãµes posteriores primeiro."
+
+            recompra = LivroDiario.query.filter(
+                LivroDiario.historico.like(f"Recompra Investimento: {ativo.descricao}%")
+            ).first()
+            if recompra:
+                return False, "NÃ£o Ã© permitido estornar a compra inicial de um investimento apÃ³s um aporte/recompra."
+
+            diario, transacao, banco = AssetService._obter_compra_investimento(ativo)
+            if not diario or not transacao or not banco:
+                return False, "NÃ£o foi possÃ­vel localizar o lanÃ§amento original da compra do investimento para estorno."
+
+            banco.valor_atual += transacao.valor
+            db.session.delete(diario)
+            db.session.delete(transacao)
+            db.session.delete(ativo)
+            return True, "Compra do investimento estornada com sucesso."
         
         for t in titulos_vinculados:
             if t.status == StatusTitulo.PAGO.value:
