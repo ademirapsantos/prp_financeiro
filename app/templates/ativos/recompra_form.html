@@ -7,6 +7,9 @@
 
 <div class="card" style="max-width: 600px;">
     <form action="{{ url_for('ativos.recompra', ativo_id=ativo.id) }}" method="POST">
+        {% if next_url %}
+        <input type="hidden" name="next_url" value="{{ next_url }}">
+        {% endif %}
         <div style="display: grid; grid-template-columns: 1fr; gap: 1.5rem;">
 
             <div>
@@ -70,7 +73,7 @@
 
         <div
             style="margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; gap: 1rem;">
-            <a href="{{ url_for('ativos.lista') }}" class="btn"
+            <a href="{{ next_url or url_for('ativos.lista') }}" class="btn"
                 style="background-color: var(--bg-muted); color: var(--text-muted); padding: 0.75rem 1.5rem; border: 1px solid var(--border-color);">Cancelar</a>
             <button type="submit" class="btn btn-primary" style="padding: 0.75rem 2rem;">Confirmar Aporte</button>
         </div>
