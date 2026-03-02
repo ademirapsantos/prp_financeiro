@@ -1,0 +1,258 @@
+{% extends "base.html" %}
+
+{% block content %}
+{% set next_url = url_for('ativos.detalhe', ativo_id=ativo.id) %}
+<div class="full-height-page" style="gap: 1rem;">
+    <div class="header" style="display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap;">
+        <div style="display: flex; align-items: flex-start; gap: 0.75rem;">
+            <a href="{{ url_for('ativos.lista') }}" class="btn"
+                style="background-color: var(--table-header-bg); color: var(--text-main); border: 1px solid var(--border-color); padding: 0.55rem 0.9rem;">
+                Voltar
+            </a>
+            <div>
+                <h1 style="margin-bottom: 0.35rem;">{{ ativo.descricao }}</h1>
+                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
+                    <span style="padding: 0.3rem 0.65rem; border-radius: 999px; background: rgba(59, 130, 246, 0.12); color: #93c5fd; border: 1px solid rgba(59, 130, 246, 0.24); font-size: 0.78rem; font-weight: 700;">
+                        {{ ativo.tipo }}
+                    </span>
+                    {% if ativo.conta_contabil %}
+                    <span style="font-size: 0.9rem; color: var(--text-muted);">
+                        {{ ativo.conta_contabil.codigo }} - {{ ativo.conta_contabil.nome }}
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+            {% if ativo.tipo == 'Veiculo' or ativo.tipo == 'Imovel' or ativo.tipo == 'Outros' %}
+            <button class="btn"
+                onclick='abrirModalVenda({
+                    id: {{ ativo.id|tojson }},
+                    descricao: {{ ativo.descricao|tojson }},
+                    tipo: {{ ativo.tipo|tojson }},
+                    valor: {{ ativo.valor_atual|string|tojson }}
+                })'
+                style="background-color: #dcfce7; color: #166534; border: 1px solid #bbf7d0;">
+                Vender
+            </button>
+            <button class="btn"
+                onclick='confirmarEstornoAtivo({{ ativo.descricao|tojson }}, "{{ "{:,.2f}".format(ativo.valor_atual).replace(",", "X").replace(".", ",").replace("X", ".") }}", "{{ url_for("ativos.estornar", ativo_id=ativo.id, next_url=next_url) }}")'
+                style="background-color: #fee2e2; color: #dc2626; border: 1px solid #fecaca;">
+                Estornar Provisao
+            </button>
+            {% elif ativo.tipo == 'Investimento' %}
+            <a href="{{ url_for('ativos.recompra', ativo_id=ativo.id, next_url=next_url) }}" class="btn"
+                style="background-color: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd;">
+                Comprar Mais
+            </a>
+            <button class="btn"
+                onclick='confirmarEstornoAtivo({{ ativo.descricao|tojson }}, "{{ "{:,.2f}".format(ativo.valor_atual).replace(",", "X").replace(".", ",").replace("X", ".") }}", "{{ url_for("ativos.estornar", ativo_id=ativo.id, next_url=next_url) }}")'
+                style="background-color: #fee2e2; color: #dc2626; border: 1px solid #fecaca;">
+                Estornar Compra
+            </button>
+            <button class="btn"
+                onclick='abrirModalVenda({
+                    id: {{ ativo.id|tojson }},
+                    descricao: {{ ativo.descricao|tojson }},
+                    tipo: {{ ativo.tipo|tojson }},
+                    quantidade: {{ ativo.quantidade|string|tojson }},
+                    valor_unitario: {{ ativo.valor_unitario|string|tojson }}
+                })'
+                style="background-color: #dcfce7; color: #166534; border: 1px solid #bbf7d0;">
+                Vender
+            </button>
+            {% endif %}
+        </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
+        <div class="card" style="margin-bottom: 0;">
+            <span style="display: block; font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.4rem;">Valor Atual</span>
+            <strong style="font-size: 1.45rem;">R$ {{ "{:,.2f}".format(ativo.valor_atual or 0).replace(",", "X").replace(".", ",").replace("X", ".") }}</strong>
+        </div>
+        <div class="card" style="margin-bottom: 0;">
+            <span style="display: block; font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.4rem;">Data de Aquisicao</span>
+            <strong style="font-size: 1.1rem;">{{ ativo.data_aquisicao.strftime('%d/%m/%Y') if ativo.data_aquisicao else '-' }}</strong>
+        </div>
+        <div class="card" style="margin-bottom: 0;">
+            <span style="display: block; font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.4rem;">Quantidade</span>
+            <strong style="font-size: 1.1rem;">
+                {% if ativo.tipo == 'Investimento' %}
+                {{ "{:,.6f}".format(ativo.quantidade or 0).replace(",", "X").replace(".", ",").replace("X", ".").rstrip('0').rstrip(',') }}
+                {% else %}
+                -
+                {% endif %}
+            </strong>
+        </div>
+        <div class="card" style="margin-bottom: 0;">
+            <span style="display: block; font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.4rem;">Custo Medio</span>
+            <strong style="font-size: 1.1rem;">
+                {% if ativo.tipo == 'Investimento' %}
+                R$ {{ "{:,.2f}".format(ativo.valor_unitario or 0).replace(",", "X").replace(".", ",").replace("X", ".") }}
+                {% else %}
+                -
+                {% endif %}
+            </strong>
+        </div>
+    </div>
+
+    <div class="card" style="margin-bottom: 0;">
+        <h3 style="margin-top: 0; margin-bottom: 1rem;">Resumo do ativo</h3>
+        <div style="display: grid; grid-template-columns: minmax(180px, 220px) 1fr; gap: 0.9rem 1rem;">
+            <span style="color: var(--text-muted);">Descricao</span>
+            <strong>{{ ativo.descricao }}</strong>
+            <span style="color: var(--text-muted);">Tipo</span>
+            <strong>{{ ativo.tipo }}</strong>
+            <span style="color: var(--text-muted);">Conta contabil</span>
+            <strong>{{ ativo.conta_contabil.codigo ~ ' - ' ~ ativo.conta_contabil.nome if ativo.conta_contabil else '-' }}</strong>
+            <span style="color: var(--text-muted);">Numero da conta</span>
+            <strong>{{ ativo.numero_conta or '-' }}</strong>
+        </div>
+    </div>
+</div>
+
+<div id="modalEstorno"
+    style="display: none; position: fixed; z-index: 10000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); align-items: center; justify-content: center;">
+    <div class="card"
+        style="width: 400px; padding: 2rem; border-top: 5px solid var(--danger-color); box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
+        <h2 style="color: var(--danger-color); margin-bottom: 1rem;">Atencao</h2>
+        <p style="margin-bottom: 1.5rem; line-height: 1.5;">Deseja realmente <strong>estornar</strong> esta aquisicao de ativo?</p>
+
+        <div
+            style="background-color: #f8fafc; padding: 1rem; border-radius: 6px; margin-bottom: 2rem; border-left: 4px solid #cbd5e1;">
+            <p style="font-size: 0.9rem; color: #64748b; margin-bottom: 0.25rem;">Descricao:</p>
+            <p id="estornoDesc" style="font-weight: 600; margin-bottom: 0.75rem;"></p>
+            <p style="font-size: 0.9rem; color: #64748b; margin-bottom: 0.25rem;">Valor Atual:</p>
+            <p id="estornoValor" style="font-weight: 700; color: var(--danger-color); font-size: 1.2rem;">R$ 0,00</p>
+        </div>
+
+        <p style="font-size: 0.8rem; color: #ef4444; margin-bottom: 1.5rem; font-weight: 600;">
+            Esta acao excluira o ativo e todos os titulos financeiros vinculados.
+        </p>
+
+        <div style="display: flex; gap: 1rem;">
+            <a id="btnConfirmarEstorno" href="#" class="btn btn-danger"
+                style="flex-grow: 1; text-align: center; padding: 0.75rem;">Sim, estornar</a>
+            <button onclick="fecharModal()" class="btn"
+                style="flex-grow: 1; background-color: #e2e8f0; color: #475569;">Cancelar</button>
+        </div>
+    </div>
+</div>
+
+<div id="modalVenda"
+    style="display: none; position: fixed; z-index: 10000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); align-items: center; justify-content: center;">
+    <div class="card"
+        style="width: 500px; padding: 2rem; border-top: 5px solid #10b981; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
+        <h2 id="modalVendaTitle" style="color: var(--text-main); margin-bottom: 1.5rem;">Vender Ativo</h2>
+
+        <form id="formVenda" method="POST">
+            <input type="hidden" name="next_url" value="{{ next_url }}">
+            <div style="margin-bottom: 1.25rem;">
+                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Comprador</label>
+                <select name="comprador_id" required class="form-control">
+                    {% for c in compradores %}
+                    <option value="{{ c.id }}">{{ c.nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div style="margin-bottom: 1.25rem;">
+                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Data da Venda</label>
+                <input type="date" name="data_venda" required value="{{ today }}" class="form-control">
+            </div>
+
+            <div id="vendaInvestimentoFields" style="display: none;">
+                <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;" id="posicaoAtualMsg"></p>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.25rem;">
+                    <div>
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Qtde a Vender</label>
+                        <input type="number" step="0.000001" name="quantidade" id="venda_quantidade" class="form-control">
+                    </div>
+                    <div>
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Preco Unit. (R$)</label>
+                        <input type="number" step="0.01" name="valor_unitario" id="venda_valor_unitario" class="form-control">
+                    </div>
+                </div>
+            </div>
+
+            <div id="vendaImobilizadoFields" style="display: none;">
+                <div style="margin-bottom: 1.25rem;">
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Valor Total da Venda (R$)</label>
+                    <input type="number" step="0.01" name="valor_venda" id="venda_valor_total" class="form-control">
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.25rem;">
+                    <div>
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">No de Parcelas</label>
+                        <input type="number" name="num_parcelas" value="1" min="1" class="form-control">
+                    </div>
+                    <div>
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">1o Vencimento</label>
+                        <input type="date" name="data_primeiro_vencimento" class="form-control">
+                    </div>
+                </div>
+            </div>
+
+            <div style="margin-top: 2rem; display: flex; gap: 1rem;">
+                <button type="submit" class="btn btn-primary" style="flex-grow: 1; padding: 0.75rem;">Confirmar Venda</button>
+                <button type="button" onclick="fecharModalVenda()" class="btn"
+                    style="flex-grow: 1; background-color: var(--border-color); color: var(--text-muted);">Cancelar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    function abrirModalVenda(ativo) {
+        const modal = document.getElementById('modalVenda');
+        const form = document.getElementById('formVenda');
+        const title = document.getElementById('modalVendaTitle');
+        const investFields = document.getElementById('vendaInvestimentoFields');
+        const imobFields = document.getElementById('vendaImobilizadoFields');
+
+        title.innerText = `Vender Ativo: ${ativo.descricao}`;
+        form.action = `/ativos/venda/${ativo.id}`;
+
+        if (ativo.tipo === 'Investimento') {
+            investFields.style.display = 'block';
+            imobFields.style.display = 'none';
+            document.getElementById('posicaoAtualMsg').innerText = `Posicao: ${ativo.quantidade} un | Custo Medio: R$ ${ativo.valor_unitario}`;
+            document.getElementById('venda_quantidade').max = ativo.quantidade;
+            document.getElementById('venda_quantidade').required = true;
+            document.getElementById('venda_valor_unitario').required = true;
+            document.getElementById('venda_valor_total').required = false;
+        } else {
+            investFields.style.display = 'none';
+            imobFields.style.display = 'block';
+            document.getElementById('venda_valor_total').value = ativo.valor;
+            document.getElementById('venda_valor_total').required = true;
+            document.getElementById('venda_quantidade').required = false;
+            document.getElementById('venda_valor_unitario').required = false;
+        }
+
+        modal.style.display = 'flex';
+    }
+
+    function fecharModalVenda() {
+        document.getElementById('modalVenda').style.display = 'none';
+    }
+
+    function confirmarEstornoAtivo(desc, valor, url) {
+        document.getElementById('estornoDesc').innerText = desc;
+        document.getElementById('estornoValor').innerText = 'R$ ' + valor;
+        document.getElementById('btnConfirmarEstorno').href = url;
+        document.getElementById('modalEstorno').style.display = 'flex';
+    }
+
+    function fecharModal() {
+        document.getElementById('modalEstorno').style.display = 'none';
+    }
+
+    window.onclick = function (event) {
+        let modalEstorno = document.getElementById('modalEstorno');
+        let modalVenda = document.getElementById('modalVenda');
+        if (event.target == modalEstorno) fecharModal();
+        if (event.target == modalVenda) fecharModalVenda();
+    }
+</script>
+{% endblock %}
