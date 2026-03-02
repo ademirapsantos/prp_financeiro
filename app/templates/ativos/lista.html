@@ -91,6 +91,11 @@
                                     style="padding: 0.25rem 0.5rem; font-size: 0.8rem; background-color: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd;">
                                     Comprar Mais
                                 </a>
+                                <button class="btn"
+                                    style="padding: 0.25rem 0.5rem; font-size: 0.8rem; background-color: #fee2e2; color: #dc2626; border: 1px solid #fecaca;"
+                                    onclick='confirmarEstornoAtivo({{ a.id|tojson }}, {{ a.descricao|tojson }}, "{{ "{:,.2f}".format(a.valor_atual).replace(",", "X").replace(".", ",").replace("X", ".") }}", "{{ url_for("ativos.estornar", ativo_id=a.id) }}")'>
+                                    Estornar Compra
+                                </button>
                                 <button class="btn" onclick='abrirModalVenda({
                                     id: {{ a.id }},
                                     descricao: {{ a.descricao|tojson }},
