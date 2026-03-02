@@ -14,6 +14,12 @@ def lista():
     descricao = request.args.get('descricao', '')
     conta_contabil_id = request.args.get('conta_contabil_id', '')
     tipo = request.args.get('tipo', '')
+    tipos_com_totalizador = {
+        TipoAtivo.INVESTIMENTO.value,
+        TipoAtivo.IMOVEL.value,
+        TipoAtivo.VEICULO.value,
+        TipoAtivo.OUTROS.value,
+    }
 
     query = Ativo.query
 
@@ -25,6 +31,13 @@ def lista():
 
     if tipo:
         query = query.filter(Ativo.tipo == tipo)
+
+    totalizador_valor = None
+    if tipo in tipos_com_totalizador:
+        totalizador_valor = (
+            query.with_entities(func.coalesce(func.sum(Ativo.valor_atual), 0))
+            .scalar()
+        )
     
     pagination = query.order_by(Ativo.data_aquisicao.desc(), Ativo.id.desc()).paginate(page=page, per_page=per_page, error_out=False)
     ativos_raw = pagination.items
@@ -78,7 +91,9 @@ def lista():
                          tipos_ativo=TipoAtivo,
                          compradores=compradores,
                          today=today,
-                         filtros=filtros)
+                         filtros=filtros,
+                         mostrar_totalizador=tipo in tipos_com_totalizador,
+                         totalizador_valor=totalizador_valor)
 
 @ativos_bp.route('/novo', methods=['GET', 'POST'])
 def novo():

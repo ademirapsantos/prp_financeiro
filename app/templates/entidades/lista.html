@@ -8,10 +8,24 @@
         <a href="{{ url_for('entidades.nova') }}" class="btn btn-primary">+ Nova Entidade</a>
     </div>
 
+    <div class="card" style="margin-bottom: 1rem; padding: 0.5rem; flex-shrink: 0;">
+        <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+            {% for aba in abas_tipo %}
+            <a href="{{ url_for('entidades.lista', tipo=aba.value) }}"
+                class="btn {{ 'btn-primary' if aba.active else '' }}"
+                style="padding: 0.75rem 1rem; display: inline-flex; align-items: center; gap: 0.5rem; {% if not aba.active %}background: #f8fafc; color: #475569; border: 1px solid #e2e8f0;{% endif %}">
+                <span>{{ aba.label }}</span>
+                <span style="padding: 0.1rem 0.45rem; border-radius: 999px; font-size: 0.75rem; font-weight: 700; background: {{ '#ffffff33' if aba.active else '#e2e8f0' }}; color: inherit;">{{ aba.count }}</span>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+
     <!-- Barra de Filtros -->
     <div class="card" style="margin-bottom: 1rem; padding: 1.25rem; flex-shrink: 0;">
         <form action="{{ url_for('entidades.lista') }}" method="GET"
             style="display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap;">
+            <input type="hidden" name="tipo" value="{{ filtros.tipo }}">
             <div style="flex-grow: 1; min-width: 200px;">
                 <label
                     style="display: block; margin-bottom: 0.5rem; font-weight: 600; font-size: 0.85rem; color: var(--text-muted);">Buscar
@@ -20,22 +34,10 @@
                     style="width: 100%; padding: 0.6rem; border: 1px solid var(--border-color); border-radius: 6px;">
             </div>
 
-            <div style="width: 200px;">
-                <label
-                    style="display: block; margin-bottom: 0.5rem; font-weight: 600; font-size: 0.85rem; color: var(--text-muted);">Tipo</label>
-                <select name="tipo"
-                    style="width: 100%; padding: 0.6rem; border: 1px solid var(--border-color); border-radius: 6px;">
-                    <option value="">Todos os tipos</option>
-                    {% for t in tipos_entidade %}
-                    <option value="{{ t.value }}" {{ 'selected' if filtros.tipo==t.value }}>{{ t.value }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-
             <div style="display: flex; gap: 0.5rem;">
                 <button type="submit" class="btn btn-primary" style="padding: 0.6rem 1.5rem;">Filtrar</button>
-                {% if filtros.nome or filtros.tipo %}
-                <a href="{{ url_for('entidades.lista') }}" class="btn"
+                {% if filtros.nome %}
+                <a href="{{ url_for('entidades.lista', tipo=filtros.tipo) }}" class="btn"
                     style="background-color: #f1f5f9; color: #475569; padding: 0.6rem 1rem;">Limpar</a>
                 {% endif %}
             </div>
@@ -59,6 +61,7 @@
                         </tr>
                     </thead>
                     <tbody>
+                        {% if entidades %}
                         {% for e in entidades %}
                         <tr data-id="{{ e.id }}">
                             <td>{{ e.nome }}</td>
@@ -79,6 +82,13 @@
                             </td>
                         </tr>
                         {% endfor %}
+                        {% else %}
+                        <tr>
+                            <td colspan="6" style="padding: 2rem 1rem; text-align: center; color: var(--text-muted);">
+                                Nenhuma entidade encontrada para esta aba.
+                            </td>
+                        </tr>
+                        {% endif %}
                     </tbody>
                 </table>
             </div>
