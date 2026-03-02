@@ -541,7 +541,7 @@ def export_backup():
     from ..config import Config
     db_url = _to_pg_tools_uri(Config.get_sqlalchemy_uri())
 
-    temp_file = tempfile.NamedTemporaryFile(suffix='.sql', delete=False)
+    temp_file = tempfile.NamedTemporaryFile(suffix='.backup', delete=False)
     temp_file.close()
     dump_path = temp_file.name
 
@@ -550,9 +550,7 @@ def export_backup():
         cmd = [
             pg_dump_bin,
             '--dbname', db_url,
-            '--format=plain',
-            '--data-only',
-            '--inserts',
+            '--format=custom',
             '--no-owner',
             '--no-privileges',
             '--verbose',
@@ -574,10 +572,10 @@ def export_backup():
             memory_file = io.BytesIO(f.read())
         memory_file.seek(0)
 
-        filename = f"backup_prp_dados_{datetime.now().strftime('%Y%m%d_%H%M%S')}.sql"
+        filename = f"backup_prp_dados_{datetime.now().strftime('%Y%m%d_%H%M%S')}.backup"
         return send_file(
             memory_file,
-            mimetype='application/sql',
+            mimetype='application/octet-stream',
             as_attachment=True,
             download_name=filename
         )
@@ -630,6 +628,7 @@ def restore_backup():
                 psql_bin,
                 '--dbname', db_url,
                 '-v', 'ON_ERROR_STOP=1',
+                '--single-transaction',
                 '-f', temp_file.name,
             ]
         else:
