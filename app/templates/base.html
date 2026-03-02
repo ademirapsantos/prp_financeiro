@@ -522,11 +522,11 @@
                                 <strong>ATENÇÃO:</strong> O
                                 processo de restauração irá <strong>APAGAR TODOS OS DADOS ATUAIS</strong> e
                                 substituí-los
-                                pelo conteúdo do arquivo de backup PostgreSQL (.sql, .backup ou .dump).
+                                pelo conteúdo do arquivo de backup PostgreSQL (.backup, .dump ou .sql legado).
                             </p>
 
                             <div style="display: flex; gap: 1rem; align-items: center;">
-                                <input type="file" id="restore-file" accept=".backup,.dump,application/octet-stream"
+                                <input type="file" id="restore-file" accept=".backup,.dump,.sql,application/octet-stream,application/sql,text/plain"
                                     class="form-control"
                                     style="flex-grow: 1;">
                                 <button type="button" class="btn btn-danger" onclick="performRestore(event)">Restaurar Backup</button>
@@ -899,7 +899,7 @@
 
                     const blob = await res.blob();
                     const disposition = res.headers.get('Content-Disposition') || '';
-            let filename = `backup_prp_dados_${new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)}.sql`;
+            let filename = `backup_prp_dados_${new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)}.backup`;
                     const match = disposition.match(/filename="?([^"]+)"?/i);
                     if (match && match[1]) filename = match[1];
 
@@ -926,7 +926,7 @@
             }
             const fileInput = document.getElementById('restore-file');
             if (fileInput.files.length === 0) {
-                showToast("Selecione um arquivo de backup PostgreSQL (.sql, .backup ou .dump).", "warning");
+                showToast("Selecione um arquivo de backup PostgreSQL (.backup, .dump ou .sql legado).", "warning");
                 return false;
             }
 
