@@ -1,8 +1,8 @@
 {
-  "version": "1.4.42",
-  "latest_version": "1.4.42",
-  "tag": "dev-v1.4.42",
-  "commit": "f5e1b6c71a2049872bbac192f88a88a0dc8ad751",
-  "date": "2026-03-02T12:39:18Z",
+  "version": "1.4.43",
+  "latest_version": "1.4.43",
+  "tag": "dev-v1.4.43",
+  "commit": "24089d80b15ad9ed4ec20ae59d6e43586ef165b7",
+  "date": "2026-03-02T15:07:57Z",
   "environment": "dev"
 }
