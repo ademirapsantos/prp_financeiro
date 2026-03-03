@@ -1,38 +1,33 @@
 {% extends "base.html" %}
 
 {% block content %}
-<!-- Container Principal Flex que ocupa o espaço disponível -->
 <div style="display: flex; flex-direction: column; height: 100%; min-height: 0; gap: 1.5rem;">
-
-    <!-- Cabeçalho Fixo -->
     <div class="header" style="display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
         <div style="display: flex; align-items: center; gap: 1rem;">
             <h1 style="margin: 0;">Plano de Contas</h1>
         </div>
         <div style="display: flex; gap: 0.5rem; align-items: center;">
-            <a href="{{ url_for('main.balancete') }}" class="btn" style="background-color: #f1f5f9; color: #475569;">🧾
-                Balancete</a>
-            <a href="{{ url_for('main.diario') }}" class="btn" style="background-color: #f1f5f9; color: #475569;">📖
-                Diário</a>
+            <a href="{{ url_for('contas.exportar_csv') }}" class="btn" style="background-color: #f1f5f9; color: #475569;">Exportar</a>
+            <button type="button" class="btn" onclick="document.getElementById('importar-csv-input').click()"
+                style="background-color: #f1f5f9; color: #475569;">Importar</button>
+            <a href="{{ url_for('main.balancete') }}" class="btn" style="background-color: #f1f5f9; color: #475569;">Balancete</a>
+            <a href="{{ url_for('main.diario') }}" class="btn" style="background-color: #f1f5f9; color: #475569;">Diario</a>
             <button onclick="expandAll()" class="btn"
-                style="background-color: #f1f5f9; color: #475569; padding: 0.5rem 1rem; font-size: 0.8rem; border: 1px solid #e2e8f0;">↕
-                Expandir</button>
+                style="background-color: #f1f5f9; color: #475569; padding: 0.5rem 1rem; font-size: 0.8rem; border: 1px solid #e2e8f0;">Expandir</button>
             <button onclick="collapseAll()" class="btn"
-                style="background-color: #f1f5f9; color: #475569; padding: 0.5rem 1rem; font-size: 0.8rem; border: 1px solid #e2e8f0;">📂
-                Recolher</button>
+                style="background-color: #f1f5f9; color: #475569; padding: 0.5rem 1rem; font-size: 0.8rem; border: 1px solid #e2e8f0;">Recolher</button>
             <button onclick="openContaModal()" class="btn btn-primary"
                 style="white-space: nowrap; margin-left: 0.5rem;">+ Nova Conta</button>
         </div>
     </div>
 
-    <!-- ... (Barra de Filtros e Tabela permanecem iguais até as ações) ... -->
     <div class="card"
         style="padding: 1rem; flex-shrink: 0; background: white; border: 1px solid var(--border-color); border-radius: 8px;">
         <form method="GET" action="{{ url_for('contas.lista') }}"
             style="display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 1rem; align-items: end;">
             <div>
                 <label
-                    style="display: block; font-size: 0.8rem; font-weight: 600; color: #64748b; margin-bottom: 0.25rem;">Código</label>
+                    style="display: block; font-size: 0.8rem; font-weight: 600; color: #64748b; margin-bottom: 0.25rem;">Codigo</label>
                 <input type="text" name="codigo" value="{{ filtros.codigo }}" placeholder="Ex: 1.1"
                     style="width: 100%; padding: 0.5rem; border: 1px solid #e2e8f0; border-radius: 4px;">
             </div>
@@ -73,11 +68,11 @@
                 <thead
                     style="position: sticky; top: 0; z-index: 20; background-color: #f8fafc; border-bottom: 2px solid #e2e8f0;">
                     <tr style="text-align: left;">
-                        <th style="padding: 1rem; width: 140px;">Código</th>
+                        <th style="padding: 1rem; width: 140px;">Codigo</th>
                         <th style="padding: 1rem;">Nome</th>
                         <th style="padding: 1rem; width: 150px;">Tipo</th>
                         <th style="padding: 1rem; width: 120px;">Natureza</th>
-                        <th style="padding: 1rem; width: 100px; text-align: center;">Ações</th>
+                        <th style="padding: 1rem; width: 100px; text-align: center;">Acoes</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -98,8 +93,8 @@
                             style="padding: 0.75rem 1rem; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                             <div style="display: flex; align-items: center; margin-left: {{ (level - 1) * 24 }}px;">
                                 <span class="toggle-icon" onclick="toggleAccount(this, '{{ c.codigo }}')"
-                                    style="cursor: pointer; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; margin-right: 4px; border-radius: 4px; hover: background-color: #f1f5f9;">
-                                    ▼
+                                    style="cursor: pointer; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; margin-right: 4px; border-radius: 4px;">
+                                    v
                                 </span>
                                 {{ c.nome }}
                             </div>
@@ -123,24 +118,28 @@
     </div>
 </div>
 
-<!-- Modal de Conta -->
+<form id="importar-csv-form" method="POST" action="{{ url_for('contas.importar_csv') }}" enctype="multipart/form-data"
+    style="display: none;">
+    <input id="importar-csv-input" type="file" name="arquivo" accept=".csv,text/csv">
+</form>
+
 <div id="conta-modal" class="modal">
     <div class="modal-content" style="max-width: 600px;">
         <div class="modal-header">
-            <h2 id="conta-modal-title">Nova Conta Contábil</h2>
+            <h2 id="conta-modal-title">Nova Conta Contabil</h2>
             <span class="close-modal" onclick="closeContaModal()">&times;</span>
         </div>
         <div class="modal-body">
             <form id="conta-form" method="POST">
                 <div style="display: grid; grid-template-columns: 120px 1fr; gap: 1rem; margin-bottom: 1rem;">
                     <div>
-                        <label class="info-label">Código</label>
+                        <label class="info-label">Codigo</label>
                         <input type="text" name="codigo" id="modal-codigo" placeholder="1.1.01" required
                             class="form-control" style="width: 100%;">
                     </div>
                     <div>
                         <label class="info-label">Nome da Conta</label>
-                        <input type="text" name="nome" id="modal-nome" placeholder="Ex: Banco Itaú" required
+                        <input type="text" name="nome" id="modal-nome" placeholder="Ex: Banco Itau" required
                             class="form-control" style="width: 100%;">
                     </div>
                 </div>
@@ -211,14 +210,12 @@
         const form = document.getElementById('conta-form');
         const title = document.getElementById('conta-modal-title');
 
-        // Resetar form
         form.reset();
 
         if (id) {
             title.innerText = 'Editar Conta';
             form.action = `/contas/editar/${id}`;
 
-            // Buscar dados via API
             fetch(`/contas/api/${id}`)
                 .then(res => res.json())
                 .then(data => {
@@ -229,7 +226,7 @@
                     document.getElementById('modal-parent').value = data.parent_id || '';
                 });
         } else {
-            title.innerText = 'Nova Conta Contábil';
+            title.innerText = 'Nova Conta Contabil';
             form.action = "{{ url_for('contas.nova') }}";
         }
 
@@ -287,6 +284,14 @@
     }
 
     document.addEventListener('DOMContentLoaded', function () {
+        const importInput = document.getElementById('importar-csv-input');
+        importInput.addEventListener('change', function () {
+            if (!this.files || !this.files.length) {
+                return;
+            }
+            document.getElementById('importar-csv-form').submit();
+        });
+
         const rows = document.querySelectorAll('.account-row');
         rows.forEach(row => {
             const path = row.getAttribute('data-path');
@@ -297,7 +302,6 @@
             }
         });
 
-        // Fechar modal ao clicar fora
         window.onclick = function (event) {
             const modal = document.getElementById('conta-modal');
             if (event.target == modal) {
